@@ -1,0 +1,45 @@
+# EAS Build ignore file
+# Files and directories listed here will be excluded from EAS builds
+
+node_modules/
+.git/
+.expo/
+.expo-shared/
+dist/
+build/
+*.log
+.DS_Store
+.env.local
+.env.*.local
+coverage/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+DerivedData/
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+android/local.properties
+android/*.iml
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
