@@ -54,6 +54,7 @@ type VRMContextValue = {
   ensureInitialModelApplied: (webViewRef: React.MutableRefObject<any>) => Promise<void>;
   currentCharacter: CharacterState | null;
   setCurrentCharacterState: React.Dispatch<React.SetStateAction<CharacterState | null>>;
+  isModelDataReady: boolean;
 };
 
 const VRMContext = createContext<VRMContextValue | undefined>(undefined);
@@ -80,6 +81,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     null
   );
   const [hasAppliedInitialModel, setHasAppliedInitialModel] = useState(false);
+  const [isModelDataReady, setIsModelDataReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = authManager.subscribe(() => {
@@ -98,6 +100,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setInitialData(null);
       setInitialDataError(null);
       setHasAppliedInitialModel(false);
+      setIsModelDataReady(false);
     }
   }, [authSnapshot.session]);
 
@@ -183,7 +186,17 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           currentCharacter.id
         )) || {};
 
+      // Clear Persistence trước để tránh giá trị cũ gây load model random
+      await Persistence.setModelName('');
+      await Persistence.setModelURL('');
+      await Persistence.setBackgroundURL('');
+      await Persistence.setBackgroundName('');
+
+      // Seed persistence TRƯỚC khi set initialData để đảm bảo model đã được set vào Persistence
       await seedPersistenceSelections(currentCharacter, preference);
+      
+      // Đánh dấu model data đã sẵn sàng
+      setIsModelDataReady(true);
 
       setInitialData({
         character: currentCharacter,
@@ -198,6 +211,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         error instanceof Error ? error : new Error('Không thể tải dữ liệu ban đầu');
       setInitialDataError(normalized);
       setInitialData(null);
+      setIsModelDataReady(false);
     } finally {
       setInitialDataLoading(false);
     }
@@ -206,6 +220,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshInitialData = useCallback(async () => {
     setInitialData(null);
     setInitialDataError(null);
+    setIsModelDataReady(false);
     await bootstrapInitialData();
   }, [bootstrapInitialData]);
 
@@ -251,17 +266,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHasAppliedInitialModel(true);
       } catch (error) {
         console.error('[VRMProvider] Error applying initial model:', error);
-        if (webViewRef.current) {
-          webViewRef.current.injectJavaScript(`
-            (async()=>{
-              try {
-                await window.loadRandomFiles();
-              } catch(e) {
-                console.error('Failed to load random model:', e);
-              }
-            })();
-          `);
-        }
+        // Không load model random, chỉ log lỗi
       }
     },
     [initialData, hasAppliedInitialModel]
@@ -298,6 +303,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ensureInitialModelApplied,
       currentCharacter: currentCharacterState,
       setCurrentCharacterState,
+      isModelDataReady,
     }),
     [
       authSnapshot,
@@ -307,6 +313,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshInitialData,
       ensureInitialModelApplied,
       currentCharacterState,
+      isModelDataReady,
     ]
   );
 

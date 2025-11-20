@@ -15,6 +15,10 @@ import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import Button from '../Button';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const VCOIN_ICON = require('../../assets/images/VCoin.png');
+const RUBY_ICON = require('../../assets/images/Ruby.png');
 
 interface BackgroundSheetProps {
   isOpened: boolean;
@@ -151,7 +155,7 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
           </View>
 
           {/* Price Badges (Top-Left) */}
-          {!isOwned && (item.price_vcoin || item.price_ruby) ? (
+          {!isOwned && ((item.price_vcoin ?? 0) > 0 || (item.price_ruby ?? 0) > 0) ? (
             <View style={styles.priceBadgesContainer}>
               <PriceBadgesView vcoin={item.price_vcoin} ruby={item.price_ruby} />
             </View>
@@ -229,24 +233,38 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
 const ProBadge = ({ tier }: { tier?: string }) => {
   if (!tier || tier === 'free') return null;
   
+  const isUnlimited = tier === 'unlimited';
+  const gradientColors = isUnlimited
+    ? ['#A020F0', '#0000FF'] // purple to blue
+    : ['#FFA500', '#FFD700']; // orange to gold
+  
   return (
-    <View style={styles.proBadge}>
-      <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
-    </View>
+    <LinearGradient
+      colors={gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.proBadge}
+    >
+      <Text style={styles.proBadgeText}>
+        {isUnlimited ? 'Unlimited' : 'Pro'}
+      </Text>
+    </LinearGradient>
   );
 };
 
 const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number; ruby?: number }) => {
   return (
     <View style={styles.priceBadges}>
-      {vcoin ? (
+      {vcoin && vcoin > 0 ? (
         <View style={styles.priceBadge}>
-          <Text style={styles.priceBadgeText}>V {vcoin}</Text>
+          <Image source={VCOIN_ICON} style={styles.priceIcon} />
+          <Text style={styles.priceBadgeText}>{vcoin}</Text>
         </View>
       ) : null}
-      {ruby ? (
-        <View style={[styles.priceBadge, styles.rubyBadge]}>
-          <Text style={styles.priceBadgeText}>R {ruby}</Text>
+      {ruby && ruby > 0 ? (
+        <View style={styles.priceBadge}>
+          <Image source={RUBY_ICON} style={styles.priceIcon} />
+          <Text style={styles.priceBadgeText}>{ruby}</Text>
         </View>
       ) : null}
     </View>
@@ -255,7 +273,7 @@ const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number; ruby?: number }) => 
 
 const LockIcon = () => (
   <View style={styles.lockIconCircle}>
-    <Ionicons name="lock-closed" size={20} color="#fff" />
+    <Ionicons name="lock-closed" size={16} color="#fff" />
   </View>
 );
 
@@ -356,13 +374,17 @@ const styles = StyleSheet.create({
     right: 8,
   },
   proBadge: {
-    backgroundColor: '#FFD700',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   proBadgeText: {
-    color: '#000',
+    color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -372,19 +394,30 @@ const styles = StyleSheet.create({
     left: 8,
   },
   priceBadges: {
-    gap: 4,
+    flexDirection: 'row',
+    gap: 6,
   },
   priceBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  rubyBadge: {
-    backgroundColor: 'rgba(220, 20, 60, 0.8)',
+  priceIcon: {
+    width: 10,
+    height: 10,
+    resizeMode: 'contain',
   },
   priceBadgeText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -398,11 +431,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

@@ -183,6 +183,25 @@ We may update this Privacy Policy periodically. Continued use after changes indi
 For privacy inquiries or data requests, contact:
 
 **Email:** arthurbijan@gmail.com`,
+  eula: `# END USER LICENSE AGREEMENT – VIVIVI
+
+**Last Updated: 1 November 2025**
+
+## 1. License Grant
+
+Subject to your compliance with this End User License Agreement ("EULA"), VIVIVI ("we", "us", "our") grants you a limited, non‑exclusive, non‑transferable, non‑sublicensable license to download and use the App on devices you own or control solely for personal, non‑commercial purposes.
+
+## 2. Restrictions
+
+You may not copy, modify, distribute, sell, or lease the App or any portion of it. You may not reverse engineer, decompile, or disassemble the App.
+
+## 3. Intellectual Property
+
+The App and all related content are owned by or licensed to VIVIVI and are protected by intellectual property laws.
+
+## 4. Termination
+
+This EULA is effective until terminated. Your rights terminate automatically if you fail to comply with this EULA.`,
 };
 
 

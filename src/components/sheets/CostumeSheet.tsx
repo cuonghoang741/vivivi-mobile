@@ -15,17 +15,23 @@ import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import Button from '../Button';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const VCOIN_ICON = require('../../assets/images/VCoin.png');
+const RUBY_ICON = require('../../assets/images/Ruby.png');
 
 interface CostumeSheetProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (item: CostumeItem) => void;
+  characterId?: string;
 }
 
 export const CostumeSheet: React.FC<CostumeSheetProps> = ({
   visible,
   onClose,
   onSelect,
+  characterId,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,17 +49,19 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
       const costumeRepository = new CostumeRepository();
       const assetRepository = new AssetRepository();
 
+      const effectiveId = characterId || '74432746-0bab-4972-a205-9169bece07f9';
+
       // Fetch costumes and owned IDs in parallel
       const [costumes, ownedIds] = await Promise.all([
-        costumeRepository.fetchAllCostumes(),
-        assetRepository.fetchOwnedAssets('costume'),
+        costumeRepository.fetchCostumes(effectiveId),
+        assetRepository.fetchOwnedAssets('character_costume'),
       ]);
 
       console.log('📋 [CostumeSheet] Fetched costumes:', costumes.length);
       console.log('✅ [CostumeSheet] Owned costume IDs:', Array.from(ownedIds));
 
       // Filter available
-      const availableCostumes = costumes.filter((b) => b.available);
+      const availableCostumes = costumes.filter((c) => c.available);
       console.log('📋 [CostumeSheet] Available costumes:', availableCostumes.length);
 
       // Create a Set for easier lookup
@@ -74,7 +82,7 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
         return price1 - price2;
       });
 
-      const ownedCount = sorted.filter(b => ownedSet.has(b.id)).length;
+      const ownedCount = sorted.filter(c => ownedSet.has(c.id)).length;
       console.log(`📊 [CostumeSheet] Sorted: ${ownedCount} owned, ${sorted.length - ownedCount} unowned`);
 
       setItems(sorted);
@@ -84,12 +92,12 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [isLoading, characterId]);
 
   const fetchOwnedCostumes = useCallback(async () => {
     try {
       const assetRepository = new AssetRepository();
-      const ownedIds = await assetRepository.fetchOwnedAssets('costume');
+      const ownedIds = await assetRepository.fetchOwnedAssets('character_costume');
       setOwnedCostumeIds(new Set(ownedIds));
     } catch (error) {
       console.error('Failed to fetch owned costumes:', error);
@@ -110,12 +118,8 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
   const handleSelect = (item: CostumeItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const isOwned = ownedCostumeIds.has(item.id);
-    console.log(`🎯 [CostumeSheet] Selected: ${item.name}, owned: ${isOwned}`);
+    console.log(`🎯 [CostumeSheet] Selected: ${item.costume_name}, owned: ${isOwned}`);
     onSelect(item);
-    // Only dismiss if owned - let parent handle purchase flow for unowned items
-    if (isOwned) {
-      onClose();
-    }
   };
 
   const renderItem = ({ item }: { item: CostumeItem }) => {
@@ -145,13 +149,13 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
             <View style={[styles.darkenOverlay, { width: itemWidth, height: itemWidth }]} />
           )}
           
-          {/* Pro Badge */}
+          {/* Pro Badge - Top Right */}
           <View style={styles.proBadgeContainer}>
             <ProBadge tier={item.tier} />
           </View>
 
           {/* Price Badges (Top-Left) */}
-          {!isOwned && (item.price_vcoin || item.price_ruby) ? (
+          {!isOwned && ((item.price_vcoin ?? 0) > 0 || (item.price_ruby ?? 0) > 0) ? (
             <View style={styles.priceBadgesContainer}>
               <PriceBadgesView vcoin={item.price_vcoin} ruby={item.price_ruby} />
             </View>
@@ -166,7 +170,7 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
         </View>
         
         <Text style={styles.itemName} numberOfLines={1}>
-          {item.name}
+          {item.costume_name}
         </Text>
       </Pressable>
     );
@@ -229,24 +233,38 @@ export const CostumeSheet: React.FC<CostumeSheetProps> = ({
 const ProBadge = ({ tier }: { tier?: string }) => {
   if (!tier || tier === 'free') return null;
   
+  const isUnlimited = tier === 'unlimited';
+  const gradientColors = isUnlimited
+    ? ['#A020F0', '#0000FF'] // purple to blue
+    : ['#FFA500', '#FFD700']; // orange to gold
+  
   return (
-    <View style={styles.proBadge}>
-      <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
-    </View>
+    <LinearGradient
+      colors={gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.proBadge}
+    >
+      <Text style={styles.proBadgeText}>
+        {isUnlimited ? 'Unlimited' : 'Pro'}
+      </Text>
+    </LinearGradient>
   );
 };
 
 const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number; ruby?: number }) => {
   return (
     <View style={styles.priceBadges}>
-      {vcoin ? (
+      {vcoin && vcoin > 0 ? (
         <View style={styles.priceBadge}>
-          <Text style={styles.priceBadgeText}>V {vcoin}</Text>
+          <Image source={VCOIN_ICON} style={styles.priceIcon} />
+          <Text style={styles.priceBadgeText}>{vcoin}</Text>
         </View>
       ) : null}
-      {ruby ? (
-        <View style={[styles.priceBadge, styles.rubyBadge]}>
-          <Text style={styles.priceBadgeText}>R {ruby}</Text>
+      {ruby && ruby > 0 ? (
+        <View style={styles.priceBadge}>
+          <Image source={RUBY_ICON} style={styles.priceIcon} />
+          <Text style={styles.priceBadgeText}>{ruby}</Text>
         </View>
       ) : null}
     </View>
@@ -255,14 +273,14 @@ const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number; ruby?: number }) => 
 
 const LockIcon = () => (
   <View style={styles.lockIconCircle}>
-    <Ionicons name="lock-closed" size={20} color="#fff" />
+    <Ionicons name="lock-closed" size={16} color="#fff" />
   </View>
 );
 
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    costumeColor: '#1c1c1e',
+    backgroundColor: '#1c1c1e',
   },
   header: {
     flexDirection: 'row',
@@ -303,12 +321,12 @@ const styles = StyleSheet.create({
   imageContainer: {
     borderRadius: 14,
     overflow: 'hidden',
-    costumeColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     position: 'relative',
   },
   placeholder: {
     position: 'absolute',
-    costumeColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   image: {
     borderRadius: 14,
@@ -317,7 +335,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    costumeColor: 'rgba(0, 0, 0, 0.4)', // Simulates brightness(-0.2) + opacity(0.5)
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Simulates brightness(-0.2) + opacity(0.5)
     borderRadius: 14,
   },
   itemName: {
@@ -343,7 +361,7 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    costumeColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
   },
   retryButtonText: {
@@ -356,13 +374,17 @@ const styles = StyleSheet.create({
     right: 8,
   },
   proBadge: {
-    costumeColor: '#FFD700',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   proBadgeText: {
-    color: '#000',
+    color: '#fff',
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -372,19 +394,30 @@ const styles = StyleSheet.create({
     left: 8,
   },
   priceBadges: {
-    gap: 4,
+    flexDirection: 'row',
+    gap: 6,
   },
   priceBadge: {
-    costumeColor: 'rgba(0, 0, 0, 0.6)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  rubyBadge: {
-    costumeColor: 'rgba(220, 20, 60, 0.8)',
+  priceIcon: {
+    width: 10,
+    height: 10,
+    resizeMode: 'contain',
   },
   priceBadgeText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -398,11 +431,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    costumeColor: 'rgba(0, 0, 0, 0.5)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

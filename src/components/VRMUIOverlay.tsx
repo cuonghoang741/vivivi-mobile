@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
-  Pressable,
   StyleProp,
   StyleSheet,
   Text,
@@ -172,17 +171,17 @@ const CurrencyRow: React.FC<{
   const animatedAmount = useAnimatedNumber(amount);
 
   return (
-    <LiquidGlass style={styles.currencyTile}>
-      <Pressable
-        onPress={onPress}
-        android_ripple={{ color: "#ffffff10" }}
-        style={({ pressed }) => [styles.currencyRow, pressed && styles.pressed]}
-      >
+    <LiquidGlass
+      style={styles.currencyTile}
+      onPress={onPress}
+      pressable={!!onPress}
+    >
+      <View style={styles.currencyRow}>
         <Image source={icon} style={styles.currencyIcon} />
         <Text style={styles.currencyLabel}>
           {animatedAmount.toLocaleString("en-US")}
         </Text>
-      </Pressable>
+      </View>
     </LiquidGlass>
   );
 };
@@ -210,14 +209,14 @@ const GlassTile: React.FC<{
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }> = ({ children, onPress, style }) => (
-  <LiquidGlass style={[styles.glassTile, style]}>
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: "#ffffff15" }}
-      style={({ pressed }) => [styles.tileContent, pressed && styles.pressed]}
-    >
+  <LiquidGlass
+    style={[styles.glassTile, style]}
+    onPress={onPress}
+    pressable={!!onPress}
+  >
+    <View style={styles.tileContent}>
       {children}
-    </Pressable>
+    </View>
   </LiquidGlass>
 );
 

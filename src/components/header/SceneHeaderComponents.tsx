@@ -2,7 +2,6 @@ import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiquidGlass } from '../LiquidGlass';
-import HapticPressable from '../ui/HapticPressable';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -26,12 +25,15 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
   const relationshipLabel = relationshipName ?? 'Stranger';
 
   return (
-    <LiquidGlass style={styles.card}>
-      <HapticPressable
+    <LiquidGlass
+      style={styles.card}
+      onPress={onPress}
+      pressable={!!onPress}
+    >
+      <View
+        style={styles.cardContent}
         accessibilityRole="button"
         accessibilityLabel="Mở thông tin nhân vật"
-        style={({ pressed }) => [styles.cardContent, pressed && styles.pressed]}
-        onPress={onPress}
       >
         <View style={styles.avatarWrapper}>
           {avatarUri ? (
@@ -59,7 +61,7 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
             </View>
           </View>
         </View>
-      </HapticPressable>
+      </View>
     </LiquidGlass>
   );
 };
@@ -80,15 +82,16 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
   return (
     <LiquidGlass
       style={[styles.iconContainer, active && styles.iconContainerActive]}
+      onPress={onPress}
+      pressable={!!onPress}
     >
-      <HapticPressable
-        onPress={onPress}
+      <View
+        style={styles.iconButton}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
       >
         <Ionicons name={iconName} size={16} color="#fff" />
-      </HapticPressable>
+      </View>
     </LiquidGlass>
   );
 };

@@ -24,11 +24,16 @@ import { UserPreferencesService } from './src/services/UserPreferencesService';
 import { UserCharacterPreferenceService } from './src/services/UserCharacterPreferenceService';
 import { VRMProvider, useVRMContext } from './src/context/VRMContext';
 import { CurrencyPurchaseSheet } from './src/components/purchase/CurrencyPurchaseSheet';
+import LoginRewardSheet from './src/components/sheets/LoginRewardSheet';
 import { BackgroundSheet } from './src/components/sheets/BackgroundSheet';
+import { CostumeSheet } from './src/components/sheets/CostumeSheet';
 import { CharacterSheet } from './src/components/sheets/CharacterSheet';
 import { BackgroundItem } from './src/repositories/BackgroundRepository';
 import { CharacterItem } from './src/repositories/CharacterRepository';
+import { CostumeItem } from './src/repositories/CostumeRepository';
 import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
+import { PurchaseService, PurchaseError, PurchaseErrorCode } from './src/services/PurchaseService';
+import { useLoginRewards } from './src/hooks/useLoginRewards';
 
 type RootStackParamList = {
   Experience: undefined;
@@ -44,6 +49,26 @@ const LEGAL_URLS = {
   eula: 'https://vivivi.ai/eula',
 };
 
+type PendingPurchase =
+  | {
+      type: 'character';
+      item: CharacterItem;
+      useVcoin: boolean;
+      useRuby: boolean;
+    }
+  | {
+      type: 'background';
+      item: BackgroundItem;
+      useVcoin: boolean;
+      useRuby: boolean;
+    }
+  | {
+      type: 'costume';
+      item: CostumeItem;
+      useVcoin: boolean;
+      useRuby: boolean;
+    };
+
 const AppContent = () => {
   const {
     authState,
@@ -54,6 +79,7 @@ const AppContent = () => {
     ensureInitialModelApplied,
     currentCharacter,
     setCurrentCharacterState,
+    isModelDataReady,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
 
@@ -72,10 +98,27 @@ const AppContent = () => {
   const [showNewUserGift, setShowNewUserGift] = useState(false);
   const [showCurrencySheet, setShowCurrencySheet] = useState(false);
   const [showBackgroundSheet, setShowBackgroundSheet] = useState(false);
+  const [showCostumeSheet, setShowCostumeSheet] = useState(false);
   const [showCharacterSheet, setShowCharacterSheet] = useState(false);
+  const [showLoginRewardSheet, setShowLoginRewardSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats } = useUserStats();
   const { balance: currencyBalance, refresh: refreshCurrency } = useCurrencyBalance();
+  const loginRewards = useLoginRewards({
+    onClaimSuccess: async () => {
+      await Promise.all([refreshCurrency(), refreshStats()]);
+    },
+  });
+  const loginRewardStatus = loginRewards.status;
+  const purchaseServiceRef = useRef<PurchaseService | null>(null);
+  const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(null);
+
+  const getPurchaseService = useCallback(() => {
+    if (!purchaseServiceRef.current) {
+      purchaseServiceRef.current = new PurchaseService();
+    }
+    return purchaseServiceRef.current;
+  }, []);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isCameraModeOn, setIsCameraModeOn] = useState(false);
   const handleAgentReply = useCallback((text: string) => {
@@ -97,13 +140,315 @@ const AppContent = () => {
     toggleChatListInternal();
   };
 
+  useEffect(() => {
+    setOverlayFlags(prev => ({
+      ...prev,
+      canClaimCalendar: loginRewardStatus.canClaimToday,
+    }));
+  }, [loginRewardStatus.canClaimToday]);
+
   const handleCurrencyPress = useCallback(() => {
     setShowCurrencySheet(true);
   }, []);
 
+  const resolveItemPrices = useCallback(
+    (
+      item: { price_vcoin?: number | null; price_ruby?: number | null },
+      preference?: { useVcoin: boolean; useRuby: boolean }
+    ) => {
+      const baseVcoin = Math.max(0, item.price_vcoin ?? 0);
+      const baseRuby = Math.max(0, item.price_ruby ?? 0);
+      return {
+        vcoin: preference ? (preference.useVcoin ? baseVcoin : 0) : baseVcoin,
+        ruby: preference ? (preference.useRuby ? baseRuby : 0) : baseRuby,
+      };
+    },
+    []
+  );
+
+  const purchaseItemWithCurrency = useCallback(
+    async (options: {
+      itemId: string;
+      itemType: string;
+      priceVcoin: number;
+      priceRuby: number;
+      pendingPayload: PendingPurchase;
+    }): Promise<boolean> => {
+      const { itemId, itemType, priceVcoin, priceRuby, pendingPayload } = options;
+      try {
+        const service = getPurchaseService();
+        await service.purchaseWithCurrency({
+          itemId,
+          itemType,
+          priceVcoin,
+          priceRuby,
+        });
+        setPendingPurchase(null);
+        await refreshCurrency();
+        return true;
+      } catch (error) {
+        if (
+          error instanceof PurchaseError &&
+          (error.code === PurchaseErrorCode.INSUFFICIENT_VCOIN ||
+            error.code === PurchaseErrorCode.INSUFFICIENT_RUBY)
+        ) {
+          setPendingPurchase(pendingPayload);
+          setShowCurrencySheet(true);
+          Alert.alert('Not enough currency', 'Top up to continue this purchase.');
+        } else {
+          const message = error instanceof Error ? error.message : undefined;
+          console.error('❌ Purchase failed:', error);
+          Alert.alert('Purchase failed', message ?? 'Please try again later.');
+        }
+        return false;
+      }
+    },
+    [getPurchaseService, refreshCurrency]
+  );
+
+  const applyBackground = useCallback(
+    async (backgroundId: string, ownedSet?: Set<string>) => {
+      if (!currentCharacter) {
+        Alert.alert('No character selected', 'Please select a character first.');
+        return;
+      }
+      const ownedBackgrounds =
+        ownedSet ?? (await new AssetRepository().fetchOwnedAssets('background'));
+      await UserCharacterPreferenceService.applyBackgroundById(
+        backgroundId,
+        webViewRef,
+        ownedBackgrounds
+      );
+      await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+        current_background_id: backgroundId,
+      });
+    },
+    [currentCharacter]
+  );
+
+  const applyCostume = useCallback(
+    async (costumeId: string) => {
+      if (!currentCharacter) {
+        Alert.alert('No character selected', 'Please select a character first.');
+        return;
+      }
+      await UserCharacterPreferenceService.applyCostumeById(costumeId, webViewRef);
+      await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+        current_costume_id: costumeId,
+      });
+    },
+    [currentCharacter]
+  );
+
+  const applyCharacter = useCallback(
+    async (item: CharacterItem) => {
+      try {
+        setCurrentCharacterState({
+          id: item.id,
+          name: item.name,
+          avatar: item.avatar || item.thumbnail_url,
+          relationshipName: 'Stranger',
+          relationshipProgress: 0,
+        });
+
+        const userPrefsService = new UserPreferencesService();
+        await userPrefsService.saveCurrentCharacterId(item.id);
+
+        if (item.base_model_url) {
+          await UserCharacterPreferenceService.loadFallbackModel(
+            item.name,
+            item.base_model_url,
+            webViewRef
+          );
+        }
+
+        await refreshInitialData();
+      } catch (error) {
+        console.error('❌ Error applying character:', error);
+      }
+    },
+    [refreshInitialData, setCurrentCharacterState]
+  );
+
+  const processCharacterSelection = useCallback(
+    async (item: CharacterItem, preference?: { useVcoin: boolean; useRuby: boolean }) => {
+      try {
+        const assetRepo = new AssetRepository();
+        const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
+        if (ownedCharacterIds.has(item.id)) {
+          await applyCharacter(item);
+          return;
+        }
+
+        const { vcoin: priceVcoin, ruby: priceRuby } = resolveItemPrices(item, preference);
+        if (priceVcoin === 0 && priceRuby === 0) {
+          const success = await assetRepo.createAsset(item.id, 'character');
+          if (success) {
+            await applyCharacter(item);
+          }
+          return;
+        }
+
+        const purchaseSucceeded = await purchaseItemWithCurrency({
+          itemId: item.id,
+          itemType: 'character',
+          priceVcoin,
+          priceRuby,
+          pendingPayload: {
+            type: 'character',
+            item,
+            useVcoin: priceVcoin > 0,
+            useRuby: priceRuby > 0,
+          },
+        });
+
+        if (purchaseSucceeded) {
+          await applyCharacter(item);
+          Alert.alert('Character unlocked', `${item.name} is now available.`);
+        }
+      } catch (error) {
+        console.error('❌ Error selecting character:', error);
+        Alert.alert('Error', 'Failed to select character');
+      }
+    },
+    [applyCharacter, purchaseItemWithCurrency, resolveItemPrices]
+  );
+
+  const processBackgroundSelection = useCallback(
+    async (item: BackgroundItem, preference?: { useVcoin: boolean; useRuby: boolean }) => {
+      try {
+        const assetRepo = new AssetRepository();
+        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        if (ownedBackgroundIds.has(item.id)) {
+          await applyBackground(item.id, ownedBackgroundIds);
+          return;
+        }
+
+        const { vcoin: priceVcoin, ruby: priceRuby } = resolveItemPrices(item, preference);
+        if (priceVcoin === 0 && priceRuby === 0) {
+          const success = await assetRepo.createAsset(item.id, 'background');
+          if (success) {
+            const updatedOwned = await assetRepo.fetchOwnedAssets('background');
+            await applyBackground(item.id, updatedOwned);
+          }
+          return;
+        }
+
+        const purchaseSucceeded = await purchaseItemWithCurrency({
+          itemId: item.id,
+          itemType: 'background',
+          priceVcoin,
+          priceRuby,
+          pendingPayload: {
+            type: 'background',
+            item,
+            useVcoin: priceVcoin > 0,
+            useRuby: priceRuby > 0,
+          },
+        });
+
+        if (purchaseSucceeded) {
+          const updatedOwned = await assetRepo.fetchOwnedAssets('background');
+          await applyBackground(item.id, updatedOwned);
+          Alert.alert('Background applied', `${item.name} has been set.`);
+        }
+      } catch (error) {
+        console.error('❌ Error selecting background:', error);
+        Alert.alert('Error', 'Failed to select background');
+      }
+    },
+    [applyBackground, purchaseItemWithCurrency, resolveItemPrices]
+  );
+
+  const processCostumeSelection = useCallback(
+    async (item: CostumeItem, preference?: { useVcoin: boolean; useRuby: boolean }) => {
+      if (!currentCharacter) {
+        Alert.alert('No character selected', 'Please select a character first.');
+        return;
+      }
+      try {
+        const assetRepo = new AssetRepository();
+        const ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+        if (ownedCostumeIds.has(item.id)) {
+          await applyCostume(item.id);
+          return;
+        }
+
+        const { vcoin: priceVcoin, ruby: priceRuby } = resolveItemPrices(item, preference);
+        if (priceVcoin === 0 && priceRuby === 0) {
+          const success = await assetRepo.createAsset(item.id, 'character_costume');
+          if (success) {
+            await applyCostume(item.id);
+          }
+          return;
+        }
+
+        const purchaseSucceeded = await purchaseItemWithCurrency({
+          itemId: item.id,
+          itemType: 'character_costume',
+          priceVcoin,
+          priceRuby,
+          pendingPayload: {
+            type: 'costume',
+            item,
+            useVcoin: priceVcoin > 0,
+            useRuby: priceRuby > 0,
+          },
+        });
+
+        if (purchaseSucceeded) {
+          await applyCostume(item.id);
+          Alert.alert('Costume equipped', `${item.costume_name} is ready!`);
+        }
+      } catch (error) {
+        console.error('❌ Error selecting costume:', error);
+        Alert.alert('Error', 'Failed to select costume');
+      }
+    },
+    [applyCostume, currentCharacter, purchaseItemWithCurrency, resolveItemPrices]
+  );
+
+  const resumePendingPurchase = useCallback(async () => {
+    if (!pendingPurchase) {
+      return;
+    }
+    const pending = pendingPurchase;
+    setPendingPurchase(null);
+    switch (pending.type) {
+      case 'character':
+        await processCharacterSelection(pending.item, {
+          useVcoin: pending.useVcoin,
+          useRuby: pending.useRuby,
+        });
+        break;
+      case 'background':
+        await processBackgroundSelection(pending.item, {
+          useVcoin: pending.useVcoin,
+          useRuby: pending.useRuby,
+        });
+        break;
+      case 'costume':
+        await processCostumeSelection(pending.item, {
+          useVcoin: pending.useVcoin,
+          useRuby: pending.useRuby,
+        });
+        break;
+      default:
+        break;
+    }
+  }, [pendingPurchase, processBackgroundSelection, processCharacterSelection, processCostumeSelection]);
+
   const handleCurrencyPurchaseComplete = useCallback(() => {
-    refreshCurrency();
-  }, [refreshCurrency]);
+    refreshCurrency().finally(() => {
+      void resumePendingPurchase();
+    });
+  }, [refreshCurrency, resumePendingPurchase]);
+
+  useEffect(() => {
+    if (showLoginRewardSheet) {
+      void loginRewards.refresh();
+    }
+  }, [loginRewards.refresh, showLoginRewardSheet]);
 
   const handleOpenSettings = useCallback(() => {
     setShowSettings(true);
@@ -134,119 +479,24 @@ const AppContent = () => {
   }, []);
 
   const handleCharacterSelect = useCallback(
-    async (item: CharacterItem) => {
-      try {
-        const assetRepo = new AssetRepository();
-        const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
-        const isOwned = ownedCharacterIds.has(item.id);
-
-        if (isOwned) {
-          // Character is owned - apply directly
-          console.log(`✅ Character ${item.name} is owned - applying`);
-          
-          // Update current character state
-          setCurrentCharacterState({
-            id: item.id,
-            name: item.name,
-            avatar: item.avatar || item.thumbnail_url,
-            relationshipName: 'Stranger',
-            relationshipProgress: 0,
-          });
-
-          // Save preference
-          const userPrefsService = new UserPreferencesService();
-          await userPrefsService.saveCurrentCharacterId(item.id);
-
-          // Apply character model
-          if (item.base_model_url) {
-            await UserCharacterPreferenceService.loadFallbackModel(
-              item.name,
-              item.base_model_url,
-              webViewRef
-            );
-          }
-
-          // Refresh initial data to get character preferences
-          await refreshInitialData();
-        } else {
-          // Not owned - show purchase flow (placeholder)
-          Alert.alert(
-            'Purchase Character',
-            `This character costs ${item.price_vcoin || 0} VCoin and ${item.price_ruby || 0} Ruby.\n\nPurchase flow coming soon!`
-          );
-        }
-      } catch (error) {
-        console.error('❌ Error selecting character:', error);
-        Alert.alert('Error', 'Failed to select character');
-      }
+    (item: CharacterItem) => {
+      void processCharacterSelection(item);
     },
-    [setCurrentCharacterState, refreshInitialData]
+    [processCharacterSelection]
   );
 
   const handleBackgroundSelect = useCallback(
-    async (item: BackgroundItem) => {
-      try {
-        const assetRepo = new AssetRepository();
-        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
-
-        if (ownedBackgroundIds.has(item.id)) {
-          // Background is owned - apply directly
-          console.log(`✅ Background ${item.name} is owned - proceeding directly`);
-          if (currentCharacter) {
-            await UserCharacterPreferenceService.applyBackgroundById(
-              item.id,
-              webViewRef,
-              ownedBackgroundIds
-            );
-            await UserCharacterPreferenceService.saveUserCharacterPreference(
-              currentCharacter.id,
-              { current_background_id: item.id }
-            );
-          }
-        } else {
-          // Not owned - check if free or paid
-          const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-          if (isFree) {
-            // Auto-add free background
-            const success = await assetRepo.createAsset(item.id, 'background');
-            if (success) {
-              console.log('✅ Auto-added free background:', item.name);
-              // Refresh owned assets and apply
-              const newOwned = await assetRepo.fetchOwnedAssets('background');
-              if (currentCharacter) {
-                await UserCharacterPreferenceService.applyBackgroundById(
-                  item.id,
-                  webViewRef,
-                  newOwned
-                );
-                await UserCharacterPreferenceService.saveUserCharacterPreference(
-                  currentCharacter.id,
-                  { current_background_id: item.id }
-                );
-              }
-            } else {
-              console.error('❌ Failed to auto-add free background');
-            }
-          } else {
-            // Paid background - dismiss sheet first, then show purchase flow
-            setShowBackgroundSheet(false);
-            // Small delay to ensure sheet dismisses before showing alert
-            setTimeout(() => {
-              // TODO: Implement purchase flow for paid backgrounds
-              // Will need to check subscription tier and show appropriate purchase sheet
-              console.log('💰 Purchasing paid backgrounds not yet implemented');
-              Alert.alert(
-                'Purchase Background',
-                `This background costs ${item.price_vcoin || 0} VCoin and ${item.price_ruby || 0} Ruby.\n\nPurchase flow coming soon!`
-              );
-            }, 200);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error selecting background:', error);
-      }
+    (item: BackgroundItem) => {
+      void processBackgroundSelection(item);
     },
-    [currentCharacter]
+    [processBackgroundSelection]
+  );
+
+  const handleCostumeSelect = useCallback(
+    (item: CostumeItem) => {
+      void processCostumeSelection(item);
+    },
+    [processCostumeSelection]
   );
 
   useEffect(() => {
@@ -314,7 +564,7 @@ const AppContent = () => {
 
   const shouldShowOnboarding = hasRestoredSession && !session;
   const shouldWaitForInitialData =
-    !!session && (!initialData || initialDataLoading || !!initialDataError);
+    !!session && (!initialData || initialDataLoading || !!initialDataError || !isModelDataReady);
   const showMainExperience =
     hasRestoredSession &&
     !!session &&
@@ -622,9 +872,9 @@ const AppContent = () => {
           onEnergyPress={() => console.log('⚡ Energy sheet placeholder')}
           onCurrencyPress={handleCurrencyPress}
           onBackgroundPress={() => setShowBackgroundSheet(true)}
-          onCostumePress={() => console.log('👗 Costume sheet placeholder')}
+          onCostumePress={() => setShowCostumeSheet(true)}
           onQuestPress={() => console.log('🏁 Quest sheet placeholder')}
-          onCalendarPress={() => console.log('📅 Calendar sheet placeholder')}
+          onCalendarPress={() => setShowLoginRewardSheet(true)}
           onToggleChatList={handleOverlayChatToggle}
         />
         <View pointerEvents="box-none" style={styles.chatOverlay}>
@@ -656,12 +906,34 @@ const AppContent = () => {
           onClose={() => setShowCurrencySheet(false)}
           onPurchaseComplete={handleCurrencyPurchaseComplete}
         />
+        <LoginRewardSheet
+          visible={showLoginRewardSheet}
+          onClose={() => setShowLoginRewardSheet(false)}
+          rewards={loginRewards.rewards}
+          currentDay={loginRewards.status.currentDay}
+          canClaimToday={loginRewards.status.canClaimToday}
+          hasClaimedToday={loginRewards.status.hasClaimedToday}
+          loading={loginRewards.loading}
+          claiming={loginRewards.claiming}
+          onRefresh={loginRewards.refresh}
+          onClaim={async () => {
+            await loginRewards.claimToday();
+          }}
+        />
         <BackgroundSheet
           isOpened={showBackgroundSheet}
           onIsOpenedChange={setShowBackgroundSheet}
           onSelect={(item) => {
             void handleBackgroundSelect(item);
           }}
+        />
+        <CostumeSheet
+          visible={showCostumeSheet}
+          onClose={() => setShowCostumeSheet(false)}
+          onSelect={(item) => {
+            void handleCostumeSelect(item);
+          }}
+          characterId={currentCharacter?.id}
         />
         <CharacterSheet
           isOpened={showCharacterSheet}

@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Linking,
   Modal,
@@ -14,6 +16,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PersistKeys } from '../config/supabase';
+
+const HERO_IMAGE_URL = 'https://pub-14a49f54cd754145a7362876730a1a52.r2.dev/login.png';
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
 
@@ -43,6 +47,8 @@ export const OnboardingScreen: React.FC<Props> = ({
   const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
 
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     let isMounted = true;
     const loadAgeFlag = async () => {
@@ -62,6 +68,16 @@ export const OnboardingScreen: React.FC<Props> = ({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    heroOpacity.setValue(0);
+    Animated.timing(heroOpacity, {
+      toValue: 1,
+      duration: 1200,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [heroOpacity]);
 
   const handleLegalPress = useCallback(
     async (doc: LegalDocument) => {
@@ -151,8 +167,20 @@ export const OnboardingScreen: React.FC<Props> = ({
   }, []);
 
   return (
-    <LinearGradient colors={['#09021C', '#1F1144']} style={styles.container}>
-      <View style={styles.blurLayer} />
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#000000', '#050505', '#08070f']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Animated.Image
+        source={{ uri: HERO_IMAGE_URL }}
+        resizeMode="cover"
+        style={[styles.heroImage, { opacity: heroOpacity }]}
+      />
+      <View style={styles.heroOverlay} />
+
       <View style={styles.content}>
         <View style={styles.logoBlock}>
           {heroSource ? (
@@ -168,10 +196,10 @@ export const OnboardingScreen: React.FC<Props> = ({
 
         <View style={styles.buttonArea}>
           <TouchableOpacity
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             disabled={disableAuthButtons}
-            style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
             onPress={handleApplePress}
+            style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
           >
             {showAppleSpinner ? (
               <ActivityIndicator color="#fff" />
@@ -182,12 +210,13 @@ export const OnboardingScreen: React.FC<Props> = ({
               </>
             )}
           </TouchableOpacity>
+
           {onSignInWithGoogle ? (
             <TouchableOpacity
-              activeOpacity={0.85}
+              activeOpacity={0.9}
               disabled={disableAuthButtons}
-              style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
               onPress={handleGooglePress}
+              style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
             >
               {showGoogleSpinner ? (
                 <ActivityIndicator color="#05030D" />
@@ -247,35 +276,41 @@ export const OnboardingScreen: React.FC<Props> = ({
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#05030D',
-    justifyContent: 'center',
+    backgroundColor: '#000',
   },
-  blurLayer: {
+  heroImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+    opacity: 0.18,
+  },
+  heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.15,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingBottom: 52,
+    justifyContent: 'flex-end',
   },
   logoBlock: {
     alignItems: 'center',
     marginBottom: 48,
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 16,
+    width: 110,
+    height: 110,
+    marginBottom: 18,
   },
   logoFallback: {
     fontSize: 72,
@@ -307,10 +342,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.35)',
     paddingVertical: 16,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -331,15 +369,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 18,
     paddingVertical: 16,
-    paddingHorizontal: 12,
     backgroundColor: '#fff',
-    marginTop: 12,
+    marginTop: 14,
   },
   googleIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     alignItems: 'center',
@@ -434,5 +471,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
-

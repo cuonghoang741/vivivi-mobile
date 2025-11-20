@@ -1183,54 +1183,10 @@ window.addEventListener('DOMContentLoaded', async function() {
         if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
     }
     
-    // Allow native (Swift) to preselect a model name or URL for later, but do not auto-load here.
-    // Swift will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
-    const nativeName = (typeof window.nativeSelectedModelName === 'string' && window.nativeSelectedModelName.trim().length) ? window.nativeSelectedModelName.trim() : null;
-    const nativeURL = (typeof window.nativeSelectedModelURL === 'string' && window.nativeSelectedModelURL.trim().length) ? window.nativeSelectedModelURL.trim() : null;
-    
-    // Auto-load model if provided (for React Native version)
-    if (nativeName) {
-        try {
-            console.log('📦 Loading model by name:', nativeName);
-            await window.loadModelByName(nativeName);
-        } catch (e) {
-            console.error('Failed to load model by name:', e);
-            // Fallback to random model on error
-            try {
-                console.log('🔄 Falling back to random model...');
-                await window.loadRandomFiles();
-            } catch (e2) {
-                console.error('Failed to load random model:', e2);
-                if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-            }
-        }
-    } else if (nativeURL) {
-        try {
-            console.log('📦 Loading model by URL:', nativeURL);
-            await window.loadModelByURL(nativeURL);
-        } catch (e) {
-            console.error('Failed to load model by URL:', e);
-            // Fallback to random model on error
-            try {
-                console.log('🔄 Falling back to random model...');
-                await window.loadRandomFiles();
-            } catch (e2) {
-                console.error('Failed to load random model:', e2);
-                if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-            }
-        }
-    } else {
-        // If no model selected, load a random model automatically
-        // This ensures VRM is visible on screen
-        try {
-            console.log('🎲 No model selected, loading random model...');
-            await window.loadRandomFiles();
-        } catch (e) {
-            console.error('Failed to load random model:', e);
-            // If random load fails, mark animation as ready anyway
-            if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-        }
-    }
+    // Allow native (Swift/React Native) to preselect a model name or URL for later, but do not auto-load here.
+    // Native will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
+    // Intentionally no auto-load based on nativeName/nativeURL to avoid double-loading with native-side logic.
+    // No default character loading - wait for native to explicitly load a model
     
     // No HTML-side BGM initialization
 });
