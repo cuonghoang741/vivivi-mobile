@@ -1,13 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking } from 'react-native';
-import type { Session } from '@supabase/supabase-js';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { VRMWebView } from './src/components/VRMWebView';
 import { VRMUIOverlay } from './src/components/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
 import { SwiftUIDemoScreen } from './src/screens/SwiftUIDemoScreen';
-import { CharacterRepository } from './src/repositories/CharacterRepository';
-import { BackgroundRepository } from './src/repositories/BackgroundRepository';
+import { InitialLoadingScreen } from './src/components/InitialLoadingScreen';
 import { useUserStats } from './src/hooks/useUserStats';
 import { useCurrencyBalance } from './src/hooks/useCurrencyBalance';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -19,16 +19,24 @@ import { ChatHistoryModal } from './src/components/chat/ChatHistoryModal';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { useChatManager } from './src/hooks/useChatManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PersistKeys } from './src/config/supabase';
-import { AssetRepository } from './src/repositories/AssetRepository';
+import AssetRepository from './src/repositories/AssetRepository';
+import { UserPreferencesService } from './src/services/UserPreferencesService';
+import { UserCharacterPreferenceService } from './src/services/UserCharacterPreferenceService';
+import { VRMProvider, useVRMContext } from './src/context/VRMContext';
+import { CurrencyPurchaseSheet } from './src/components/purchase/CurrencyPurchaseSheet';
+import { BackgroundSheet } from './src/components/sheets/BackgroundSheet';
+import { CharacterSheet } from './src/components/sheets/CharacterSheet';
+import { BackgroundItem } from './src/repositories/BackgroundRepository';
+import { CharacterItem } from './src/repositories/CharacterRepository';
+import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
 
-type AuthSnapshot = {
-  session: Session | null;
-  isGuest: boolean;
-  isLoading: boolean;
-  errorMessage: string | null;
-  hasRestoredSession: boolean;
+type RootStackParamList = {
+  Experience: undefined;
 };
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+type ExperienceNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Experience'>;
 
 const LEGAL_URLS = {
   terms: 'https://vivivi.ai/terms',
@@ -36,7 +44,20 @@ const LEGAL_URLS = {
   eula: 'https://vivivi.ai/eula',
 };
 
-export default function App() {
+const AppContent = () => {
+  const {
+    authState,
+    initialData,
+    initialDataLoading,
+    initialDataError,
+    refreshInitialData,
+    ensureInitialModelApplied,
+    currentCharacter,
+    setCurrentCharacterState,
+  } = useVRMContext();
+  const { session, isLoading, errorMessage, hasRestoredSession } = authState;
+
+  const navigation = useNavigation<ExperienceNavigationProp>();
   const webViewRef = useRef<any>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
   const [showSwiftUIDemo, setShowSwiftUIDemo] = useState(false);
@@ -49,16 +70,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
   const [showNewUserGift, setShowNewUserGift] = useState(false);
+  const [showCurrencySheet, setShowCurrencySheet] = useState(false);
+  const [showBackgroundSheet, setShowBackgroundSheet] = useState(false);
+  const [showCharacterSheet, setShowCharacterSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats } = useUserStats();
   const { balance: currencyBalance, refresh: refreshCurrency } = useCurrencyBalance();
-  const [currentCharacter, setCurrentCharacter] = useState<{
-    id: string;
-    name: string;
-    avatar?: string;
-    relationshipName?: string;
-    relationshipProgress?: number;
-  } | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isCameraModeOn, setIsCameraModeOn] = useState(false);
   const handleAgentReply = useCallback((text: string) => {
     webBridgeRef.current?.playSpeech(text);
   }, []);
@@ -78,199 +97,204 @@ export default function App() {
     toggleChatListInternal();
   };
 
+  const handleCurrencyPress = useCallback(() => {
+    setShowCurrencySheet(true);
+  }, []);
+
+  const handleCurrencyPurchaseComplete = useCallback(() => {
+    refreshCurrency();
+  }, [refreshCurrency]);
+
+  const handleOpenSettings = useCallback(() => {
+    setShowSettings(true);
+  }, []);
+
+  const handleToggleSpeaker = useCallback(() => {
+    setIsAudioMuted(prev => {
+      const next = !prev;
+      console.log(next ? '🔇 [Audio] muted' : '🔊 [Audio] unmuted');
+      return next;
+    });
+  }, []);
+
+  const handleOpenCharacterMenu = useCallback(() => {
+    setShowCharacterSheet(true);
+  }, []);
+
+  const handleCharacterCardPress = useCallback(() => {
+    handleOpenCharacterMenu();
+  }, [handleOpenCharacterMenu]);
+
+  const handleToggleCameraMode = useCallback(() => {
+    setIsCameraModeOn(prev => {
+      const next = !prev;
+      console.log(next ? '🎥 Camera mode bật' : '🎥 Camera mode tắt');
+      return next;
+    });
+  }, []);
+
+  const handleCharacterSelect = useCallback(
+    async (item: CharacterItem) => {
+      try {
+        const assetRepo = new AssetRepository();
+        const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
+        const isOwned = ownedCharacterIds.has(item.id);
+
+        if (isOwned) {
+          // Character is owned - apply directly
+          console.log(`✅ Character ${item.name} is owned - applying`);
+          
+          // Update current character state
+          setCurrentCharacterState({
+            id: item.id,
+            name: item.name,
+            avatar: item.avatar || item.thumbnail_url,
+            relationshipName: 'Stranger',
+            relationshipProgress: 0,
+          });
+
+          // Save preference
+          const userPrefsService = new UserPreferencesService();
+          await userPrefsService.saveCurrentCharacterId(item.id);
+
+          // Apply character model
+          if (item.base_model_url) {
+            await UserCharacterPreferenceService.loadFallbackModel(
+              item.name,
+              item.base_model_url,
+              webViewRef
+            );
+          }
+
+          // Refresh initial data to get character preferences
+          await refreshInitialData();
+        } else {
+          // Not owned - show purchase flow (placeholder)
+          Alert.alert(
+            'Purchase Character',
+            `This character costs ${item.price_vcoin || 0} VCoin and ${item.price_ruby || 0} Ruby.\n\nPurchase flow coming soon!`
+          );
+        }
+      } catch (error) {
+        console.error('❌ Error selecting character:', error);
+        Alert.alert('Error', 'Failed to select character');
+      }
+    },
+    [setCurrentCharacterState, refreshInitialData]
+  );
+
+  const handleBackgroundSelect = useCallback(
+    async (item: BackgroundItem) => {
+      try {
+        const assetRepo = new AssetRepository();
+        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+
+        if (ownedBackgroundIds.has(item.id)) {
+          // Background is owned - apply directly
+          console.log(`✅ Background ${item.name} is owned - proceeding directly`);
+          if (currentCharacter) {
+            await UserCharacterPreferenceService.applyBackgroundById(
+              item.id,
+              webViewRef,
+              ownedBackgroundIds
+            );
+            await UserCharacterPreferenceService.saveUserCharacterPreference(
+              currentCharacter.id,
+              { current_background_id: item.id }
+            );
+          }
+        } else {
+          // Not owned - check if free or paid
+          const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+          if (isFree) {
+            // Auto-add free background
+            const success = await assetRepo.createAsset(item.id, 'background');
+            if (success) {
+              console.log('✅ Auto-added free background:', item.name);
+              // Refresh owned assets and apply
+              const newOwned = await assetRepo.fetchOwnedAssets('background');
+              if (currentCharacter) {
+                await UserCharacterPreferenceService.applyBackgroundById(
+                  item.id,
+                  webViewRef,
+                  newOwned
+                );
+                await UserCharacterPreferenceService.saveUserCharacterPreference(
+                  currentCharacter.id,
+                  { current_background_id: item.id }
+                );
+              }
+            } else {
+              console.error('❌ Failed to auto-add free background');
+            }
+          } else {
+            // Paid background - dismiss sheet first, then show purchase flow
+            setShowBackgroundSheet(false);
+            // Small delay to ensure sheet dismisses before showing alert
+            setTimeout(() => {
+              // TODO: Implement purchase flow for paid backgrounds
+              // Will need to check subscription tier and show appropriate purchase sheet
+              console.log('💰 Purchasing paid backgrounds not yet implemented');
+              Alert.alert(
+                'Purchase Background',
+                `This background costs ${item.price_vcoin || 0} VCoin and ${item.price_ruby || 0} Ruby.\n\nPurchase flow coming soon!`
+              );
+            }, 200);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error selecting background:', error);
+      }
+    },
+    [currentCharacter]
+  );
+
   useEffect(() => {
     setOverlayFlags(prev => ({ ...prev, showChatList: chatState.showChatList }));
   }, [chatState.showChatList]);
 
-  const [authSnapshot, setAuthSnapshot] = useState<AuthSnapshot>({
-    session: authManager.session,
-    isGuest: authManager.isGuest,
-    isLoading: authManager.isLoading,
-    errorMessage: authManager.errorMessage,
-    hasRestoredSession: authManager.hasRestoredSession,
-  });
-
   useEffect(() => {
-    const unsubscribe = authManager.subscribe(() => {
-      setAuthSnapshot({
-        session: authManager.session,
-        isGuest: authManager.isGuest,
-        isLoading: authManager.isLoading,
-        errorMessage: authManager.errorMessage,
-        hasRestoredSession: authManager.hasRestoredSession,
-      });
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!authSnapshot.hasRestoredSession) {
+    if (!hasRestoredSession || !session) {
       return;
     }
-    if (!authSnapshot.session && !authSnapshot.isGuest) {
-      return;
-    }
-
-    const testSupabaseData = async () => {
-      try {
-        console.log('🔍 [App] Testing Supabase data loading...');
-        console.log('👤 [App] Auth state:', {
-          hasSession: !!authSnapshot.session,
-          isGuest: authSnapshot.isGuest,
-          userId: authManager.getUserId(),
-          clientId: await authManager.getClientId(),
-        });
-
-        const characterRepo = new CharacterRepository();
-        const characters = await characterRepo.fetchAllCharacters();
-        console.log(`✅ [App] Loaded ${characters.length} characters from Supabase`);
-        if (characters.length > 0) {
-          console.log('📋 [App] First character:', {
-            id: characters[0].id,
-            name: characters[0].name,
-            base_model_url: characters[0].base_model_url,
-            available: characters[0].available,
-          });
-        }
-
-        const backgroundRepo = new BackgroundRepository();
-        const backgrounds = await backgroundRepo.fetchAllBackgrounds();
-        console.log(`✅ [App] Loaded ${backgrounds.length} backgrounds from Supabase`);
-        if (backgrounds.length > 0) {
-          console.log('📋 [App] First background:', {
-            id: backgrounds[0].id,
-            name: backgrounds[0].name,
-            image: backgrounds[0].image,
-            available: backgrounds[0].available,
-          });
-        }
-
-        refreshStats();
-        refreshCurrency();
-      } catch (error: any) {
-        console.error('❌ [App] Error loading Supabase data:', error);
-        console.error('❌ [App] Error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      testSupabaseData();
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    authSnapshot.hasRestoredSession,
-    authSnapshot.session,
-    authSnapshot.isGuest,
-    refreshStats,
-    refreshCurrency,
-  ]);
+    refreshStats();
+    refreshCurrency();
+  }, [hasRestoredSession, session, refreshStats, refreshCurrency]);
 
   useEffect(() => {
-    if (!authSnapshot.hasRestoredSession) {
+    if (!hasRestoredSession) {
       return;
     }
-    if (authSnapshot.session) {
+    if (session) {
       console.log('✅ [Auth] Logged in user', {
-        userId: authSnapshot.session.user.id,
-        email: authSnapshot.session.user.email,
+        userId: session.user.id,
+        email: session.user.email,
       });
-    } else if (authSnapshot.isGuest) {
-      (async () => {
-        console.log('👤 [Auth] Guest session active', {
-          clientId: await authManager.getClientId(),
-        });
-      })();
     }
-  }, [authSnapshot.hasRestoredSession, authSnapshot.session, authSnapshot.isGuest]);
+  }, [hasRestoredSession, session]);
 
-  const handleModelReady = async () => {
-    console.log('🎉 [App] VRM Model is ready!');
-
+  const ensureWebBridge = useCallback(() => {
     if (webViewRef.current && !webBridgeRef.current) {
       webBridgeRef.current = new WebSceneBridge(webViewRef.current);
       console.log('✅ [App] WebSceneBridge initialized');
     }
+  }, []);
 
-    try {
-      console.log('🔍 [App] Loading user character preferences...');
+  useEffect(() => {
+    ensureWebBridge();
+    ensureInitialModelApplied(webViewRef);
+    
+    // Initialize RevenueCat
+    import('./src/services/RevenueCatManager').then(({ revenueCatManager }) => {
+      revenueCatManager.configure();
+    });
+  }, [ensureInitialModelApplied, ensureWebBridge]);
 
-      const characterRepo = new CharacterRepository();
-      const characters = await characterRepo.fetchAllCharacters();
-      console.log(`✅ [App] Loaded ${characters.length} characters`);
-
-      if (characters.length > 0) {
-        const { UserPreferencesService } = await import('./src/services/UserPreferencesService');
-        const userPrefsService = new UserPreferencesService();
-        let currentCharacterId = await userPrefsService.loadCurrentCharacterId();
-
-        if (!currentCharacterId || !characters.find(c => c.id === currentCharacterId)) {
-          currentCharacterId = characters[0].id;
-          await userPrefsService.saveCurrentCharacterId(currentCharacterId);
-        }
-
-        const currentCharacter = characters.find(c => c.id === currentCharacterId) || characters[0];
-        console.log('👤 [App] Current character:', currentCharacter.name, `(${currentCharacter.id})`);
-
-        const { AssetRepository } = await import('./src/repositories/AssetRepository');
-        const assetRepo = new AssetRepository();
-        const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
-        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
-        console.log(`✅ [App] Owned items: ${ownedCharacterIds.size} characters, ${ownedBackgroundIds.size} backgrounds`);
-
-        const { UserCharacterPreferenceService } = await import('./src/services/UserCharacterPreferenceService');
-        const preferences = await UserCharacterPreferenceService.loadUserCharacterPreference(currentCharacter.id);
-        console.log('📋 [App] User preferences:', preferences);
-
-        if (preferences.backgroundId) {
-          await UserCharacterPreferenceService.applyBackgroundById(
-            preferences.backgroundId,
-            webViewRef,
-            ownedBackgroundIds
-          );
-        }
-
-        if (preferences.costumeId) {
-          await UserCharacterPreferenceService.applyCostumeById(
-            preferences.costumeId,
-            webViewRef
-          );
-        } else {
-          UserCharacterPreferenceService.loadFallbackModel(
-            currentCharacter.name,
-            currentCharacter.base_model_url || null,
-            webViewRef
-          );
-        }
-
-        setCurrentCharacter({
-          id: currentCharacter.id,
-          name: currentCharacter.name,
-          avatar: currentCharacter.avatar || currentCharacter.thumbnail_url,
-          relationshipName: 'Stranger',
-          relationshipProgress: 0,
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ [App] Error loading user preferences:', error);
-      if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(`
-          (async()=>{
-            try {
-              await window.loadRandomFiles();
-            } catch(e) {
-              console.error('Failed to load random model:', e);
-            }
-          })();
-        `);
-      }
-    }
-  };
+  const handleModelReady = useCallback(async () => {
+    console.log('🎉 [App] VRM Model is ready!');
+    ensureWebBridge();
+    await ensureInitialModelApplied(webViewRef);
+  }, [ensureInitialModelApplied, ensureWebBridge]);
 
   const handleMessage = (message: string) => {
     console.log('📨 [App] Message from WebView:', message);
@@ -288,22 +312,94 @@ export default function App() {
     }
   };
 
-  const shouldShowOnboarding =
-    authSnapshot.hasRestoredSession && !authSnapshot.session && !authSnapshot.isGuest;
+  const shouldShowOnboarding = hasRestoredSession && !session;
+  const shouldWaitForInitialData =
+    !!session && (!initialData || initialDataLoading || !!initialDataError);
+  const showMainExperience =
+    hasRestoredSession &&
+    !!session &&
+    !shouldShowOnboarding &&
+    !showImageOnboarding &&
+    !showNewUserGift &&
+    !shouldWaitForInitialData &&
+    !(Platform.OS === 'ios' && showSwiftUIDemo);
+
+  useEffect(() => {
+    if (!navigation) {
+      return;
+    }
+
+    if (!showMainExperience) {
+      navigation.setOptions({ headerShown: false });
+      return;
+    }
+
+    navigation.setOptions({
+      headerShown: true,
+      headerTransparent: true,
+      headerShadowVisible: false,
+      headerTitleAlign: 'center',
+      headerStyle: {
+        backgroundColor: 'transparent',
+      },
+      headerTitle: () => (
+        <CharacterHeaderCard
+          name={currentCharacter?.name}
+          relationshipName={currentCharacter?.relationshipName}
+          relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
+          avatarUri={currentCharacter?.avatar}
+          onPress={handleCharacterCardPress}
+        />
+      ),
+      headerLeft: () => (
+        <View style={styles.headerActions}>
+          <HeaderIconButton
+            iconName="settings-outline"
+            onPress={handleOpenSettings}
+            accessibilityLabel="Mở cài đặt"
+          />
+          <HeaderIconButton
+            iconName={isAudioMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+            onPress={handleToggleSpeaker}
+            accessibilityLabel="Bật tắt loa"
+            active={isAudioMuted}
+          />
+        </View>
+      ),
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          <HeaderIconButton
+            iconName="grid-outline"
+            onPress={handleOpenCharacterMenu}
+            accessibilityLabel="Menu nhân vật"
+          />
+          <HeaderIconButton
+            iconName={isCameraModeOn ? 'stop-circle-outline' : 'videocam-outline'}
+            onPress={handleToggleCameraMode}
+            accessibilityLabel="Chế độ camera"
+            active={isCameraModeOn}
+          />
+        </View>
+      ),
+    });
+  }, [
+    navigation,
+    showMainExperience,
+    currentCharacter?.name,
+    currentCharacter?.relationshipName,
+    currentCharacter?.relationshipProgress,
+    currentCharacter?.avatar,
+    handleCharacterCardPress,
+    handleOpenSettings,
+    handleToggleSpeaker,
+    isAudioMuted,
+    handleOpenCharacterMenu,
+    handleToggleCameraMode,
+    isCameraModeOn,
+  ]);
 
   const checkGiftClaimStatus = useCallback(async () => {
     try {
-      // Check if user has already claimed the gift (from AsyncStorage)
-      const hasClaimedWelcomeGift =
-        (await AsyncStorage.getItem(PersistKeys.hasClaimedWelcomeGift)) === 'true';
-      
-      if (hasClaimedWelcomeGift) {
-        // User has already claimed gift, don't show it again
-        setShowNewUserGift(false);
-        return;
-      }
-
-      // Check from database to see if gift was actually claimed
       const assetRepo = new AssetRepository();
       const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
       const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
@@ -317,19 +413,12 @@ export default function App() {
       const hasGiftCurrency = currency.vcoin >= 10000 || currency.ruby >= 100;
 
       const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem(PersistKeys.hasCompletedImageOnboarding)) === 'true';
+        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
 
       // Gift includes: 1 character, 1 costume, 3 backgrounds, 10,000 VCoin, 100 Ruby
       // If user has completed onboarding but doesn't have any of these indicators,
       // they haven't claimed the gift yet
       const hasClaimedGift = hasCharacters || hasBackgrounds || hasGiftCurrency;
-
-      // If gift was claimed in database but not saved in AsyncStorage, save it now
-      if (hasClaimedGift) {
-        await AsyncStorage.setItem(PersistKeys.hasClaimedWelcomeGift, 'true');
-        setShowNewUserGift(false);
-        return;
-      }
 
       // Show gift if onboarding is completed but gift hasn't been claimed
       if (hasCompletedImageOnboarding && !hasClaimedGift) {
@@ -339,15 +428,8 @@ export default function App() {
       }
     } catch (error) {
       console.error('[App] Error checking gift claim status:', error);
-      // On error, check if already claimed from AsyncStorage
-      const hasClaimedWelcomeGift =
-        (await AsyncStorage.getItem(PersistKeys.hasClaimedWelcomeGift)) === 'true';
-      if (hasClaimedWelcomeGift) {
-        setShowNewUserGift(false);
-        return;
-      }
       const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem(PersistKeys.hasCompletedImageOnboarding)) === 'true';
+        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
       if (hasCompletedImageOnboarding) {
         setShowNewUserGift(true);
       }
@@ -374,13 +456,13 @@ export default function App() {
       const hasCharacters = ownedCharacterIds.size > 0;
 
       const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem(PersistKeys.hasCompletedImageOnboarding)) === 'true';
+        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
 
       if (hasCharacters) {
         // User has characters, don't show onboarding images
         // Just check if they need the gift (they might not have rooms)
         setShowImageOnboarding(false);
-        // Check gift claim status directly
+        // Check gift claim status directly (without guard)
         await checkGiftClaimStatus();
       } else {
         // No characters - show onboarding images if not completed
@@ -396,7 +478,7 @@ export default function App() {
     } catch (error) {
       console.error('[App] Error checking new user for onboarding:', error);
       const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem(PersistKeys.hasCompletedImageOnboarding)) === 'true';
+        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
       if (!hasCompletedImageOnboarding) {
         setShowImageOnboarding(true);
         setShowNewUserGift(false);
@@ -410,91 +492,43 @@ export default function App() {
   }, [isCheckingNewUser, checkGiftClaimStatus]);
 
   const handleImageOnboardingComplete = useCallback(async () => {
-    await AsyncStorage.setItem(PersistKeys.hasCompletedImageOnboarding, 'true');
-    await AsyncStorage.setItem(PersistKeys.hasSeenImageOnboarding, 'true');
+    await AsyncStorage.setItem('persist.hasCompletedImageOnboarding', 'true');
+    await AsyncStorage.setItem('persist.hasSeenImageOnboarding', 'true');
     setShowImageOnboarding(false);
     checkIfNewUser();
   }, [checkIfNewUser]);
 
   const handleImageOnboardingSkip = useCallback(async () => {
-    await AsyncStorage.setItem(PersistKeys.hasCompletedImageOnboarding, 'true');
-    await AsyncStorage.setItem(PersistKeys.hasSeenImageOnboarding, 'true');
+    await AsyncStorage.setItem('persist.hasCompletedImageOnboarding', 'true');
+    await AsyncStorage.setItem('persist.hasSeenImageOnboarding', 'true');
     setShowImageOnboarding(false);
     checkIfNewUser();
   }, [checkIfNewUser]);
 
   const handleNewUserGiftComplete = useCallback(
     async (characterId: string | null) => {
-      console.log('🎉 [App] handleNewUserGiftComplete called with characterId:', characterId);
-      
-      // Mark gift as claimed in AsyncStorage (like Swift version)
-      await AsyncStorage.setItem(PersistKeys.hasClaimedWelcomeGift, 'true');
-      
-      // Hide gift screen immediately (like Swift version)
       setShowNewUserGift(false);
-      setShowImageOnboarding(false);
-      
       if (characterId) {
         try {
-          console.log('🎉 [App] Loading character after gift...');
-          const characterRepo = new CharacterRepository();
-          const characters = await characterRepo.fetchAllCharacters();
-          const character = characters.find((c) => c.id === characterId);
-          if (character) {
-            const { UserPreferencesService } = await import('./src/services/UserPreferencesService');
-            const userPrefsService = new UserPreferencesService();
-            await userPrefsService.saveCurrentCharacterId(characterId);
-            setCurrentCharacter({
-              id: character.id,
-              name: character.name,
-              avatar: character.avatar || character.thumbnail_url,
-              relationshipName: 'Stranger',
-              relationshipProgress: 0,
-            });
-            console.log('🎉 [App] Character loaded and set:', character.name);
-          }
-          // TODO: Generate daily quests and unlock level 1 quests for new user
-          // await gamificationViewModel.generateDailyQuests();
-          // await gamificationViewModel.loadTodayQuests();
-          // await gamificationViewModel.unlockLevelQuests(for: 1);
+          const userPrefsService = new UserPreferencesService();
+          await userPrefsService.saveCurrentCharacterId(characterId);
         } catch (error) {
-          console.error('[App] Error loading character after gift:', error);
+          console.error('[App] Error saving character after gift:', error);
         }
-      } else {
-        // User skipped gift, still generate quests
-        // TODO: Generate daily quests and unlock level 1 quests for new user
-        // await gamificationViewModel.generateDailyQuests();
-        // await gamificationViewModel.loadTodayQuests();
-        // await gamificationViewModel.unlockLevelQuests(for: 1);
       }
-      
-      // Proceed with app (like Swift version)
-      handleModelReady();
+      refreshInitialData();
     },
-    [handleModelReady]
+    [refreshInitialData]
   );
 
-  // Track if we've already checked onboarding to prevent re-checking after gift claim
-  const hasCheckedOnboardingRef = useRef(false);
-  const lastAuthStateRef = useRef<string | null>(null);
-
   useEffect(() => {
-    // Reset ref if auth state changed (e.g., logout/login, guest to logged in)
-    const currentAuthState = authSnapshot.session?.user?.id || (authSnapshot.isGuest ? 'guest' : null);
-    if (lastAuthStateRef.current !== null && lastAuthStateRef.current !== currentAuthState) {
-      hasCheckedOnboardingRef.current = false;
-    }
-    lastAuthStateRef.current = currentAuthState;
-
-    // Only check onboarding once when auth is restored
-    if (authSnapshot.hasRestoredSession && (authSnapshot.session || authSnapshot.isGuest) && !hasCheckedOnboardingRef.current) {
-      hasCheckedOnboardingRef.current = true;
+    if (hasRestoredSession && session) {
       checkIfNewUserForOnboarding();
     }
-  }, [authSnapshot.hasRestoredSession, authSnapshot.session, authSnapshot.isGuest, checkIfNewUserForOnboarding]);
+  }, [hasRestoredSession, session, checkIfNewUserForOnboarding]);
 
   const renderContent = () => {
-    if (!authSnapshot.hasRestoredSession) {
+    if (!hasRestoredSession) {
       return (
         <View style={styles.container}>
           <StatusBar barStyle="light-content" />
@@ -510,10 +544,10 @@ export default function App() {
         <View style={styles.container}>
           <StatusBar barStyle="light-content" />
           <OnboardingScreen
-            isLoading={authSnapshot.isLoading}
-            errorMessage={authSnapshot.errorMessage}
+            isLoading={isLoading}
+            errorMessage={errorMessage}
             onSignInWithApple={() => authManager.signInWithApple()}
-            onContinueAsGuest={() => authManager.continueAsGuest()}
+            onSignInWithGoogle={() => authManager.signInWithGoogle()}
             onOpenLegal={handleOpenLegal}
           />
         </View>
@@ -537,6 +571,19 @@ export default function App() {
         <View style={styles.container}>
           <StatusBar barStyle="light-content" />
           <NewUserGiftScreen onComplete={handleNewUserGiftComplete} />
+        </View>
+      );
+    }
+
+    if (shouldWaitForInitialData) {
+      return (
+        <View style={styles.container}>
+          <StatusBar barStyle="light-content" />
+          <InitialLoadingScreen
+            loading={initialDataLoading}
+            error={initialDataError?.message ?? null}
+            onRetry={refreshInitialData}
+          />
         </View>
       );
     }
@@ -571,11 +618,10 @@ export default function App() {
           canClaimCalendar={overlayFlags.canClaimCalendar}
           hasMessages={overlayFlags.hasMessages}
           showChatList={overlayFlags.showChatList}
-          onSettingsPress={() => setShowSettings(true)}
           onLevelPress={() => console.log('📈 Level sheet placeholder')}
           onEnergyPress={() => console.log('⚡ Energy sheet placeholder')}
-          onCurrencyPress={() => console.log('💰 Currency sheet placeholder')}
-          onBackgroundPress={() => console.log('🖼️ Background sheet placeholder')}
+          onCurrencyPress={handleCurrencyPress}
+          onBackgroundPress={() => setShowBackgroundSheet(true)}
           onCostumePress={() => console.log('👗 Costume sheet placeholder')}
           onQuestPress={() => console.log('🏁 Quest sheet placeholder')}
           onCalendarPress={() => console.log('📅 Calendar sheet placeholder')}
@@ -605,13 +651,32 @@ export default function App() {
           onClose={closeHistory}
           onLoadMore={loadMoreHistory}
         />
+        <CurrencyPurchaseSheet
+          visible={showCurrencySheet}
+          onClose={() => setShowCurrencySheet(false)}
+          onPurchaseComplete={handleCurrencyPurchaseComplete}
+        />
+        <BackgroundSheet
+          isOpened={showBackgroundSheet}
+          onIsOpenedChange={setShowBackgroundSheet}
+          onSelect={(item) => {
+            void handleBackgroundSelect(item);
+          }}
+        />
+        <CharacterSheet
+          isOpened={showCharacterSheet}
+          onIsOpenedChange={setShowCharacterSheet}
+          onSelect={(item) => {
+            void handleCharacterSelect(item);
+          }}
+        />
         <SettingsModal
           visible={showSettings}
           onClose={() => setShowSettings(false)}
-          email={authSnapshot.session?.user?.email ?? null}
+          email={session?.user?.email ?? null}
           displayName={
-            (authSnapshot.session?.user?.user_metadata as Record<string, any> | undefined)?.display_name ??
-            authSnapshot.session?.user?.email ??
+            (session?.user?.user_metadata as Record<string, any> | undefined)?.display_name ??
+            session?.user?.email ??
             null
           }
         />
@@ -619,7 +684,32 @@ export default function App() {
     );
   };
 
-  return <SafeAreaProvider>{renderContent()}</SafeAreaProvider>;
+  return renderContent();
+};
+
+export default function App() {
+  return (
+    <VRMProvider>
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            screenOptions={{
+              headerTransparent: true,
+              headerTitleAlign: 'center',
+              headerTintColor: '#fff',
+              contentStyle: { backgroundColor: '#000' },
+            }}
+          >
+            <Stack.Screen
+              name="Experience"
+              component={AppContent}
+              options={{ headerShown: false }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </VRMProvider>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -638,5 +728,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingBottom: 24,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
   },
 });

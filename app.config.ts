@@ -7,8 +7,8 @@ const EAS_PROJECT_ID = '05bd0c6c-5433-4468-a849-ccee180ba617'; // Will be set af
 const PROJECT_SLUG = 'vivivi';
 
 // App production config
-const APP_NAME = 'VRM - Virtual Reality Model';
-const BUNDLE_IDENTIFIER = 'VIVIVI';
+const APP_NAME = 'VIVIVI - Digital AI Girlfriend';
+const BUNDLE_IDENTIFIER = 'com.vivivi';
 const PACKAGE_NAME = 'com.eduti.vivivi';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
@@ -17,7 +17,7 @@ const SCHEME = 'vrm';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
   icon: ICON,
-  scheme: [SCHEME],
+  scheme: SCHEME,
   version,
   slug: PROJECT_SLUG,
   orientation: 'portrait',
@@ -46,6 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'We need access to your Microphone for voice conversations with VRM characters.',
     },
     requireFullScreen: false,
+    usesAppleSignIn: true,
   },
 
   android: {
@@ -64,6 +65,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.WRITE_EXTERNAL_STORAGE',
       'android.permission.READ_MEDIA_IMAGES',
       'android.permission.READ_MEDIA_VIDEO',
+    ],
+    intentFilters: [
+      {
+        action: 'VIEW',
+        data: [
+          {
+            scheme: SCHEME,
+            host: 'auth',
+            pathPrefix: '/callback',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
     ],
   },
 

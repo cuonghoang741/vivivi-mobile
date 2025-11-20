@@ -4,7 +4,7 @@ import { BaseRepository } from './BaseRepository';
  * Asset Repository
  * Matching Swift version's AssetRepository
  */
-export class AssetRepository extends BaseRepository {
+export default class AssetRepository extends BaseRepository {
   /**
    * Fetch owned assets by item type
    * Matching Swift version's fetchOwnedAssets(itemType:)
@@ -40,67 +40,31 @@ export class AssetRepository extends BaseRepository {
   async createAsset(itemId: string, itemType: string): Promise<boolean> {
     try {
       const userId = this.getUserId();
-      const clientId = await this.getClientId();
+      if (!userId) {
+        throw new Error('User is not authenticated');
+      }
 
-      const assetData: any = {
+      const assetData = {
         item_id: itemId,
         item_type: itemType,
+        user_id: userId,
       };
 
-      // Ensure only one of user_id or client_id is set (not both)
-      // RLS policy requires: (auth.uid() = user_id) OR ((client_id IS NOT NULL) AND (user_id IS NULL))
-      if (userId) {
-        assetData.user_id = userId;
-        // Explicitly set client_id to null for authenticated users
-        assetData.client_id = null;
-      } else if (clientId) {
-        assetData.client_id = clientId;
-        // Explicitly set user_id to null for guest users (required by RLS policy)
-        assetData.user_id = null;
-      } else {
-        console.error('❌ [AssetRepository] No user ID or client ID available');
-        return false;
-      }
-
-      console.log('📦 [AssetRepository] Creating asset:', {
-        itemId,
-        itemType,
-        userId: assetData.user_id,
-        clientId: assetData.client_id,
-      });
-
-      // Use RPC function to bypass RLS and properly validate client_id
-      const { data, error } = await this.client.rpc('insert_user_asset', {
-        p_item_id: itemId,
-        p_item_type: itemType,
-        p_client_id: assetData.client_id || null,
-        p_user_id: assetData.user_id || null,
-        p_transaction_id: null,
-      });
+      const { data, error } = await this.client
+        .from('user_assets')
+        .insert(assetData)
+        .select()
+        .single();
 
       if (error) {
-        // Check if it's a duplicate key error (23505)
-        // The RPC function should handle this, but just in case
-        if (error.code === '23505') {
-          console.log('ℹ️ [AssetRepository] Asset already exists (duplicate), treating as success');
-          return true;
-        }
         console.error('❌ [AssetRepository] Failed to create asset:', error);
-        console.error('❌ [AssetRepository] Asset data:', assetData);
         return false;
       }
 
-      // If data is null, it means asset already existed (handled by RPC function)
-      if (data) {
-        console.log('✅ [AssetRepository] Asset created successfully, ID:', data);
-      } else {
-        console.log('ℹ️ [AssetRepository] Asset already exists, ID:', data);
-      }
-      return true; // Return true even if already exists
+      return !!data;
     } catch (error) {
       console.error('❌ [AssetRepository] Error creating asset:', error);
       return false;
     }
   }
 }
-

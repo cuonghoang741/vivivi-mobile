@@ -1,5 +1,4 @@
 import { getSupabaseClient } from './supabase';
-import { ensureClientId } from './supabase';
 
 export interface AuthUser {
   id: string;
@@ -28,14 +27,6 @@ export class AuthService {
       id: user.id,
       email: user.email,
     };
-  }
-
-  /**
-   * Check if user is guest
-   */
-  async isGuest(): Promise<boolean> {
-    const session = await this.getSession();
-    return !session;
   }
 
   /**
@@ -80,12 +71,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Get or create client ID for guest users
-   */
-  async getClientId(): Promise<string> {
-    return ensureClientId();
-  }
 }
 
 // Singleton instance

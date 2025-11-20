@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './supabase';
 import { authManager } from './AuthManager';
 import { executeSupabaseRequest } from '../utils/supabaseHelpers';
+import { Persistence } from '../utils/persistence';
 
 export interface UserCharacterPreference {
   character_id: string;
@@ -29,14 +30,10 @@ export class UserCharacterPreferenceService {
 
       // Add auth filters
       const userId = authManager.user?.id;
-      if (userId) {
-        queryItems.user_id = `eq.${userId.toLowerCase()}`;
-      } else {
-        const clientId = await authManager.getClientId();
-        if (clientId) {
-          queryItems.client_id = `eq.${clientId}`;
-        }
+      if (!userId) {
+        throw new Error('User is not authenticated');
       }
+      queryItems.user_id = `eq.${userId.toLowerCase()}`;
 
       const data = await executeSupabaseRequest<UserCharacterPreference[]>(
         '/rest/v1/user_character',
@@ -63,11 +60,11 @@ export class UserCharacterPreferenceService {
    * Apply costume by ID (load costume details and apply to WebView)
    * Matching Swift version's applyCostumeById
    */
-  static async applyCostumeById(
-    costumeId: string,
-    webViewRef: any
-  ): Promise<void> {
-    try {
+  static async loadCostumeMetadata(costumeId: string): Promise<{
+    costumeName?: string;
+    modelURL?: string;
+    urlName?: string;
+  } | null> {
       const queryItems: Record<string, string> = {
         select: 'costume_name,model_url,url',
         id: `eq.${costumeId}`,
@@ -79,29 +76,46 @@ export class UserCharacterPreferenceService {
         queryItems,
         'GET'
       );
-
-      if (data && data.length > 0) {
+    if (!data || data.length === 0) {
+      return null;
+    }
         const costume = data[0];
-        const modelURL = costume.model_url;
-        const urlName = costume.url;
-        const costumeName = costume.costume_name;
+    return {
+      costumeName: costume.costume_name ?? undefined,
+      modelURL: costume.model_url ?? undefined,
+      urlName: costume.url ?? undefined,
+    };
+  }
+
+  static async applyCostumeById(
+    costumeId: string,
+    webViewRef: any
+  ): Promise<void> {
+    try {
+      const meta = await this.loadCostumeMetadata(costumeId);
+      if (!meta) return;
+
+      const { costumeName, modelURL, urlName } = meta;
 
         if (webViewRef?.current) {
           if (modelURL && costumeName) {
-            // Load by URL
             const escapedURL = modelURL.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
             const escapedName = costumeName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
             const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
             webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+          await Persistence.setModelName(costumeName);
+          await Persistence.setModelURL(modelURL);
             console.log('✅ [UserCharacterPreferenceService] Applied costume by URL:', costumeName);
-          } else if (urlName) {
-            // Load by name
+          return;
+        }
+        if (urlName) {
             const modelName = `${urlName}.vrm`;
             const escaped = modelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
             const js = `window.loadModelByName("${escaped}");`;
             webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+          await Persistence.setModelName(modelName);
+          await Persistence.setModelURL('');
             console.log('✅ [UserCharacterPreferenceService] Applied costume by name:', modelName);
-          }
         }
       }
     } catch (error) {
@@ -130,9 +144,15 @@ export class UserCharacterPreferenceService {
       const background = await backgroundRepo.fetchBackground(backgroundId);
 
       if (background && webViewRef?.current) {
+        if (!background.image) {
+          console.warn('⚠️ [UserCharacterPreferenceService] Background missing image:', backgroundId);
+          return;
+        }
         const escaped = background.image.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const js = `window.setBackgroundImage&&window.setBackgroundImage("${escaped}");`;
         webViewRef.current.injectJavaScript(js);
+        await Persistence.setBackgroundURL(background.image);
+        await Persistence.setBackgroundName(background.name || '');
         console.log('✅ [UserCharacterPreferenceService] Applied background:', background.name);
       }
     } catch (error) {
@@ -144,11 +164,11 @@ export class UserCharacterPreferenceService {
    * Load fallback model (character's base model)
    * Matching Swift version's loadFallbackModel
    */
-  static loadFallbackModel(
+  static async loadFallbackModel(
     modelName: string | null,
     modelURL: string | null,
     webViewRef: any
-  ): void {
+  ): Promise<void> {
     if (!modelURL || !modelName || !webViewRef?.current) {
       return;
     }
@@ -158,9 +178,64 @@ export class UserCharacterPreferenceService {
       const escapedName = modelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
       webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+      await Persistence.setModelName(modelName);
+      await Persistence.setModelURL(modelURL);
       console.log('✅ [UserCharacterPreferenceService] Loaded fallback model:', modelName);
     } catch (error) {
       console.error('❌ [UserCharacterPreferenceService] Error loading fallback model:', error);
+    }
+  }
+
+  /**
+   * Save user character preference (costume or background)
+   */
+  static async saveUserCharacterPreference(
+    characterId: string,
+    updates: { current_costume_id?: string; current_background_id?: string }
+  ): Promise<void> {
+    try {
+      const userId = authManager.user?.id;
+      if (!userId) {
+        console.warn('⚠️ [UserCharacterPreferenceService] Cannot save preference: User not authenticated');
+        return;
+      }
+
+      // First try to update existing row
+      const queryItems: Record<string, string> = {
+        character_id: `eq.${characterId}`,
+        user_id: `eq.${userId}`,
+      };
+
+      const { error } = await getSupabaseClient()
+        .from('user_character')
+        .update(updates)
+        .match({ character_id: characterId, user_id: userId });
+
+      if (error) {
+        // If update failed, it might be because the row doesn't exist. Try insert.
+        // Note: Supabase .update() doesn't return error if no rows match, so we might need to check count or just try upsert.
+        // Using upsert is safer.
+        const { error: upsertError } = await getSupabaseClient()
+          .from('user_character')
+          .upsert(
+            {
+              user_id: userId,
+              character_id: characterId,
+              ...updates,
+            },
+            { onConflict: 'user_id,character_id' }
+          );
+
+        if (upsertError) {
+          console.error('❌ [UserCharacterPreferenceService] Error saving preference:', upsertError);
+        } else {
+          console.log('✅ [UserCharacterPreferenceService] Saved preference:', updates);
+        }
+      } else {
+        console.log('✅ [UserCharacterPreferenceService] Updated preference:', updates);
+      }
+    } catch (error) {
+      console.error('❌ [UserCharacterPreferenceService] Error in saveUserCharacterPreference:', error);
     }
   }
 }

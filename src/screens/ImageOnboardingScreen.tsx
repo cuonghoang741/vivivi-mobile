@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -37,12 +37,11 @@ export const ImageOnboardingScreen: React.FC<Props> = ({ onComplete, onSkip }) =
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (currentPage < ONBOARDING_IMAGES.length - 1) {
       const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      // Scroll to next page
       scrollViewRef.current?.scrollTo({
-        x: nextPage * SCREEN_WIDTH,
+        x: SCREEN_WIDTH * nextPage,
         animated: true,
       });
+      setCurrentPage(nextPage);
     } else {
       onComplete();
     }
@@ -114,11 +113,9 @@ export const ImageOnboardingScreen: React.FC<Props> = ({ onComplete, onSkip }) =
 
         <View style={styles.buttonContainer}>
           <Button
-            variant="solid"
-            color="gray"
             fullWidth
             onPress={handleContinue}
-            style={styles.continueButton}
+            size='lg'
           >
             {currentPage < ONBOARDING_IMAGES.length - 1 ? 'Continue' : 'Get Started'}
           </Button>
@@ -199,14 +196,5 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  continueButton: {
-    backgroundColor: '#fff',
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  } as any,
 });
 

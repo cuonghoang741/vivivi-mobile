@@ -20,12 +20,6 @@ export class CharacterRepository extends BaseRepository {
    * Fetch all available characters
    */
   async fetchAllCharacters(): Promise<CharacterItem[]> {
-    // Ensure guest mode is set and client ID exists
-    const { authManager } = await import('../services/AuthManager');
-    if (!authManager.session && !authManager.isGuest) {
-      await authManager.continueAsGuest();
-    }
-    
     // Use PostgREST client directly (simpler and works with RLS)
     // The Supabase JS client handles auth headers automatically
     try {
@@ -115,45 +109,6 @@ export class CharacterRepository extends BaseRepository {
     }
 
     return data.agent_elevenlabs_id;
-  }
-
-  /**
-   * Fetch free characters for welcome gift (like Swift version)
-   * Returns up to 3 free characters ordered by created_at ascending
-   */
-  async fetchFreeCharacters(): Promise<CharacterItem[]> {
-    // Ensure guest mode is set and client ID exists
-    const { authManager } = await import('../services/AuthManager');
-    if (!authManager.session && !authManager.isGuest) {
-      await authManager.continueAsGuest();
-    }
-    
-    try {
-      const { data, error } = await this.client
-        .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id')
-        .eq('is_public', true)
-        .eq('available', true)
-        .eq('tier', 'free')
-        .order('created_at', { ascending: true })
-        .limit(3);
-
-      if (error) {
-        console.error('❌ [CharacterRepository] Error fetching free characters:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-        throw new Error(`Failed to fetch free characters: ${error.message}`);
-      }
-
-      console.log(`✅ [CharacterRepository] Loaded ${data?.length || 0} free characters`);
-      return (data || []).filter((c) => c.available);
-    } catch (error: any) {
-      console.error('❌ [CharacterRepository] Unexpected error fetching free characters:', error);
-      throw error;
-    }
   }
 
   /**

@@ -24,7 +24,7 @@ export class UserPreferencesService {
       // Then try to load from Supabase user_preferences table
       const userId = authManager.user?.id;
       if (!userId) {
-        return null; // Guest users don't have preferences in DB
+        return null;
       }
 
       const queryItems: Record<string, string> = {
@@ -65,7 +65,7 @@ export class UserPreferencesService {
       // Save to Supabase if user is authenticated
       const userId = authManager.user?.id;
       if (!userId) {
-        return; // Guest users don't save to DB
+        return;
       }
 
       const { SUPABASE_URL } = await import('../config/supabase');

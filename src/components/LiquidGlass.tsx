@@ -1,34 +1,83 @@
 import React from 'react';
-import { View, type ViewProps } from 'react-native';
+import { View, type ViewProps, PressableProps } from 'react-native';
 import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { glassButtonStyle } from '../styles/glass';
+import HapticPressable from './ui/HapticPressable';
 
 type Props = ViewProps & {
   children: React.ReactNode;
   tintColor?: string;
+  interactive?: boolean;
+  pressable?: boolean;
+  onPress?: PressableProps['onPress'];
+  disabled?: boolean;
 };
 
 /**
  * LiquidGlass - wrapper component
  * - Nếu thiết bị support liquid-glass (iOS 26+), dùng LiquidGlassView
  * - Nếu không, fallback về View với style glassButtonStyle
+ * - Khi pressable=true (default), tự động bọc trong HapticPressable để có hiệu ứng press
  */
-export const LiquidGlass: React.FC<Props> = ({ style, children, tintColor, ...rest }) => {
+export const LiquidGlass: React.FC<Props> = ({
+  style,
+  children,
+  tintColor,
+  interactive,
+  pressable = true,
+  onPress,
+  disabled,
+  ...rest
+}) => {
   const baseStyle = [glassButtonStyle, style];
 
-  if (isLiquidGlassSupported) {
+  // Content wrapper - LiquidGlassView hoặc View
+  const renderContent = () => {
+    if (isLiquidGlassSupported) {
+      // Only pass valid props to LiquidGlassView
+      const liquidProps: any = {
+        style: baseStyle,
+        tintColor,
+        effect: 'regular',
+      };
+      
+      // Interactive prop: true nếu có pressable và onPress, hoặc nếu được set explicitly
+      const shouldBeInteractive = interactive !== undefined 
+        ? interactive 
+        : (pressable && !!onPress);
+      
+      if (shouldBeInteractive) {
+        liquidProps.interactive = true;
+      }
+
+      return (
+        <LiquidGlassView {...liquidProps}>
+          {children}
+        </LiquidGlassView>
+      );
+    }
+
     return (
-      <LiquidGlassView style={baseStyle} {...rest} tintColor={tintColor} effect={"regular"}>
+      <View style={baseStyle} {...rest}>
         {children}
-      </LiquidGlassView>
+      </View>
+    );
+  };
+
+  // Nếu pressable và có onPress, bọc trong HapticPressable
+  if (pressable && onPress) {
+    return (
+      <HapticPressable
+        onPress={onPress}
+        disabled={disabled}
+      >
+        {renderContent()}
+      </HapticPressable>
     );
   }
 
-  return (
-    <View style={baseStyle} {...rest}>
-      {children}
-    </View>
-  );
+  // Không có pressable hoặc không có onPress, render trực tiếp
+  return renderContent();
 };
 
 

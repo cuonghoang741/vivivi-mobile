@@ -119,7 +119,7 @@ function MyComponent() {
   const { characters, loading, error } = useCharacters();
   const { backgrounds } = useBackgrounds();
   const { balance } = useCurrency();
-  const { user, isGuest } = useAuth();
+  const { user } = useAuth();
   
   // ...
 }

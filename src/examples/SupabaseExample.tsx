@@ -6,7 +6,7 @@ import { useAuth, useCharacters, useBackgrounds, useCurrency } from '../hooks/us
  * Example component showing how to use Supabase repositories
  */
 export const SupabaseExample: React.FC = () => {
-  const { user, isGuest, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { characters, loading: charsLoading, error: charsError } = useCharacters();
   const { backgrounds, loading: bgLoading, error: bgError } = useBackgrounds();
   const { balance, loading: currencyLoading, error: currencyError } = useCurrency();
@@ -24,8 +24,7 @@ export const SupabaseExample: React.FC = () => {
     <ScrollView style={styles.container}>
       <View style={styles.section}>
         <Text style={styles.title}>Authentication</Text>
-        <Text>User: {user ? user.email || user.id : 'Guest'}</Text>
-        <Text>Is Guest: {isGuest ? 'Yes' : 'No'}</Text>
+        <Text>User: {user ? user.email || user.id : 'Not signed in'}</Text>
       </View>
 
       <View style={styles.section}>

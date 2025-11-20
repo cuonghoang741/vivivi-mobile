@@ -1,5 +1,5 @@
 import { ChatMessage } from '../types/chat';
-import { getSupabaseClient, getAuthIdentifier } from './supabase';
+import { getSupabaseClient, getAuthenticatedUserId } from './supabase';
 
 type ConversationRow = {
   id: string;
@@ -20,7 +20,7 @@ class ChatService {
     if (!characterId) {
       return [];
     }
-    const { userId, clientId } = await getAuthIdentifier();
+    const userId = await getAuthenticatedUserId();
 
     let query = this.client
       .from('conversation')
@@ -29,11 +29,7 @@ class ChatService {
       .order('created_at', { ascending: true })
       .limit(limit);
 
-    if (userId) {
-      query = query.eq('user_id', userId);
-    } else if (clientId) {
-      query = query.eq('client_id', clientId);
-    }
+    query = query.eq('user_id', userId);
 
     const { data, error } = await query;
     if (error || !data) {
@@ -46,14 +42,13 @@ class ChatService {
   async persistConversationMessage(params: { text: string; isAgent: boolean; characterId: string }) {
     if (!params.characterId || !params.text.trim()) return;
 
-    const { userId, clientId } = await getAuthIdentifier();
+    const userId = await getAuthenticatedUserId();
     const payload: Record<string, any> = {
       message: params.text,
       is_agent: params.isAgent,
       character_id: params.characterId,
+      user_id: userId,
     };
-    if (userId) payload.user_id = userId;
-    if (clientId) payload.client_id = clientId;
 
     const { error } = await this.client.from('conversation').insert(payload);
     if (error) {
@@ -70,7 +65,7 @@ class ChatService {
       throw new Error('Missing message or character id');
     }
 
-    const { userId, clientId } = await getAuthIdentifier();
+    const userId = await getAuthenticatedUserId();
     const conversation_history = buildHistoryPayload(params.history);
 
     const { data, error } = await this.client.functions.invoke('gemini-chat', {
@@ -79,7 +74,6 @@ class ChatService {
         character_id: params.characterId,
         conversation_history,
         user_id: userId,
-        client_id: clientId,
       },
     });
 
@@ -102,7 +96,7 @@ class ChatService {
       return { messages: [], reachedEnd: true };
     }
 
-    const { userId, clientId } = await getAuthIdentifier();
+    const userId = await getAuthenticatedUserId();
 
     let query = this.client
       .from('conversation')
@@ -115,11 +109,7 @@ class ChatService {
       query = query.lt('created_at', cursor);
     }
 
-    if (userId) {
-      query = query.eq('user_id', userId);
-    } else if (clientId) {
-      query = query.eq('client_id', clientId);
-    }
+    query = query.eq('user_id', userId);
 
     const { data, error } = await query;
     if (error || !data) {

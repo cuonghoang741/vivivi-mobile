@@ -21,7 +21,7 @@ type Props = {
   isLoading: boolean;
   errorMessage?: string | null;
   onSignInWithApple: () => void;
-  onContinueAsGuest?: () => void;
+  onSignInWithGoogle?: () => void;
   onOpenLegal?: (doc: LegalDocument) => void;
 };
 
@@ -35,12 +35,13 @@ export const OnboardingScreen: React.FC<Props> = ({
   isLoading,
   errorMessage,
   onSignInWithApple,
-  onContinueAsGuest,
+  onSignInWithGoogle,
   onOpenLegal,
 }) => {
   const [isAgeVerified, setIsAgeVerified] = useState(false);
   const [checkingAge, setCheckingAge] = useState(true);
   const [showAgePrompt, setShowAgePrompt] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,27 +82,65 @@ export const OnboardingScreen: React.FC<Props> = ({
     [onOpenLegal]
   );
 
+  useEffect(() => {
+    if (!isLoading && !showAgePrompt) {
+      setPendingProvider(null);
+    }
+  }, [isLoading, showAgePrompt]);
+
+  const triggerProvider = useCallback(
+    (provider: 'apple' | 'google') => {
+      if (provider === 'google' && !onSignInWithGoogle) {
+        return;
+      }
+
+      if (checkingAge) {
+        return;
+      }
+
+      setPendingProvider(provider);
+
+      if (isAgeVerified) {
+        if (provider === 'apple') {
+          onSignInWithApple();
+        } else {
+          onSignInWithGoogle?.();
+        }
+      } else {
+        setShowAgePrompt(true);
+      }
+    },
+    [checkingAge, isAgeVerified, onSignInWithApple, onSignInWithGoogle]
+  );
+
   const handleAgeConfirmation = useCallback(async () => {
     try {
       await AsyncStorage.setItem(PersistKeys.ageVerified18, 'true');
       setIsAgeVerified(true);
       setShowAgePrompt(false);
-      onSignInWithApple();
+      const provider = pendingProvider ?? 'apple';
+      if (provider === 'apple') {
+        onSignInWithApple();
+      } else {
+        onSignInWithGoogle?.() ?? onSignInWithApple();
+      }
     } catch (error) {
       console.error('[Onboarding] Failed to persist age verification', error);
     }
-  }, [onSignInWithApple]);
+  }, [onSignInWithApple, onSignInWithGoogle, pendingProvider]);
 
   const handleApplePress = useCallback(() => {
-    if (checkingAge) {
-      return;
-    }
-    if (isAgeVerified) {
-      onSignInWithApple();
-    } else {
-      setShowAgePrompt(true);
-    }
-  }, [checkingAge, isAgeVerified, onSignInWithApple]);
+    triggerProvider('apple');
+  }, [triggerProvider]);
+
+  const handleGooglePress = useCallback(() => {
+    triggerProvider('google');
+  }, [triggerProvider]);
+
+  const pendingProviderLabel = pendingProvider === 'google' ? 'Google' : 'Apple';
+  const showAppleSpinner = isLoading && (pendingProvider ?? 'apple') === 'apple';
+  const showGoogleSpinner = isLoading && pendingProvider === 'google';
+  const disableAuthButtons = isLoading || checkingAge;
 
   const heroSource = useMemo(() => {
     try {
@@ -130,11 +169,11 @@ export const OnboardingScreen: React.FC<Props> = ({
         <View style={styles.buttonArea}>
           <TouchableOpacity
             activeOpacity={0.8}
-            disabled={isLoading || checkingAge}
-            style={[styles.appleButton, (isLoading || checkingAge) && styles.buttonDisabled]}
+            disabled={disableAuthButtons}
+            style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
             onPress={handleApplePress}
           >
-            {isLoading ? (
+            {showAppleSpinner ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <>
@@ -143,18 +182,29 @@ export const OnboardingScreen: React.FC<Props> = ({
               </>
             )}
           </TouchableOpacity>
-          {onContinueAsGuest ? (
-            <Pressable
-              onPress={onContinueAsGuest}
-              style={({ pressed }) => [styles.guestButton, pressed && styles.guestButtonPressed]}
+          {onSignInWithGoogle ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={disableAuthButtons}
+              style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
+              onPress={handleGooglePress}
             >
-              <Text style={styles.guestLabel}>Continue as Guest</Text>
-            </Pressable>
+              {showGoogleSpinner ? (
+                <ActivityIndicator color="#05030D" />
+              ) : (
+                <>
+                  <View style={styles.googleIconBadge}>
+                    <Text style={styles.googleIcon}>G</Text>
+                  </View>
+                  <Text style={styles.googleLabel}>Sign in with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
           ) : null}
         </View>
 
         <View style={styles.legalBlock}>
-          <Text style={styles.legalHint}>By signing in with Apple, you agree to our</Text>
+          <Text style={styles.legalHint}>By signing in, you agree to our</Text>
           <View style={styles.legalRow}>
             <TouchableOpacity onPress={() => handleLegalPress('terms')}>
               <Text style={styles.legalLink}>Terms of Service</Text>
@@ -177,10 +227,16 @@ export const OnboardingScreen: React.FC<Props> = ({
             <Text style={styles.modalTitle}>Adults only</Text>
             <Text style={styles.modalBody}>
               You must be at least 18 years old to use this experience. Please confirm your age to continue with Sign in
-              with Apple.
+              with {pendingProviderLabel}.
             </Text>
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setShowAgePrompt(false)} style={styles.modalSecondary}>
+              <Pressable
+                onPress={() => {
+                  setShowAgePrompt(false);
+                  setPendingProvider(null);
+                }}
+                style={styles.modalSecondary}
+              >
                 <Text style={styles.modalSecondaryLabel}>Cancel</Text>
               </Pressable>
               <View style={styles.modalActionsSpacer} />
@@ -269,20 +325,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  guestButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    marginTop: 12,
+  },
+  googleIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  guestButtonPressed: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  googleIcon: {
+    fontWeight: '700',
+    color: '#4285F4',
   },
-  guestLabel: {
-    textAlign: 'center',
-    color: '#fff',
-    fontSize: 14,
+  googleLabel: {
+    fontSize: 16,
+    color: '#05030D',
+    fontWeight: '600',
   },
   legalBlock: {
     alignItems: 'center',

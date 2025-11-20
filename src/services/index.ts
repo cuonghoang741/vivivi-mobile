@@ -1,4 +1,4 @@
 // Export all services
-export { getSupabaseClient, ensureClientId, getAuthIdentifier } from './supabase';
+export { getSupabaseClient, getAuthenticatedUserId } from './supabase';
 export { authService, type AuthUser } from './AuthService';
 

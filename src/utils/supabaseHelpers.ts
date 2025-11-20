@@ -27,12 +27,6 @@ export const getSupabaseAuthHeaders = async (): Promise<Record<string, string>> 
     headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
   }
 
-  // Add X-Client-Id header for guest users (matching Swift's addAuthHeaders)
-  const clientId = await authManager.getClientId();
-  if (clientId) {
-    headers['X-Client-Id'] = clientId;
-  }
-
   return headers;
 };
 

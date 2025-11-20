@@ -15,7 +15,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { Button } from '../components/Button';
 import { CharacterRepository, type CharacterItem } from '../repositories/CharacterRepository';
-import { AssetRepository } from '../repositories/AssetRepository';
+import AssetRepository from '../repositories/AssetRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { BackgroundRepository } from '../repositories/BackgroundRepository';
 
@@ -41,8 +41,8 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
     setErrorMessage(null);
     try {
       const characterRepo = new CharacterRepository();
-      // Fetch free characters using repository method (like Swift version)
-      const free = await characterRepo.fetchFreeCharacters();
+      const characters = await characterRepo.fetchAllCharacters();
+      const free = characters.filter((c) => c.tier === 'free' && c.available).slice(0, 3);
       setFreeCharacters(free);
       if (free.length > 0) {
         setSelectedCharacterId(free[0].id);
@@ -61,13 +61,11 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
     setErrorMessage(null);
 
     try {
-      console.log('🎁 [NewUserGiftScreen] Starting gift claim for character:', characterId);
       const assetRepo = new AssetRepository();
       const currencyRepo = new CurrencyRepository();
       const backgroundRepo = new BackgroundRepository();
 
       // Gift character
-      console.log('🎁 [NewUserGiftScreen] Gifting character...');
       await assetRepo.createAsset(characterId, 'character');
 
       // Get character to find default costume
@@ -77,22 +75,16 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       // Gift default costume if available
       if (character?.default_costume_id) {
         try {
-          console.log('🎁 [NewUserGiftScreen] Gifting default costume...');
           await assetRepo.createAsset(character.default_costume_id, 'character_costume');
         } catch (err) {
           console.warn('[NewUserGiftScreen] Could not gift default costume:', err);
         }
       }
 
-      // Gift 3 random backgrounds
-      // Fetch more backgrounds than needed, then shuffle to randomize selection (like Swift version)
-      console.log('🎁 [NewUserGiftScreen] Gifting backgrounds...');
-      const allBackgrounds = await backgroundRepo.fetchAllBackgrounds();
-      // Shuffle array to randomize selection
-      const shuffledBackgrounds = [...allBackgrounds].sort(() => Math.random() - 0.5);
-      const backgroundsToGift = shuffledBackgrounds.slice(0, 3);
-      
-      for (const bg of backgroundsToGift) {
+      // Gift default background for character
+      const backgrounds = await backgroundRepo.fetchAllBackgrounds();
+      const freeBackgrounds = backgrounds.filter((b) => b.available && b.tier === 'free').slice(0, 3);
+      for (const bg of freeBackgrounds) {
         try {
           await assetRepo.createAsset(bg.id, 'background');
         } catch (err) {
@@ -101,28 +93,9 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       }
 
       // Gift currency
-      console.log('🎁 [NewUserGiftScreen] Gifting currency...');
       const currentCurrency = await currencyRepo.fetchCurrency();
       await currencyRepo.updateCurrency(currentCurrency.vcoin + 10000, currentCurrency.ruby + 100);
 
-      // Verify assets were created (retry up to 3 times with delay)
-      console.log('🎁 [NewUserGiftScreen] Verifying assets were created...');
-      let verified = false;
-      for (let i = 0; i < 3; i++) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
-        const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
-        if (ownedCharacterIds.has(characterId)) {
-          verified = true;
-          console.log('✅ [NewUserGiftScreen] Assets verified after', i + 1, 'attempt(s)');
-          break;
-        }
-      }
-      if (!verified) {
-        console.warn('⚠️ [NewUserGiftScreen] Assets verification failed, but continuing...');
-      }
-
-      console.log('✅ [NewUserGiftScreen] Gift claim completed, calling onComplete...');
-      setIsGifting(false);
       onComplete(characterId);
     } catch (error: any) {
       console.error('[NewUserGiftScreen] Failed to claim gift:', error);

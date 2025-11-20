@@ -1,4 +1,5 @@
 import { BaseRepository } from './BaseRepository';
+import { getAuthIdentifier } from '../services/authIdentifier';
 
 export interface CurrencyBalance {
   vcoin: number;
@@ -39,7 +40,7 @@ export class CurrencyRepository extends BaseRepository {
    * Update currency balance
    */
   async updateCurrency(vcoin?: number, ruby?: number): Promise<void> {
-    const { userId, clientId } = await (await import('../services/supabase')).getAuthIdentifier();
+    const { userId, clientId } = await getAuthIdentifier();
 
     const updateData: any = {};
     if (vcoin !== undefined) updateData.vcoin = vcoin;

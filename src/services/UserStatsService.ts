@@ -1,4 +1,8 @@
-import { getSupabaseClient } from './supabase';
+
+import {
+  userStatsRepository,
+  type UserStatsRow,
+} from '../repositories/UserStatsRepository';
 
 export type UserStats = {
   level: number;
@@ -6,67 +10,104 @@ export type UserStats = {
   nextLevelXp: number;
   energy: number;
   energyMax: number;
+  loginStreak: number;
 };
+
+const ENERGY_MAX = 100;
+const ENERGY_REGEN_MINUTES = 6;
 
 const DEFAULT_STATS: UserStats = {
-  level: 3,
-  xp: 420,
-  nextLevelXp: 900,
-  energy: 72,
-  energyMax: 100,
-};
-
-type RemoteStatsRow = {
-  level?: number | null;
-  xp?: number | null;
-  next_level_xp?: number | null;
-  energy?: number | null;
-  energy_max?: number | null;
+  level: 1,
+  xp: 0,
+  nextLevelXp: 100,
+  energy: ENERGY_MAX,
+  energyMax: ENERGY_MAX,
+  loginStreak: 0,
 };
 
 class UserStatsService {
-  private client = getSupabaseClient();
-
-  /**
-   * Fetches stats from Supabase or falls back to defaults when table is missing.
-   */
   async fetchStats(): Promise<UserStats> {
     try {
-      const { data, error } = await this.client
-        .from('user_stats')
-        .select('level,xp,next_level_xp,energy,energy_max')
-        .limit(1)
-        .maybeSingle<RemoteStatsRow>();
-
-      if (error) {
-        // Table may not exist yet while we prototype in native version.
-        console.warn('[UserStatsService] Falling back to defaults:', error.message);
-        return DEFAULT_STATS;
+      let row = await userStatsRepository.fetchStats();
+      if (!row) {
+        row = await userStatsRepository.createDefaultStats();
       }
 
-      if (!data) {
+      return await this.mapRowToStats(row);
+    } catch (error) {
+      console.error('[UserStatsService] Failed to fetch stats:', error);
         return DEFAULT_STATS;
       }
+  }
 
-      const level = data.level ?? DEFAULT_STATS.level;
-      const xp = data.xp ?? DEFAULT_STATS.xp;
-      const energy = data.energy ?? DEFAULT_STATS.energy;
-      const energyMax = data.energy_max ?? DEFAULT_STATS.energyMax;
-      const nextLevelXp =
-        data.next_level_xp ??
-        Math.max(level * level * 100, (level + 1) * (level + 1) * 100);
+  private async mapRowToStats(row: UserStatsRow): Promise<UserStats> {
+    const xp = row.xp ?? DEFAULT_STATS.xp;
+    const level = row.level ?? this.calculateLevelFromXp(xp);
+
+    const regenResult = this.regenerateEnergy(row.energy, row.energy_updated_at);
+    if (regenResult.shouldPersist) {
+      try {
+        await userStatsRepository.updateStats({
+          energy: regenResult.energy,
+          energy_updated_at: regenResult.updatedAt,
+        });
+      } catch (error) {
+        console.warn('[UserStatsService] Unable to persist regenerated energy:', error);
+      }
+    }
 
       return {
         level,
         xp,
-        nextLevelXp,
-        energy,
-        energyMax,
+      nextLevelXp: this.calculateNextLevelXp(level),
+      energy: regenResult.energy,
+      energyMax: ENERGY_MAX,
+      loginStreak: row.login_streak ?? DEFAULT_STATS.loginStreak,
       };
-    } catch (error: any) {
-      console.error('[UserStatsService] Unexpected error:', error);
-      return DEFAULT_STATS;
+  }
+
+  private regenerateEnergy(
+    energyValue: number | null,
+    lastUpdatedISO: string | null
+  ): { energy: number; updatedAt: string; shouldPersist: boolean } {
+    const now = new Date();
+    const currentEnergy = this.clamp(energyValue ?? ENERGY_MAX, 0, ENERGY_MAX);
+
+    let shouldPersist = false;
+    let updatedAt = lastUpdatedISO ? new Date(lastUpdatedISO) : null;
+
+    if (!updatedAt) {
+      updatedAt = now;
+      shouldPersist = true;
     }
+
+    let energy = currentEnergy;
+    if (energy < ENERGY_MAX && updatedAt) {
+      const diffMinutes = Math.floor((now.getTime() - updatedAt.getTime()) / 60000);
+      const regenerated = Math.floor(diffMinutes / ENERGY_REGEN_MINUTES);
+
+      if (regenerated > 0) {
+        energy = this.clamp(energy + regenerated, 0, ENERGY_MAX);
+        updatedAt = now;
+        shouldPersist = true;
+      }
+    }
+
+    return { energy, updatedAt: updatedAt.toISOString(), shouldPersist };
+  }
+
+  private calculateLevelFromXp(xp: number): number {
+    const safeXp = Math.max(0, xp);
+    return Math.floor(Math.sqrt(safeXp / 100)) + 1;
+  }
+
+  private calculateNextLevelXp(level: number): number {
+    const safeLevel = Math.max(1, level);
+    return safeLevel * safeLevel * 100;
+    }
+
+  private clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
   }
 }
 

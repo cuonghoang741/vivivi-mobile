@@ -9,14 +9,12 @@ import {
   ViewProps,
   ViewStyle,
 } from "react-native";
-import { Host, Text as SwiftUIText } from "@expo/ui/swift-ui";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Button from "./Button";
 import { LiquidGlass } from "./LiquidGlass";
-import { glassEffect, padding } from "@expo/ui/swift-ui/modifiers";
 
 const VCOIN_ICON = require("../assets/images/VCoin.png");
 const RUBY_ICON = require("../assets/images/Ruby.png");
@@ -42,7 +40,6 @@ type VRMUIOverlayProps = ViewProps & {
   onQuestPress?: () => void;
   onCalendarPress?: () => void;
   onToggleChatList?: () => void;
-  onSettingsPress?: () => void;
 };
 
 export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
@@ -66,7 +63,6 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onQuestPress,
   onCalendarPress,
   onToggleChatList,
-  onSettingsPress,
   ...rest
 }) => {
   const levelProgress = useMemo(() => {
@@ -143,7 +139,6 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       </View>
 
       <View style={styles.rightColumn}>
-        <IconButton iconName="settings-outline" onPress={onSettingsPress} />
         <IconButton iconName="map-outline" onPress={onBackgroundPress} />
         <IconButton iconName="shirt-outline" onPress={onCostumePress} />
         <IconButton
@@ -315,6 +310,8 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 38,
     height: 38,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   iconButtonHighlight: {
     backgroundColor: "rgba(255,149,0,0.22)",

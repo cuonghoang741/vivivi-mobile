@@ -8,19 +8,15 @@ import type { CharacterItem, BackgroundItem, CurrencyBalance } from '../reposito
  */
 export const useAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isGuest, setIsGuest] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const currentUser = await authService.getCurrentUser();
-        const guest = await authService.isGuest();
         setUser(currentUser);
-        setIsGuest(guest);
       } catch (error) {
         console.error('Auth check failed:', error);
-        setIsGuest(true);
         setUser(null);
       } finally {
         setLoading(false);
@@ -30,7 +26,7 @@ export const useAuth = () => {
     checkAuth();
   }, []);
 
-  return { user, isGuest, loading };
+  return { user, loading };
 };
 
 /**

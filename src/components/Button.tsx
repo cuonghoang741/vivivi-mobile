@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   ColorValue,
+  Platform,
   StyleProp,
   StyleSheet,
   Text,
@@ -10,9 +11,10 @@ import {
   ViewStyle,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LiquidGlass } from './LiquidGlass';
+import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
 import HapticPressable from './ui/HapticPressable';
 import { buttonColors, type ButtonColorKey } from '../styles/color';
+import { glassButtonStyle } from '../styles/glass';
 
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'link' | 'liquid';
@@ -59,70 +61,106 @@ export const Button: React.FC<ButtonProps> = ({
 
   const baseStyle = style ? StyleSheet.flatten([buttonStyle, style]) : buttonStyle;
 
-  const content = (
-    <View style={styles.content}>
-      {startIconName ? (
-        <Ionicons
-          name={startIconName}
-          size={iconSize}
-          color={textStyle.color as string}
-          style={styles.icon}
-        />
-      ) : null}
-      {!isIconOnly && children ? (
-        <Text style={textStyle}>{children}</Text>
-      ) : null}
-      {endIconName ? (
-        <Ionicons
-          name={endIconName}
-          size={iconSize}
-          color={textStyle.color as string}
-          style={styles.icon}
-        />
-      ) : null}
+  // Button content - tách riêng như ví dụ
+  const buttonContent = (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          opacity: loading ? 0 : 1,
+        }}
+      >
+        {startIconName ? (
+          <Ionicons
+            name={startIconName}
+            size={iconSize}
+            color={textStyle.color as string}
+            style={styles.icon}
+          />
+        ) : null}
+        {!isIconOnly && children ? (
+          <Text style={textStyle}>{children}</Text>
+        ) : null}
+        {endIconName ? (
+          <Ionicons
+            name={endIconName}
+            size={iconSize}
+            color={textStyle.color as string}
+            style={styles.icon}
+          />
+        ) : null}
+      </View>
       {loading ? (
         <ActivityIndicator
           size="small"
           color={textStyle.color as string}
-          style={styles.loader}
+          style={{ position: 'absolute' }}
         />
       ) : null}
     </View>
   );
 
-  const renderPressable = (buttonStyleOverride?: ViewStyle) => (
-    <HapticPressable
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        buttonStyleOverride ?? baseStyle,
-        pressed && !disabled && !loading && styles.pressed,
-      ]}
-    >
-      {content}
-    </HapticPressable>
-  );
-
-  if (variant === 'liquid') {
+  // Render with liquid glass effect
+  if (variant === 'liquid' && isLiquidGlassSupported) {
     const glassStyle = { ...(baseStyle as ViewStyle) };
     const tintColor = getBackgroundColor(glassStyle);
     if ('backgroundColor' in glassStyle) {
       delete glassStyle.backgroundColor;
     }
 
-    const pressableStyle: ViewStyle = {
-      ...glassStyle,
-      backgroundColor: 'transparent',
-    };
-
     return (
-      <LiquidGlass style={glassStyle} tintColor={tintColor}>
-        {renderPressable(pressableStyle)}
-      </LiquidGlass>
+      <HapticPressable onPress={onPress} disabled={disabled || loading}>
+        <LiquidGlassView
+          effect="regular"
+          tintColor={tintColor}
+          interactive
+          style={[
+            glassButtonStyle,
+            buttonStyle,
+            {
+              backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            },
+            style,
+          ]}
+        >
+          {buttonContent}
+        </LiquidGlassView>
+      </HapticPressable>
+    );
+  } else if (variant === 'liquid' && !isLiquidGlassSupported) {
+    // Fallback for devices that don't support liquid glass
+    return (
+      <HapticPressable
+        style={({ pressed }) => [
+          buttonStyle,
+          { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+          pressed && !disabled && !loading && styles.pressed,
+          style,
+        ]}
+        onPress={onPress}
+        disabled={disabled || loading}
+      >
+        {buttonContent}
+      </HapticPressable>
     );
   }
 
-  return renderPressable();
+  // Fallback for non-liquid variants
+  return (
+    <HapticPressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      style={({ pressed }) => [
+        baseStyle,
+        pressed && !disabled && !loading && styles.pressed,
+      ]}
+    >
+      {buttonContent}
+    </HapticPressable>
+  );
 };
 
 const getBaseColors = (color: NonNullable<ButtonProps['color']>) => {
@@ -183,6 +221,12 @@ const getStyles = ({
       break;
   }
 
+  // Calculate circular button size for icon-only buttons
+  // Size = icon size + padding on both sides
+  const iconButtonSize = isIconOnly
+    ? sizeCfg.iconPadding * 2 + sizeCfg.iconSize
+    : undefined;
+
   const button: ViewStyle = {
     flexDirection: 'row',
     alignItems: 'center',
@@ -191,10 +235,14 @@ const getStyles = ({
     backgroundColor,
     borderWidth,
     borderColor,
-    paddingHorizontal: isIconOnly ? sizeCfg.iconPadding : sizeCfg.horizontal,
-    paddingVertical: sizeCfg.vertical,
+    // When icon-only, use fixed width/height and no padding for perfect centering
+    paddingHorizontal: isIconOnly ? 0 : sizeCfg.horizontal,
+    paddingVertical: isIconOnly ? 0 : sizeCfg.vertical,
     alignSelf: fullWidth ? 'stretch' : 'flex-start',
-    width: fullWidth ? '100%' : undefined,
+    width: fullWidth ? '100%' : isIconOnly ? iconButtonSize : undefined,
+    height: isIconOnly ? iconButtonSize : undefined,
+    minWidth: isIconOnly ? iconButtonSize : undefined,
+    minHeight: isIconOnly ? iconButtonSize : undefined,
     opacity: disabled || loading ? 0.65 : 1,
   };
 
@@ -243,7 +291,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    marginHorizontal: 4,
+    marginHorizontal: 0,
   },
   loader: {
     marginLeft: 8,

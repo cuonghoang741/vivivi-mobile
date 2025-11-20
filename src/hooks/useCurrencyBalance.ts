@@ -17,7 +17,7 @@ const DEFAULT_BALANCE: CurrencyBalance = { vcoin: 0, ruby: 0 };
 export const useCurrencyBalance = (): UseCurrencyBalanceResult => {
   const [balance, setBalance] = useState<CurrencyBalance>(DEFAULT_BALANCE);
   const [loading, setLoading] = useState(true);
-  const repoRef = useRef<CurrencyRepository>();
+  const repoRef = useRef<CurrencyRepository | null>(null);
 
   if (!repoRef.current) {
     repoRef.current = new CurrencyRepository();
