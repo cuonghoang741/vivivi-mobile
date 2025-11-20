@@ -8,21 +8,18 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Dimensions,
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { Button } from '../components/Button';
 import { CharacterRepository, type CharacterItem } from '../repositories/CharacterRepository';
 import AssetRepository from '../repositories/AssetRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
-import { BackgroundRepository, BackgroundItem } from '../repositories/BackgroundRepository';
+import { BackgroundRepository } from '../repositories/BackgroundRepository';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const VCOIN_ICON = require('../assets/images/VCoin.png');
 const RUBY_ICON = require('../assets/images/Ruby.png');
@@ -195,6 +192,12 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       const currencyRepo = new CurrencyRepository();
       const characterRepo = new CharacterRepository();
 
+      const currentCurrency = await currencyRepo.fetchCurrency();
+      await currencyRepo.updateCurrency(
+        currentCurrency.vcoin + 10000,
+        currentCurrency.ruby + 100
+      );
+
       const characterGifted = await assetRepo.createAsset(characterId, 'character');
       if (!characterGifted) {
         throw new Error('Failed to gift the character.');
@@ -231,11 +234,7 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       );
       giftedBackgroundIds.push(...randomBackgroundIds);
 
-      const currentCurrency = await currencyRepo.fetchCurrency();
-      await currencyRepo.updateCurrency(
-        currentCurrency.vcoin + 10000,
-        currentCurrency.ruby + 100
-      );
+
 
       const backgroundToApply = giftedBackgroundIds[0];
       if (backgroundToApply) {
@@ -243,7 +242,7 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       }
 
       setIsGifting(false);
-      onComplete(characterId);
+      // onComplete(characterId);
     } catch (error: any) {
       console.error('[NewUserGiftScreen] Failed to claim gift:', error);
       setErrorMessage(
@@ -252,8 +251,6 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       setIsGifting(false);
     }
   };
-
-  const selectedCharacter = freeCharacters.find((c) => c.id === selectedCharacterId);
 
   return (
     <View style={styles.container}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiquidGlass } from '../LiquidGlass';
 
@@ -80,19 +80,18 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
   accessibilityLabel,
 }) => {
   return (
-    <LiquidGlass
+    <Pressable
       style={[styles.iconContainer, active && styles.iconContainerActive]}
       onPress={onPress}
-      pressable={!!onPress}
     >
       <View
         style={styles.iconButton}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
       >
-        <Ionicons name={iconName} size={16} color="#fff" />
+        <Ionicons name={iconName} size={24} color="#fff" />
       </View>
-    </LiquidGlass>
+    </Pressable>
   );
 };
 
@@ -161,8 +160,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,121,176,0.25)',
   },
   iconButton: {
-    width: 28,
-    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -225,61 +225,19 @@ let overlayHiddenAt = null; // timestamp when loading overlay was hidden
 let notifyTimer = null;
 function notifyInitialReadyIfDone() {
     try {
-        console.log('🔍 Checking initial ready:', {
-            animationApplied: initialAnimationApplied,
-            backgroundReady: initialBackgroundReady,
-            progress100: progress100At,
-            overlayHidden: overlayHiddenAt
-        });
-        
-        if (!(initialAnimationApplied && initialBackgroundReady)) {
-            console.log('⏳ Waiting for:', {
-                needAnimation: !initialAnimationApplied,
-                needBackground: !initialBackgroundReady
-            });
-            return;
-        }
-        
+        if (!(initialAnimationApplied && initialBackgroundReady)) return;
         const now = performance.now();
         const t100 = progress100At ?? now;
         const thide = overlayHiddenAt ?? now;
         const target = Math.max(t100, thide) + 1000; // 1s after 100% + overlay hidden
         const waitMs = target - now;
-        
-        const sendReady = () => {
-            try {
-                console.log('✅ Sending initialReady message...');
-                // iOS native WebKit message handler
-                window.webkit?.messageHandlers?.loading?.postMessage('initialReady');
-            } catch (e) {
-                console.error('Error sending to webkit:', e);
-            }
-            try {
-                // React Native WebView message handler
-                if (window.ReactNativeWebView) {
-                    window.ReactNativeWebView.postMessage('initialReady');
-                    console.log('✅ Sent initialReady to ReactNativeWebView');
-                } else {
-                    console.warn('⚠️ window.ReactNativeWebView not available');
-                }
-            } catch (e) {
-                console.error('Error sending to ReactNativeWebView:', e);
-            }
-        };
-        
         if (waitMs <= 0) {
-            sendReady();
+            window.webkit?.messageHandlers?.loading?.postMessage('initialReady');
         } else {
-            console.log(`⏳ Waiting ${waitMs}ms before sending initialReady...`);
             if (notifyTimer) { clearTimeout(notifyTimer); }
-            notifyTimer = setTimeout(() => { 
-                console.log('⏰ Timer fired, sending initialReady');
-                sendReady(); 
-            }, waitMs);
+            notifyTimer = setTimeout(() => { try { window.webkit?.messageHandlers?.loading?.postMessage('initialReady'); } catch {} }, waitMs);
         }
-    } catch (e) {
-        console.error('Error in notifyInitialReadyIfDone:', e);
-    }
+    } catch {}
 }
 
 function fetchAndCacheObjectURL(name, baseUrl, cacheMap) {
@@ -1029,7 +987,6 @@ function loadVRM( modelUrl, modelName, animationToLoad = null ) {
             }
             // Notify Swift that model is loaded and scene attached
             try { window.webkit?.messageHandlers?.loading?.postMessage('modelLoaded'); } catch {}
-            try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('modelLoaded'); } catch {}
             // hide loading overlay
             setModelLoading(false);
 
@@ -1068,11 +1025,7 @@ function loadFBX( animationUrl, animationName, crossFadeDuration = 0.5 ) {
             }
             currentAction = newAction;
             updateFileDisplay(document.getElementById('currentModel').textContent, animationName);
-            if (!initialAnimationApplied) { 
-                initialAnimationApplied = true; 
-                console.log('✅ Animation applied, checking initial ready...');
-                notifyInitialReadyIfDone(); 
-            }
+            if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
             
             // Start expressions after animation has started playing
             if (currentVrm) {
@@ -1093,29 +1046,18 @@ function loadFBX( animationUrl, animationName, crossFadeDuration = 0.5 ) {
 }
 
 window.loadRandomFiles = async function() {
-    try {
-        console.log('🎲 loadRandomFiles called');
-        const randomVRM = getRandomItem(vrmFiles);
-        const randomFBX = getNextAnimation();
-        console.log('🎲 Selected random VRM:', randomVRM, 'Animation:', randomFBX);
-        
-        if (randomVRM && randomFBX) {
-            const vrmUrl = await getModelURL(randomVRM);
-            console.log('📦 Loading VRM from URL:', vrmUrl);
-            // Do not start animation immediately; it will auto-play after post-load blur
-            loadVRM(vrmUrl, randomVRM);
-            // Start background preloading excluding current selections
-            startBackgroundPreloading(randomVRM, randomFBX);
-        } else if (randomVRM) {
-            const vrmUrl = await getModelURL(randomVRM);
-            console.log('📦 Loading VRM from URL:', vrmUrl);
-            loadVRM(vrmUrl, randomVRM);
-            startBackgroundPreloading(randomVRM, null);
-        } else {
-            console.error('❌ No VRM files available!');
-        }
-    } catch (e) {
-        console.error('❌ Error in loadRandomFiles:', e);
+    const randomVRM = getRandomItem(vrmFiles);
+    const randomFBX = getNextAnimation();
+    if (randomVRM && randomFBX) {
+        const vrmUrl = await getModelURL(randomVRM);
+        // Do not start animation immediately; it will auto-play after post-load blur
+        loadVRM(vrmUrl, randomVRM);
+        // Start background preloading excluding current selections
+        startBackgroundPreloading(randomVRM, randomFBX);
+    } else if (randomVRM) {
+        const vrmUrl = await getModelURL(randomVRM);
+        loadVRM(vrmUrl, randomVRM);
+        startBackgroundPreloading(randomVRM, null);
     }
 }
 
@@ -1173,21 +1115,14 @@ window.addEventListener('DOMContentLoaded', async function() {
             document.body.style.backgroundImage = `url('${url}')`;
             // Mark ready since background is applied synchronously
             if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
-        } else {
-            // If no background URL provided, mark as ready anyway (use default background)
-            // This ensures initialReady can be sent even without persisted background
-            if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
         }
-    } catch {
-        // On error, mark background as ready anyway to allow initialReady
-        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
-    }
-    
-    // Allow native (Swift/React Native) to preselect a model name or URL for later, but do not auto-load here.
-    // Native will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
-    // Intentionally no auto-load based on nativeName/nativeURL to avoid double-loading with native-side logic.
-    // No default character loading - wait for native to explicitly load a model
-    
+    } catch {}
+    // Allow native (Swift) to preselect a model name or URL for later, but do not auto-load here.
+    // Swift will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
+    const nativeName = (typeof window.nativeSelectedModelName === 'string' && window.nativeSelectedModelName.trim().length) ? window.nativeSelectedModelName.trim() : null;
+    const nativeURL = (typeof window.nativeSelectedModelURL === 'string' && window.nativeSelectedModelURL.trim().length) ? window.nativeSelectedModelURL.trim() : null;
+    // Intentionally no auto-load based on nativeName/nativeURL to avoid double-loading with Swift-side logic.
+    // No default character loading - wait for Swift to explicitly load a model
     // No HTML-side BGM initialization
 });
 

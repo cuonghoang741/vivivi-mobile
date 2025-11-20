@@ -1,6 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
+  PanResponder,
+  PanResponderGestureState,
+  GestureResponderEvent,
   StyleProp,
   StyleSheet,
   Text,
@@ -14,6 +17,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Button from "./Button";
 import { LiquidGlass } from "./LiquidGlass";
+import { Button as SwiftUIButton, Host } from "@expo/ui/swift-ui";
+import { glassEffect, padding } from "@expo/ui/swift-ui/modifiers";
 
 const VCOIN_ICON = require("../assets/images/VCoin.png");
 const RUBY_ICON = require("../assets/images/Ruby.png");
@@ -39,7 +44,14 @@ type VRMUIOverlayProps = ViewProps & {
   onQuestPress?: () => void;
   onCalendarPress?: () => void;
   onToggleChatList?: () => void;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+  onSwipeUp?: () => void;
+  onSwipeDown?: () => void;
 };
+
+const SWIPE_DISTANCE_THRESHOLD = 40;
+const SWIPE_DIRECTION_RATIO = 1.2;
 
 export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   style,
@@ -62,6 +74,10 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onQuestPress,
   onCalendarPress,
   onToggleChatList,
+  onSwipeLeft,
+  onSwipeRight,
+  onSwipeUp,
+  onSwipeDown,
   ...rest
 }) => {
   const levelProgress = useMemo(() => {
@@ -72,7 +88,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   const insets = useSafeAreaInsets();
   const safeAreaPadding = useMemo(
     () => ({
-      paddingTop: 12 + insets.top,
+      paddingTop: 68 + insets.top,
       paddingBottom: 12 + insets.bottom,
     }),
     [insets.bottom, insets.top]
@@ -87,10 +103,54 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   const energyColor =
     energyRatio < 0.2 ? "#FF6B6B" : energyRatio < 0.5 ? "#FFC857" : "#8CF29C";
 
+  const handleSwipe = useCallback(
+    (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+      const { dx, dy } = gestureState;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      if (absDx < SWIPE_DISTANCE_THRESHOLD && absDy < SWIPE_DISTANCE_THRESHOLD) {
+        return;
+      }
+
+      if (absDx > absDy * SWIPE_DIRECTION_RATIO) {
+        if (dx < 0) {
+          onSwipeLeft?.();
+        } else {
+          onSwipeRight?.();
+        }
+      } else if (absDy > absDx * SWIPE_DIRECTION_RATIO) {
+        if (dy < 0) {
+          onSwipeUp?.();
+        } else {
+          onSwipeDown?.();
+        }
+      }
+    },
+    [onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown]
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_evt, gestureState) => {
+          const { dx, dy } = gestureState;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+          return absDx > 12 || absDy > 12;
+        },
+        onPanResponderRelease: handleSwipe,
+        onPanResponderTerminate: handleSwipe,
+        onPanResponderTerminationRequest: () => true,
+      }),
+    [handleSwipe]
+  );
+
   return (
     <View
       pointerEvents="box-none"
       style={[styles.container, safeAreaPadding, style]}
+      {...panResponder.panHandlers}
       {...rest}
     >
       <View style={styles.leftColumn}>
@@ -194,7 +254,6 @@ const IconButton: React.FC<{
   highlight?: boolean;
 }> = ({ iconName, onPress, highlight }) => (
   <Button
-    size="sm"
     variant="liquid"
     color="primary"
     isIconOnly

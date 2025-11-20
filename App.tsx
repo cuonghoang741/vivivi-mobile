@@ -28,8 +28,8 @@ import LoginRewardSheet from './src/components/sheets/LoginRewardSheet';
 import { BackgroundSheet } from './src/components/sheets/BackgroundSheet';
 import { CostumeSheet } from './src/components/sheets/CostumeSheet';
 import { CharacterSheet } from './src/components/sheets/CharacterSheet';
-import { BackgroundItem } from './src/repositories/BackgroundRepository';
-import { CharacterItem } from './src/repositories/CharacterRepository';
+import { BackgroundRepository, type BackgroundItem } from './src/repositories/BackgroundRepository';
+import { CharacterRepository, type CharacterItem } from './src/repositories/CharacterRepository';
 import { CostumeItem } from './src/repositories/CostumeRepository';
 import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
 import { PurchaseService, PurchaseError, PurchaseErrorCode } from './src/services/PurchaseService';
@@ -112,6 +112,14 @@ const AppContent = () => {
   const loginRewardStatus = loginRewards.status;
   const purchaseServiceRef = useRef<PurchaseService | null>(null);
   const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(null);
+  const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
+  const [ownedBackgroundList, setOwnedBackgroundList] = useState<BackgroundItem[]>([]);
+  const [ownedCharacterList, setOwnedCharacterList] = useState<CharacterItem[]>([]);
+  const ownedBackgroundListRef = useRef<BackgroundItem[]>([]);
+  const ownedCharacterListRef = useRef<CharacterItem[]>([]);
+  const currentBackgroundIdRef = useRef<string | null>(null);
+  const backgroundSwipeLockRef = useRef(false);
+  const characterSwipeLockRef = useRef(false);
 
   const getPurchaseService = useCallback(() => {
     if (!purchaseServiceRef.current) {
@@ -147,9 +155,69 @@ const AppContent = () => {
     }));
   }, [loginRewardStatus.canClaimToday]);
 
+  useEffect(() => {
+    ownedBackgroundListRef.current = ownedBackgroundList;
+  }, [ownedBackgroundList]);
+
+  useEffect(() => {
+    ownedCharacterListRef.current = ownedCharacterList;
+  }, [ownedCharacterList]);
+
+  useEffect(() => {
+    currentBackgroundIdRef.current = currentBackgroundId;
+  }, [currentBackgroundId]);
+
+  useEffect(() => {
+    setCurrentBackgroundId(initialData?.preference?.backgroundId ?? null);
+  }, [initialData?.preference?.backgroundId]);
+
   const handleCurrencyPress = useCallback(() => {
     setShowCurrencySheet(true);
   }, []);
+
+  const loadSwipeInventories = useCallback(async (): Promise<{
+    backgrounds: BackgroundItem[];
+    characters: CharacterItem[];
+  }> => {
+    if (!session) {
+      setOwnedBackgroundList([]);
+      setOwnedCharacterList([]);
+      return { backgrounds: [], characters: [] };
+    }
+    try {
+      const assetRepo = new AssetRepository();
+      const characterRepo = new CharacterRepository();
+      const backgroundRepo = new BackgroundRepository();
+      const [characters, backgrounds, ownedCharacterIds, ownedBackgroundIds] = await Promise.all([
+        characterRepo.fetchAllCharacters(),
+        backgroundRepo.fetchAllBackgrounds(),
+        assetRepo.fetchOwnedAssets('character'),
+        assetRepo.fetchOwnedAssets('background'),
+      ]);
+      const ownedChars = characters.filter(char => ownedCharacterIds.has(char.id));
+      const ownedBgs = backgrounds.filter(bg => ownedBackgroundIds.has(bg.id));
+      setOwnedCharacterList(ownedChars);
+      setOwnedBackgroundList(ownedBgs);
+      const activeBackgroundId = currentBackgroundIdRef.current;
+      if ((!activeBackgroundId || !ownedBgs.some(bg => bg.id === activeBackgroundId)) && ownedBgs.length > 0) {
+        setCurrentBackgroundId(ownedBgs[0].id);
+      }
+      return { backgrounds: ownedBgs, characters: ownedChars };
+    } catch (error) {
+      console.error('❌ Error loading swipe inventories:', error);
+      return {
+        backgrounds: ownedBackgroundListRef.current,
+        characters: ownedCharacterListRef.current,
+      };
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    loadSwipeInventories();
+  }, [session, initialData?.fetchedAt, loadSwipeInventories]);
 
   const resolveItemPrices = useCallback(
     (
@@ -222,8 +290,10 @@ const AppContent = () => {
       await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
         current_background_id: backgroundId,
       });
+      setCurrentBackgroundId(backgroundId);
+      await loadSwipeInventories();
     },
-    [currentCharacter]
+    [currentCharacter, loadSwipeInventories]
   );
 
   const applyCostume = useCallback(
@@ -263,11 +333,12 @@ const AppContent = () => {
         }
 
         await refreshInitialData();
+        await loadSwipeInventories();
       } catch (error) {
         console.error('❌ Error applying character:', error);
       }
     },
-    [refreshInitialData, setCurrentCharacterState]
+    [loadSwipeInventories, refreshInitialData, setCurrentCharacterState]
   );
 
   const processCharacterSelection = useCallback(
@@ -407,6 +478,96 @@ const AppContent = () => {
     },
     [applyCostume, currentCharacter, purchaseItemWithCurrency, resolveItemPrices]
   );
+
+  const cycleBackground = useCallback(
+    async (offset: 1 | -1) => {
+      if (backgroundSwipeLockRef.current) {
+        return;
+      }
+      backgroundSwipeLockRef.current = true;
+      try {
+        let list = ownedBackgroundListRef.current;
+        if (!list.length) {
+          const data = await loadSwipeInventories();
+          list = data.backgrounds;
+        }
+        if (!list.length) {
+          if (webViewRef.current) {
+            const js =
+              offset > 0
+                ? "window.nextBackground&&window.nextBackground();"
+                : "window.prevBackground&&window.prevBackground();";
+            webViewRef.current.injectJavaScript(js);
+          }
+          await loadSwipeInventories();
+          return;
+        }
+        const activeBackgroundId =
+          currentBackgroundIdRef.current && list.some(bg => bg.id === currentBackgroundIdRef.current)
+            ? currentBackgroundIdRef.current!
+            : list[0].id;
+        const currentIndex = list.findIndex(bg => bg.id === activeBackgroundId);
+        const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+        const nextIndex = (safeIndex + offset + list.length) % list.length;
+        const target = list[nextIndex];
+        const ownedSet = new Set(list.map(bg => bg.id));
+        await applyBackground(target.id, ownedSet);
+      } catch (error) {
+        console.error('❌ Error advancing background:', error);
+      } finally {
+        backgroundSwipeLockRef.current = false;
+      }
+    },
+    [applyBackground, loadSwipeInventories]
+  );
+
+  const cycleCharacter = useCallback(
+    async (offset: 1 | -1) => {
+      if (characterSwipeLockRef.current) {
+        return;
+      }
+      characterSwipeLockRef.current = true;
+      try {
+        let list = ownedCharacterListRef.current;
+        if (!list.length) {
+          const data = await loadSwipeInventories();
+          list = data.characters;
+        }
+        if (list.length <= 1) {
+          return;
+        }
+        const currentId = currentCharacter?.id;
+        let index = currentId ? list.findIndex(char => char.id === currentId) : 0;
+        if (index < 0) {
+          index = 0;
+        }
+        const nextIndex = (index + offset + list.length) % list.length;
+        const target = list[nextIndex];
+        await applyCharacter(target);
+      } catch (error) {
+        console.error('❌ Error changing character via swipe:', error);
+      } finally {
+        characterSwipeLockRef.current = false;
+      }
+    },
+    [applyCharacter, currentCharacter?.id, loadSwipeInventories]
+  );
+
+  const handleSwipeLeft = useCallback(() => {
+    cycleBackground(1);
+  }, [cycleBackground]);
+
+  const handleSwipeRight = useCallback(() => {
+    cycleBackground(-1);
+  }, [cycleBackground]);
+
+  const handleSwipeUp = useCallback(() => {
+    cycleCharacter(1);
+  }, [cycleCharacter]);
+
+  const handleSwipeDown = useCallback(() => {
+    cycleCharacter(-1);
+  }, [cycleCharacter]);
 
   const resumePendingPurchase = useCallback(async () => {
     if (!pendingPurchase) {
@@ -604,12 +765,12 @@ const AppContent = () => {
       headerLeft: () => (
         <View style={styles.headerActions}>
           <HeaderIconButton
-            iconName="settings-outline"
+            iconName="settings"
             onPress={handleOpenSettings}
             accessibilityLabel="Mở cài đặt"
           />
           <HeaderIconButton
-            iconName={isAudioMuted ? 'volume-mute-outline' : 'volume-high-outline'}
+            iconName={isAudioMuted ? 'volume-mute' : 'volume-high'}
             onPress={handleToggleSpeaker}
             accessibilityLabel="Bật tắt loa"
             active={isAudioMuted}
@@ -619,12 +780,12 @@ const AppContent = () => {
       headerRight: () => (
         <View style={styles.headerActions}>
           <HeaderIconButton
-            iconName="grid-outline"
+            iconName="grid"
             onPress={handleOpenCharacterMenu}
             accessibilityLabel="Menu nhân vật"
           />
           <HeaderIconButton
-            iconName={isCameraModeOn ? 'stop-circle-outline' : 'videocam-outline'}
+            iconName={isCameraModeOn ? 'stop-circle' : 'videocam'}
             onPress={handleToggleCameraMode}
             accessibilityLabel="Chế độ camera"
             active={isCameraModeOn}
@@ -876,6 +1037,10 @@ const AppContent = () => {
           onQuestPress={() => console.log('🏁 Quest sheet placeholder')}
           onCalendarPress={() => setShowLoginRewardSheet(true)}
           onToggleChatList={handleOverlayChatToggle}
+          onSwipeLeft={handleSwipeLeft}
+          onSwipeRight={handleSwipeRight}
+          onSwipeUp={handleSwipeUp}
+          onSwipeDown={handleSwipeDown}
         />
         <View pointerEvents="box-none" style={styles.chatOverlay}>
           <ChatBottomOverlay
