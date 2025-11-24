@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   Image,
   Pressable,
@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Button from "./Button";
 import { LiquidGlass } from "./LiquidGlass";
+import { usePurchaseContext } from "../context/PurchaseContext";
 
 const VCOIN_ICON = require("../assets/images/VCoin.png");
 const RUBY_ICON = require("../assets/images/Ruby.png");
@@ -25,8 +26,6 @@ type VRMUIOverlayProps = ViewProps & {
   nextLevelXp?: number;
   energy?: number;
   energyMax?: number;
-  vcoin?: number;
-  ruby?: number;
   hasIncompleteQuests?: boolean;
   canClaimCalendar?: boolean;
   hasMessages?: boolean;
@@ -34,7 +33,6 @@ type VRMUIOverlayProps = ViewProps & {
 
   onLevelPress?: () => void;
   onEnergyPress?: () => void;
-  onCurrencyPress?: () => void;
   onBackgroundPress?: () => void;
   onCostumePress?: () => void;
   onQuestPress?: () => void;
@@ -49,15 +47,12 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   nextLevelXp = 100,
   energy = 80,
   energyMax = 100,
-  vcoin = 0,
-  ruby = 0,
   hasIncompleteQuests,
   canClaimCalendar,
   hasMessages,
   showChatList,
   onLevelPress,
   onEnergyPress,
-  onCurrencyPress,
   onBackgroundPress,
   onCostumePress,
   onQuestPress,
@@ -65,6 +60,8 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onToggleChatList,
   ...rest
 }) => {
+  const { animatedBalance, setShowPurchaseSheet } = usePurchaseContext();
+
   const levelProgress = useMemo(() => {
     if (nextLevelXp <= 0) return 0;
     return Math.min(1, Math.max(0, xp / nextLevelXp));
@@ -73,7 +70,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   const insets = useSafeAreaInsets();
   const safeAreaPadding = useMemo(
     () => ({
-      paddingTop: 12 + insets.top,
+      paddingTop: 68 + insets.top,
       paddingBottom: 12 + insets.bottom,
     }),
     [insets.bottom, insets.top]
@@ -83,6 +80,11 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     if (energyMax <= 0) return 0;
     return Math.min(1, Math.max(0, energy / energyMax));
   }, [energy, energyMax]);
+
+  const handleCurrencyPress = useCallback(() => {
+    console.log("🔄 [VRMUIOverlay] Currency pressed, opening purchase sheet");
+    setShowPurchaseSheet(true);
+  }, [setShowPurchaseSheet]);
 
   const xpPercentLabel = `${Math.round(levelProgress * 100)}% XP`;
   const energyColor =
@@ -100,7 +102,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             <Text style={styles.levelLabel}>{`LV. ${level}`}</Text>
             <Text style={styles.levelXpSmall}>{xpPercentLabel}</Text>
           </View>
-          
+
           <View style={styles.levelProgressTrack}>
             <LinearGradient
               colors={["#FF9ACB", "#A068FF"]}
@@ -127,13 +129,13 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
         <View style={styles.currencyStack}>
           <CurrencyRow
             icon={VCOIN_ICON}
-            amount={vcoin}
-            onPress={onCurrencyPress}
+            amount={animatedBalance.vcoin}
+            onPress={handleCurrencyPress}
           />
           <CurrencyRow
             icon={RUBY_ICON}
-            amount={ruby}
-            onPress={onCurrencyPress}
+            amount={animatedBalance.ruby}
+            onPress={handleCurrencyPress}
           />
         </View>
       </View>
@@ -168,24 +170,16 @@ const CurrencyRow: React.FC<{
   icon: any;
   amount: number;
   onPress?: () => void;
-}> = ({ icon, amount, onPress }) => {
-  const animatedAmount = useAnimatedNumber(amount);
-
-  return (
-    <LiquidGlass style={styles.currencyTile}>
-      <Pressable
-        onPress={onPress}
-        android_ripple={{ color: "#ffffff10" }}
-        style={({ pressed }) => [styles.currencyRow, pressed && styles.pressed]}
-      >
-        <Image source={icon} style={styles.currencyIcon} />
-        <Text style={styles.currencyLabel}>
-          {animatedAmount.toLocaleString("en-US")}
-        </Text>
-      </Pressable>
-    </LiquidGlass>
-  );
-};
+}> = ({ icon, amount, onPress }) => (
+  <LiquidGlass style={styles.currencyTile} onPress={onPress} pressable>
+    <View
+      style={styles.currencyRow}
+    >
+      <Image source={icon} style={styles.currencyIcon} />
+      <Text style={styles.currencyLabel}>{amount.toLocaleString("en-US")}</Text>
+    </View>
+  </LiquidGlass>
+);
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -210,14 +204,8 @@ const GlassTile: React.FC<{
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }> = ({ children, onPress, style }) => (
-  <LiquidGlass style={[styles.glassTile, style]}>
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: "#ffffff15" }}
-      style={({ pressed }) => [styles.tileContent, pressed && styles.pressed]}
-    >
-      {children}
-    </Pressable>
+  <LiquidGlass style={[styles.glassTile, style]} onPress={onPress} pressable>
+    {children}
   </LiquidGlass>
 );
 
@@ -320,38 +308,3 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
-
-const useAnimatedNumber = (target: number, duration = 450) => {
-  const [displayValue, setDisplayValue] = useState(target);
-  const previous = useRef(target);
-
-  useEffect(() => {
-    if (previous.current === target) {
-      return;
-    }
-
-    let raf: number;
-    const from = previous.current;
-    const diff = target - from;
-    const start = Date.now();
-
-    const step = () => {
-      const elapsed = Date.now() - start;
-      const progress = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextValue = from + diff * eased;
-      setDisplayValue(nextValue);
-      if (progress < 1) {
-        raf = requestAnimationFrame(step);
-      } else {
-        previous.current = target;
-        setDisplayValue(target);
-      }
-    };
-
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-
-  return Math.round(displayValue);
-};

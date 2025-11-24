@@ -9,6 +9,7 @@ import {
   Modal,
   useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
@@ -17,11 +18,11 @@ import * as Haptics from 'expo-haptics';
 import Button from '../Button';
 import { CharacterCard } from '../characters/CharacterCard';
 import { LiquidGlass } from '../LiquidGlass';
+import { useSceneActions } from '../../context/SceneActionsContext';
 
 interface CharacterSheetProps {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
-  onSelect: (item: CharacterItem) => void;
 }
 
 const STORAGE_KEY_USE_GRID = 'characterSheetUseGrid';
@@ -29,7 +30,6 @@ const STORAGE_KEY_USE_GRID = 'characterSheetUseGrid';
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   isOpened,
   onIsOpenedChange,
-  onSelect,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,6 +37,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [useGrid, setUseGrid] = useState(true);
   const { width } = useWindowDimensions();
+  const { selectCharacter } = useSceneActions();
 
   const loadGridPreference = useCallback(async () => {
     try {
@@ -123,12 +124,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
 
   const handleSelect = (item: CharacterItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const isOwned = ownedCharacterIds.has(item.id);
-    onSelect(item);
-    // Only dismiss if owned - let parent handle purchase flow for unowned items
-    if (isOwned) {
-      onIsOpenedChange(false);
-    }
+    void selectCharacter(item);
   };
 
   const handleToggleView = () => {
@@ -273,10 +269,12 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             data={items}
             renderItem={useGrid ? renderGridItem : renderListItem}
             keyExtractor={(item) => item.id}
+            extraData={useGrid}
             numColumns={useGrid ? 2 : 1}
             columnWrapperStyle={useGrid ? styles.columnWrapper : undefined}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            key={`character-sheet-${useGrid ? 'grid' : 'list'}`}
           />
         )}
       </View>

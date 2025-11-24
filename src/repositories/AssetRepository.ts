@@ -1,4 +1,5 @@
 import { BaseRepository } from './BaseRepository';
+import { getAuthIdentifier } from '../services/authIdentifier';
 
 /**
  * Asset Repository
@@ -37,18 +38,25 @@ export default class AssetRepository extends BaseRepository {
    * Create asset (add item to user's owned items)
    * Matching Swift version's createAsset
    */
-  async createAsset(itemId: string, itemType: string): Promise<boolean> {
+  async createAsset(itemId: string, itemType: string, transactionId?: string): Promise<boolean> {
     try {
-      const userId = this.getUserId();
-      if (!userId) {
+      const { userId, clientId } = await getAuthIdentifier();
+      if (!userId && !clientId) {
         throw new Error('User is not authenticated');
       }
 
-      const assetData = {
+      const assetData: Record<string, any> = {
         item_id: itemId,
         item_type: itemType,
-        user_id: userId,
       };
+      if (userId) {
+        assetData.user_id = userId;
+      } else if (clientId) {
+        assetData.client_id = clientId;
+      }
+      if (transactionId) {
+        assetData.transaction_id = transactionId;
+      }
 
       const { data, error } = await this.client
         .from('user_assets')

@@ -42,21 +42,47 @@ export class CurrencyRepository extends BaseRepository {
   async updateCurrency(vcoin?: number, ruby?: number): Promise<void> {
     const { userId, clientId } = await getAuthIdentifier();
 
+    console.log('🔍 [CurrencyRepository] Updating currency:', { vcoin, ruby, userId, clientId });
+
     const updateData: any = {};
     if (vcoin !== undefined) updateData.vcoin = vcoin;
     if (ruby !== undefined) updateData.ruby = ruby;
 
-    // Try PATCH first (update existing row)
-    let query = this.client
+    // Check if record exists first
+    let checkQuery = this.client
       .from('user_currency')
-      .update(updateData);
+      .select('vcoin,ruby')
+      .limit(1);
 
-    query = await this.addAuthFilters(query);
+    checkQuery = await this.addAuthFilters(checkQuery);
 
-    const { error: patchError } = await query;
+    const { data: existingData, error: checkError } = await checkQuery;
 
-    // If PATCH fails (no existing row), use POST with upsert
-    if (patchError) {
+    if (checkError) {
+      console.error('🔍 [CurrencyRepository] Check error:', checkError);
+    }
+
+    const recordExists = existingData && existingData.length > 0;
+
+    console.log('🔍 [CurrencyRepository] Record exists:', recordExists);
+
+    if (recordExists) {
+      // Update existing record
+      let updateQuery = this.client
+        .from('user_currency')
+        .update(updateData);
+
+      updateQuery = await this.addAuthFilters(updateQuery);
+
+      const { error: updateError } = await updateQuery;
+
+      if (updateError) {
+        throw new Error(`Failed to update currency: ${updateError.message}`);
+      }
+
+      console.log('✅ [CurrencyRepository] Updated existing record');
+    } else {
+      // Insert new record (no onConflict needed since we already checked record doesn't exist)
       const insertData: any = { ...updateData };
       if (userId) {
         insertData.user_id = userId;
@@ -66,13 +92,13 @@ export class CurrencyRepository extends BaseRepository {
 
       const { error: insertError } = await this.client
         .from('user_currency')
-        .upsert(insertData, {
-          onConflict: 'owner_key',
-        });
+        .insert(insertData);
 
       if (insertError) {
-        throw new Error(`Failed to update currency: ${insertError.message}`);
+        throw new Error(`Failed to insert currency: ${insertError.message}`);
       }
+
+      console.log('✅ [CurrencyRepository] Inserted new record');
     }
   }
 }

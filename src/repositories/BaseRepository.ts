@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../services/supabase';
 import { authManager } from '../services/AuthManager';
+import { getAuthIdentifier } from '../services/authIdentifier';
 
 /**
  * Base repository class matching Swift's SupabaseRepository protocol
@@ -28,10 +29,14 @@ export abstract class BaseRepository {
    */
   protected async addAuthFilters<T = any>(query: any): Promise<any> {
     const userId = this.getUserId();
-    if (!userId) {
-      throw new Error('User is not authenticated');
+    if (userId) {
+      return query.eq('user_id', userId).is('client_id', null);
     }
-    return query.eq('user_id', userId);
+    const { clientId } = await getAuthIdentifier();
+    if (clientId) {
+      return query.eq('client_id', clientId).is('user_id', null);
+    }
+    throw new Error('User is not authenticated');
   }
 
   /**

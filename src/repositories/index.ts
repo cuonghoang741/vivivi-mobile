@@ -7,6 +7,7 @@ export { BaseRepository } from './BaseRepository';
 export { CharacterRepository, type CharacterItem } from './CharacterRepository';
 export { BackgroundRepository, type BackgroundItem } from './BackgroundRepository';
 export { CurrencyRepository, type CurrencyBalance } from './CurrencyRepository';
+export { MediaRepository, type MediaItem } from './MediaRepository';
 export {
   UserStatsRepository,
   type UserStatsRow,

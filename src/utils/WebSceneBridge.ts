@@ -51,6 +51,12 @@ export class WebSceneBridge {
     this.evaluate(js);
   }
 
+  setMouthOpen(value: number) {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+    const js = `window.setMouthOpen && window.setMouthOpen(${clamped.toFixed(3)});`;
+    this.evaluate(js);
+  }
+
   loadModel(js: string) {
     this.evaluate(js);
   }

@@ -15,23 +15,24 @@ import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import Button from '../Button';
+import { useSceneActions } from '../../context/SceneActionsContext';
+import { ConfirmPurchasePortal } from '../../context/PurchaseContext';
 
 interface BackgroundSheetProps {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
-  onSelect: (item: BackgroundItem) => void;
 }
 
 export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
   isOpened,
   onIsOpenedChange,
-  onSelect,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<BackgroundItem[]>([]);
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
   const { width } = useWindowDimensions();
+  const { selectBackground } = useSceneActions();
 
   const load = useCallback(async () => {
     if (isLoading) return;
@@ -109,13 +110,7 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
 
   const handleSelect = (item: BackgroundItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const isOwned = ownedBackgroundIds.has(item.id);
-    console.log(`🎯 [BackgroundSheet] Selected: ${item.name}, owned: ${isOwned}`);
-    onSelect(item);
-    // Only dismiss if owned - let parent handle purchase flow for unowned items
-    if (isOwned) {
-      onIsOpenedChange(false);
-    }
+    void selectBackground(item);
   };
 
   const renderItem = ({ item }: { item: BackgroundItem }) => {
@@ -222,6 +217,7 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
           />
         )}
       </View>
+      <ConfirmPurchasePortal hostId="background-sheet" active={isOpened} />
     </Modal>
   );
 };

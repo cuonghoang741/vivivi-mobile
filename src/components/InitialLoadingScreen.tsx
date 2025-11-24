@@ -11,7 +11,7 @@ type InitialLoadingScreenProps = {
 
 export const InitialLoadingScreen: React.FC<InitialLoadingScreenProps> = ({
   loading = true,
-  message = 'Đang tải dữ liệu cá nhân từ Supabase...',
+  message = 'Loading...',
   error,
   onRetry,
 }) => {
@@ -19,14 +19,14 @@ export const InitialLoadingScreen: React.FC<InitialLoadingScreenProps> = ({
   return (
     <View style={styles.container}>
       {loading ? <ActivityIndicator size="large" color="#fff" /> : null}
-      <Text style={styles.message}>{showError ? 'Không thể tải dữ liệu' : message}</Text>
+      <Text style={styles.message}>{showError ? 'Unable to load initial data' : message}</Text>
       {showError ? (
         <>
           <Text style={styles.errorDetail}>{error}</Text>
-          <Text style={styles.hint}>Kiểm tra kết nối mạng rồi thử lại.</Text>
+          <Text style={styles.hint}>Check your network connection and try again.</Text>
           {onRetry ? (
             <Button onPress={onRetry} style={styles.retryButton}>
-              Thử lại
+              Try Again
             </Button>
           ) : null}
         </>

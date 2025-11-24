@@ -537,10 +537,10 @@ export class AuthManager {
    */
   async signInWithGoogle() {
     this.setState({ isLoading: true, errorMessage: null });
-  
+
     try {
       const redirectUri = this.buildRedirectUri();
-  
+
       const { data, error } = await this.client.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -548,28 +548,101 @@ export class AuthManager {
           skipBrowserRedirect: true,
         },
       });
-  
+
       if (error) throw error;
       if (!data?.url) throw new Error("Failed to get OAuth URL from Supabase");
-  
-      // Dùng WebBrowser.openAuthSessionAsync (KHÔNG dùng AuthSession.startAsync)
+
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,
         redirectUri
       );
-  
-      if (result.type !== "success") {
-        throw new Error("User cancelled Google login");
+
+      if (result.type !== "success" || !result.url) {
+        console.log(
+          `[AuthManager] Google login aborted with result type: ${result.type}`
+        );
+        this.setState({ errorMessage: null });
+        return;
       }
-  
-      // Sau khi redirect về app → Supabase đã xử lý token
-      await this.refreshSessionFromClient();
+
+      const authPayload = this.extractAuthPayloadFromUrl(result.url);
+
+      console.log("[AuthManager] authPayload", authPayload);
+
+      if (authPayload.authCode) {
+        const { data: sessionData, error: exchangeError } =
+          await this.client.auth.exchangeCodeForSession(
+            authPayload.authCode
+          );
+
+          console.log("sessionData",sessionData)
+        if (exchangeError) {
+          throw exchangeError;
+        }
+
+        this.setState({
+          session: sessionData.session ?? null,
+          user: sessionData.user ?? null,
+        });
+        return;
+      }
+
+      if (authPayload.accessToken && authPayload.refreshToken) {
+        const { data: sessionData, error: setSessionError } =
+          await this.client.auth.setSession({
+            access_token: authPayload.accessToken,
+            refresh_token: authPayload.refreshToken,
+          });
+
+        if (setSessionError) {
+          throw setSessionError;
+        }
+
+        this.setState({
+          session: sessionData.session ?? null,
+          user: sessionData.user ?? null,
+        });
+        return;
+      }
+
+      throw new Error("Không tìm thấy mã xác thực từ Google");
     } catch (err: any) {
-      console.error(err);
-      this.setState({ errorMessage: err.message });
+      console.error("[AuthManager] signInWithGoogle failed", err);
+      this.setState({ errorMessage: err.message || "Failed to sign in" });
     } finally {
       this.setState({ isLoading: false });
     }
+  }
+
+  private extractAuthPayloadFromUrl(url: string) {
+    const parsedUrl = new URL(url);
+    const queryParams = parsedUrl.searchParams;
+    const fragment = parsedUrl.hash?.startsWith("#")
+      ? parsedUrl.hash.slice(1)
+      : parsedUrl.hash;
+    const fragmentParams = fragment ? new URLSearchParams(fragment) : null;
+
+    const authCode =
+      queryParams.get("code") ||
+      fragmentParams?.get("code") ||
+      fragmentParams?.get("auth_code");
+    const accessToken =
+      queryParams.get("access_token") || fragmentParams?.get("access_token");
+    const refreshToken =
+      queryParams.get("refresh_token") || fragmentParams?.get("refresh_token");
+
+    const errorDescription =
+      queryParams.get("error_description") ||
+      fragmentParams?.get("error_description");
+    const error = queryParams.get("error") || fragmentParams?.get("error");
+
+    if (error || errorDescription) {
+      throw new Error(
+        errorDescription || error || "Google sign-in returned an error"
+      );
+    }
+
+    return { authCode, accessToken, refreshToken };
   }
 
   /**

@@ -36,6 +36,7 @@ type CharacterState = {
   avatar?: string;
   relationshipName?: string;
   relationshipProgress?: number;
+  relationshipIconUri?: string | null;
 };
 
 type AuthState = {

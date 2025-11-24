@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 import { authManager } from './AuthManager';
 
 // RevenueCat Public SDK Keys
-const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 const REVENUECAT_API_KEY_ANDROID = 'goog_CjxgHOafWEJNsMPLMtQgAULbupx'; // TODO: Replace with actual Android key
 
 class RevenueCatManager {

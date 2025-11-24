@@ -10,7 +10,6 @@ type Props = {
   messages: ChatMessage[];
   quickReplies: ChatQuickReply[];
   showChatList: boolean;
-  onToggleHistory: () => void;
   onMessagePress?: (message: ChatMessage) => void;
   onQuickReply: (id: string) => void;
   onSendText: (text: string) => void;
@@ -19,13 +18,14 @@ type Props = {
   onDance: () => void;
   isTyping?: boolean;
   onToggleMic?: () => void;
+  inputPlaceholder?: string;
+  inputDisabled?: boolean;
 };
 
 export const ChatBottomOverlay: React.FC<Props> = ({
   messages,
   quickReplies,
   showChatList,
-  onToggleHistory,
   onMessagePress,
   onQuickReply,
   onSendText,
@@ -34,6 +34,8 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onDance,
   isTyping,
   onToggleMic,
+  inputPlaceholder,
+  inputDisabled,
 }) => {
   const [inputValue, setInputValue] = useState('');
 
@@ -51,7 +53,6 @@ export const ChatBottomOverlay: React.FC<Props> = ({
       <ChatMessagesOverlay
         messages={messages}
         showChatList={showChatList}
-        onTap={onToggleHistory}
         onMessagePress={onMessagePress}
         isTyping={isTyping}
       />
@@ -67,6 +68,8 @@ export const ChatBottomOverlay: React.FC<Props> = ({
           onChangeText={setInputValue}
           onSend={handleSend}
           onToggleMic={onToggleMic}
+          placeholder={inputPlaceholder}
+          disabled={inputDisabled}
         />
       </View>
     </View>

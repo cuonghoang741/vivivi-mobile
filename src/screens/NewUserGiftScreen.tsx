@@ -6,8 +6,8 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Dimensions,
   Pressable,
+  ImageSourcePropType,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +19,10 @@ import AssetRepository from '../repositories/AssetRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { BackgroundRepository } from '../repositories/BackgroundRepository';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const STARS_IMAGE = require('../assets/images/stars.png');
+const WHITE_LOGO = require('../assets/images/white_vivivi.png');
+const VCOIN_ICON = require('../assets/images/VCoin.png');
+const RUBY_ICON = require('../assets/images/Ruby.png');
 
 type Props = {
   onComplete: (characterId: string | null) => void;
@@ -31,9 +34,11 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [isGifting, setIsGifting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [backgroundThumbnails, setBackgroundThumbnails] = useState<string[]>([]);
 
   useEffect(() => {
     loadFreeCharacters();
+    loadBackgroundThumbnails();
   }, []);
 
   const loadFreeCharacters = async () => {
@@ -52,6 +57,20 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
       setErrorMessage(error.message || 'Failed to load characters');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadBackgroundThumbnails = async () => {
+    try {
+      const backgroundRepo = new BackgroundRepository();
+      const backgrounds = await backgroundRepo.fetchAllBackgrounds();
+      const thumbnails = backgrounds
+        .map((bg) => bg.thumbnail || bg.image)
+        .filter((uri): uri is string => Boolean(uri));
+      const shuffled = thumbnails.sort(() => 0.5 - Math.random());
+      setBackgroundThumbnails(shuffled.slice(0, 3));
+    } catch (error) {
+      console.warn('[NewUserGiftScreen] Failed to load background previews', error);
     }
   };
 
@@ -107,13 +126,9 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
   const selectedCharacter = freeCharacters.find((c) => c.id === selectedCharacterId);
 
   return (
-    <LinearGradient
-      colors={['#FF8587', '#8F0039']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.container}
-    >
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <LinearGradient colors={['#CE0053', '#FF2F71', '#FFE3EE']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.container}>
+      <Image source={STARS_IMAGE} style={styles.starsOverlay} resizeMode="cover" />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {isLoading ? (
           <View style={styles.centerContent}>
             <ActivityIndicator color="#fff" size="large" />
@@ -130,46 +145,46 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
         ) : (
           <>
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.titleContainer}>
-                <Text style={styles.title}>Welcome Gift!</Text>
-                <Text style={styles.subtitle}>Choose your first character to get started</Text>
+              <View style={styles.logoHeader}>
+                <Image source={WHITE_LOGO} style={styles.logo} resizeMode="contain" />
               </View>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.characterScrollContent}
-                style={styles.characterScroll}
-              >
-                {freeCharacters.map((character) => (
-                  <Pressable
-                    key={character.id}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                      setSelectedCharacterId(character.id);
-                    }}
-                    style={[
-                      styles.characterCard,
-                      selectedCharacterId === character.id && styles.characterCardSelected,
-                    ]}
-                  >
-                    {character.thumbnail_url || character.avatar ? (
-                      <Image
-                        source={{ uri: character.thumbnail_url || character.avatar }}
-                        style={styles.characterImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.characterImagePlaceholder}>
-                        <Ionicons name="person" size={40} color="#fff" />
-                      </View>
-                    )}
-                    <Text style={styles.characterName} numberOfLines={1}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>Welcome Gift</Text>
+                <Text style={styles.subtitle}>Select your first character</Text>
+              </View>
+
+              <View style={styles.characterRow}>
+                {freeCharacters.slice(0, 3).map((character) => (
+                  <View style={styles.characterCell} key={character.id}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                        setSelectedCharacterId(character.id);
+                      }}
+                      style={[
+                        styles.characterCircle,
+                        selectedCharacterId === character.id && styles.characterCircleSelected,
+                      ]}
+                    >
+                      {character.thumbnail_url || character.avatar ? (
+                        <Image
+                          source={{ uri: character.thumbnail_url || character.avatar }}
+                          style={styles.characterCircleImage}
+                        />
+                      ) : (
+                        <Ionicons name="person" size={36} color="#fff" />
+                      )}
+                    </Pressable>
+                    <Text
+                      style={[styles.characterLabel, selectedCharacterId === character.id && styles.characterLabelSelected]}
+                      numberOfLines={1}
+                    >
                       {character.name}
                     </Text>
-                  </Pressable>
+                  </View>
                 ))}
-              </ScrollView>
+              </View>
 
               {selectedCharacter && (
                 <View style={styles.descriptionCard}>
@@ -180,30 +195,49 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
                 </View>
               )}
 
-              <View style={styles.giftDetailsCard}>
-                <Text style={styles.giftDetailsTitle}>You'll receive:</Text>
-                <View style={styles.giftItems}>
-                  <GiftItem icon="person-outline" text="1 Character" />
-                  <GiftItem icon="shirt-outline" text="1 Costume" />
-                  <GiftItem icon="grid-outline" text="3 Rooms" />
-                  <GiftItem icon="cash-outline" text="10,000 VCoin" />
-                  <GiftItem icon="diamond-outline" text="100 Ruby" />
+              <View style={styles.receiveBlock}>
+                <Text style={styles.receiveTitle}>You will also receive</Text>
+                <Text style={styles.receiveSubtitle}>3 stunning backgrounds</Text>
+
+                <View style={styles.backgroundRow}>
+                  {backgroundThumbnails.map((uri, index) => (
+                    <Image key={`${uri}-${index}`} source={{ uri }} style={styles.backgroundImage} />
+                  ))}
+                  {Array.from({ length: Math.max(0, 3 - backgroundThumbnails.length) }).map((_, idx) => (
+                    <View style={styles.backgroundPlaceholder} key={`placeholder-${idx}`}>
+                      <Ionicons name="image" size={20} color="rgba(255,255,255,0.6)" />
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.currencyRow}>
+                  <CurrencyChip icon={VCOIN_ICON} label="+10,000" />
+                  <CurrencyChip icon={RUBY_ICON} label="+100" />
                 </View>
               </View>
             </ScrollView>
 
             <View style={styles.buttonContainer}>
-              <Button
-                variant="liquid"
-                fullWidth
-                onPress={() => selectedCharacterId && claimGift(selectedCharacterId)}
+              <Pressable
+                style={[
+                  styles.claimButton,
+                  (!selectedCharacterId || isGifting) && styles.claimButtonDisabled,
+                ]}
                 disabled={!selectedCharacterId || isGifting}
-                loading={isGifting}
-                startIconName={isGifting ? undefined : 'gift'}
-                style={styles.claimButton}
+                onPress={() => selectedCharacterId && claimGift(selectedCharacterId)}
               >
-                {isGifting ? 'Claiming...' : 'Claim Gift'}
-              </Button>
+                {isGifting ? (
+                  <>
+                    <ActivityIndicator color="#fff" />
+                    <Text style={styles.claimLabel}>Claiming...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="gift" size={20} color="#fff" />
+                    <Text style={styles.claimLabel}>Claim</Text>
+                  </>
+                )}
+              </Pressable>
             </View>
           </>
         )}
@@ -212,10 +246,10 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
   );
 };
 
-const GiftItem: React.FC<{ icon: keyof typeof Ionicons.glyphMap; text: string }> = ({ icon, text }) => (
-  <View style={styles.giftItem}>
-    <Ionicons name={icon} size={20} color="#fff" />
-    <Text style={styles.giftItemText}>{text}</Text>
+const CurrencyChip: React.FC<{ icon: ImageSourcePropType; label: string }> = ({ icon, label }) => (
+  <View style={styles.currencyChip}>
+    <Image source={icon} style={styles.currencyIcon} resizeMode="contain" />
+    <Text style={styles.currencyLabel}>{label}</Text>
   </View>
 );
 
@@ -225,6 +259,8 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   centerContent: {
     flex: 1,
@@ -250,21 +286,31 @@ const styles = StyleSheet.create({
   retryButton: {
     backgroundColor: '#fff',
   },
+  starsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.7,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 24,
-    paddingBottom: 120,
+    paddingTop: 16,
+    paddingBottom: 140,
+    gap: 24,
+  },
+  logoHeader: {
+    alignItems: 'center',
+  },
+  logo: {
+    width: 80,
+    height: 40,
   },
   titleContainer: {
     alignItems: 'center',
-    gap: 16,
-    paddingHorizontal: 16,
-    marginBottom: 18,
+    gap: 8,
   },
   title: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '700',
     color: '#fff',
   },
@@ -274,50 +320,46 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
   },
-  characterScroll: {
-    height: 230,
+  characterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  characterScrollContent: {
-    paddingHorizontal: 16,
-    gap: 16,
+  characterCell: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
   },
-  characterCard: {
-    width: 160,
-    height: 200,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
+  characterCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
+    overflow: 'hidden',
   },
-  characterCardSelected: {
+  characterCircleSelected: {
     borderColor: '#fff',
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  characterImage: {
+  characterCircleImage: {
     width: '100%',
-    height: 160,
+    height: '100%',
   },
-  characterImagePlaceholder: {
-    width: '100%',
-    height: 160,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  characterName: {
-    color: '#fff',
-    fontSize: 14,
+  characterLabel: {
+    color: 'rgba(255,255,255,0.8)',
     fontWeight: '600',
-    padding: 12,
-    textAlign: 'center',
+  },
+  characterLabelSelected: {
+    color: '#fff',
   },
   descriptionCard: {
-    marginHorizontal: 16,
-    marginTop: 18,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   descriptionTitle: {
     fontSize: 16,
@@ -329,50 +371,95 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.85)',
   },
-  giftDetailsCard: {
-    marginHorizontal: 16,
+  receiveBlock: {
     marginTop: 12,
-    padding: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    padding: 20,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    gap: 16,
   },
-  giftDetailsTitle: {
-    fontSize: 18,
+  receiveTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 8,
+    textAlign: 'center',
   },
-  giftItems: {
-    gap: 8,
+  receiveSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
   },
-  giftItem: {
+  backgroundRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  giftItemText: {
-    fontSize: 14,
+  backgroundImage: {
+    width: 100,
+    height: 120,
+    borderRadius: 16,
+  },
+  backgroundPlaceholder: {
+    width: 100,
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  currencyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    gap: 8,
+  },
+  currencyIcon: {
+    width: 20,
+    height: 20,
+  },
+  currencyLabel: {
     color: '#fff',
+    fontWeight: '700',
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 30,
     left: 0,
     right: 0,
-    paddingHorizontal: 24,
-    alignSelf: 'center',
-    width: '100%',
+    alignItems: 'center',
   },
   claimButton: {
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#FF2F71',
+    paddingHorizontal: 48,
+    paddingVertical: 18,
     borderRadius: 999,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  } as any,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  claimButtonDisabled: {
+    opacity: 0.6,
+  },
+  claimLabel: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
 });
 

@@ -60,19 +60,53 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     }));
   }, []);
 
+  const addUserMessage = useCallback(
+    (text: string, options?: { persist?: boolean }) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return;
+      }
+      appendMessage(createLocalMessage(trimmed, false));
+      if (options?.persist !== false && characterId) {
+        chatService
+          .persistConversationMessage({
+            text: trimmed,
+            isAgent: false,
+            characterId,
+          })
+          .catch(err => console.warn('[useChatManager] persist user message failed', err));
+      }
+    },
+    [appendMessage, characterId]
+  );
+
+  const addAgentMessage = useCallback(
+    (text: string, options?: { persist?: boolean }) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return;
+      }
+      appendMessage(createLocalMessage(trimmed, true));
+      if (options?.persist !== false && characterId) {
+        chatService
+          .persistConversationMessage({
+            text: trimmed,
+            isAgent: true,
+            characterId,
+          })
+          .catch(err => console.warn('[useChatManager] persist agent message failed', err));
+      }
+    },
+    [appendMessage, characterId]
+  );
+
   const sendText = useCallback(
     async (text: string) => {
       if (!characterId) return;
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      const userMessage = createLocalMessage(trimmed, false);
-      appendMessage(userMessage);
-      chatService.persistConversationMessage({
-        text: trimmed,
-        isAgent: false,
-        characterId,
-      }).catch(err => console.warn('[useChatManager] persist user message failed', err));
+      addUserMessage(trimmed);
 
       setState(prev => ({ ...prev, isTyping: true }));
 
@@ -84,16 +118,8 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
           history,
         });
 
-        const agentMessage = createLocalMessage(responseText, true);
-        appendMessage(agentMessage);
+        addAgentMessage(responseText, { persist: true });
         setState(prev => ({ ...prev, isTyping: false }));
-
-        chatService.persistConversationMessage({
-          text: responseText,
-          isAgent: true,
-          characterId,
-        }).catch(err => console.warn('[useChatManager] persist agent message failed', err));
-
         agentReplyCallback?.(responseText);
       } catch (error) {
         console.warn('[useChatManager] sendText failed', error);
@@ -171,18 +197,6 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     loadHistory,
   ]);
 
-  const handleCapture = useCallback(() => {
-    console.log('[Chat] capture placeholder');
-  }, []);
-
-  const handleSendPhoto = useCallback(() => {
-    console.log('[Chat] send photo placeholder');
-  }, []);
-
-  const handleDance = useCallback(() => {
-    console.log('[Chat] dance placeholder');
-  }, []);
-
   useEffect(() => {
     if (
       !state.showChatHistoryFullScreen ||
@@ -208,10 +222,9 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     toggleChatList,
     openHistory,
     closeHistory,
-    handleCapture,
-    handleSendPhoto,
-    handleDance,
     loadMoreHistory,
+    addAgentMessage,
+    addUserMessage,
   };
 };
 

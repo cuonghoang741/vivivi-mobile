@@ -233,6 +233,14 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
       if (key === 'settings.hapticsEnabled' && value) {
         Haptics.selectionAsync().catch(() => {});
       }
+      if (key === 'settings.autoPlayMusic') {
+        const { backgroundMusicManager } = await import('../../services/BackgroundMusicManager');
+        if (value) {
+          await backgroundMusicManager.play();
+        } else {
+          await backgroundMusicManager.pause();
+        }
+      }
   }, []);
 
   const pushScreen = useCallback((screen: SettingsScreen) => {

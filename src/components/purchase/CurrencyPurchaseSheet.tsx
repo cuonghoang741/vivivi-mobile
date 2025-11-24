@@ -214,6 +214,44 @@ export const CurrencyPurchaseSheet: React.FC<CurrencyPurchaseSheetProps> = ({
     [multiplier, onPurchaseComplete, purchasingId, twoXAvailable]
   );
 
+  const handleDevTopUp = useCallback(async () => {
+    if (purchasingId) {
+      return;
+    }
+    setErrorMessage(null);
+    setPurchasingId('dev-topup');
+    try {
+      const authIdentifier = await getAuthIdentifier();
+      console.log('🔍 [Dev TopUp] User ID:', authIdentifier.userId);
+      console.log('🔍 [Dev TopUp] Client ID:', authIdentifier.clientId);
+      
+      const balance = await repoRef.current!.fetchCurrency();
+      console.log('🔍 [Dev TopUp] Current balance:', balance);
+      
+      const vcoinAdded = 1000;
+      const rubyAdded = 100;
+      await repoRef.current!.updateCurrency(balance.vcoin + vcoinAdded, balance.ruby + rubyAdded);
+      
+      console.log('✅ [Dev TopUp] Updated balance:', {
+        vcoin: balance.vcoin + vcoinAdded,
+        ruby: balance.ruby + rubyAdded,
+      });
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Dev TopUp successful',
+        `+${formatNumber(vcoinAdded)} VCoin\n+${formatNumber(rubyAdded)} Ruby`
+      );
+      onPurchaseComplete?.({ vcoinAdded, rubyAdded });
+    } catch (error: any) {
+      console.error('[CurrencyPurchaseSheet] Dev TopUp failed', error);
+      setErrorMessage(error?.message ?? 'Unable to complete TopUp.');
+      Alert.alert('TopUp failed', error?.message ?? 'Please try again later.');
+    } finally {
+      setPurchasingId(null);
+    }
+  }, [onPurchaseComplete, purchasingId]);
+
   return (
     <Modal
       visible={visible}
@@ -272,6 +310,24 @@ export const CurrencyPurchaseSheet: React.FC<CurrencyPurchaseSheetProps> = ({
               />
             ))}
           </View>
+
+          {__DEV__ ? (
+            <View style={styles.devTopUpContainer}>
+              <Button
+                variant="liquid"
+                size="lg"
+                onPress={handleDevTopUp}
+                disabled={purchasingId === 'dev-topup'}
+                startIconName={purchasingId === 'dev-topup' ? undefined : 'add-circle-outline'}
+              >
+                {purchasingId === 'dev-topup' ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  'Dev TopUp (+1k VCoin, +100 Ruby)'
+                )}
+              </Button>
+            </View>
+          ) : null}
 
           <Text style={styles.historyHint}>
             Purchase history lives under Settings → Purchase history.
@@ -476,6 +532,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     rowGap: 16,
+  },
+  devTopUpContainer: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    padding: 16,
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FFC107',
+    borderStyle: 'dashed',
   },
   packageCard: {
     width: '48%',

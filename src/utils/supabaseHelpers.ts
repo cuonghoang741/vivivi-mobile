@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../services/supabase';
 import { authManager } from '../services/AuthManager';
 import { SUPABASE_ANON_KEY } from '../config/supabase';
+import { ensureClientId } from './clientId';
 
 /**
  * Helper functions similar to Swift version's Supabase helpers
@@ -25,6 +26,11 @@ export const getSupabaseAuthHeaders = async (): Promise<Record<string, string>> 
     headers['Authorization'] = `Bearer ${session.access_token}`;
   } else {
     headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
+  }
+
+  const clientId = await ensureClientId();
+  if (clientId) {
+    headers['X-Client-Id'] = clientId;
   }
 
   return headers;

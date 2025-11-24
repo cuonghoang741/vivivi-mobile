@@ -115,9 +115,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     fallbackToCacheTimeout: 0,
   },
 
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: version,
 
   experiments: {
     typedRoutes: false,
