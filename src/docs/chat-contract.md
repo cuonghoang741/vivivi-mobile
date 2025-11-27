@@ -11,12 +11,10 @@
   - `showChatHistoryFullScreen: boolean`
   - `isTyping: boolean`
   - `streakDays`, `hasUnclaimed`, `showStreakConfetti`
-  - `quickReplies: { id: string; text: string }[]`
 - Actions required:
   - `sendMessage(text | media)`
   - `toggleChatList()`
   - `openHistory() / closeHistory()`
-  - `selectQuickReply(id)`
   - `triggerCapture()`, `triggerSendPhoto()`, `triggerDance()`
   - `loadHistory()` (pagination)
 

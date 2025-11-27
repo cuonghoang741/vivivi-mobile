@@ -13,11 +13,6 @@ const DEFAULT_STATE: ChatViewState = {
   streakDays: 7,
   hasUnclaimed: false,
   showStreakConfetti: false,
-  quickReplies: [
-    { id: 'qr1', text: 'Tell me a secret' },
-    { id: 'qr2', text: 'Send me a selfie' },
-    { id: 'qr3', text: "I miss you" },
-  ],
 };
 
 type UseChatOptions = {
@@ -134,16 +129,6 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     [appendMessage, characterId, agentReplyCallback]
   );
 
-  const sendQuickReply = useCallback(
-    (replyId: string) => {
-      const reply = state.quickReplies.find(q => q.id === replyId);
-      if (reply) {
-        sendText(reply.text);
-      }
-    },
-    [state.quickReplies, sendText]
-  );
-
   const toggleChatList = useCallback(() => {
     setState(prev => ({ ...prev, showChatList: !prev.showChatList }));
   }, []);
@@ -218,7 +203,6 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
   return {
     state,
     sendText,
-    sendQuickReply,
     toggleChatList,
     openHistory,
     closeHistory,

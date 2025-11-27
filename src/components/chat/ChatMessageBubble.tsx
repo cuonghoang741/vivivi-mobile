@@ -7,41 +7,97 @@ type Props = {
   message: ChatMessage;
   alignLeft?: boolean;
   onPress?: (message: ChatMessage) => void;
+  variant?: 'compact' | 'full';
 };
 
 export const ChatMessageBubble: React.FC<Props> = ({
   message,
   alignLeft = true,
   onPress,
+  variant = 'full',
 }) => {
   const isText = message.kind.type === 'text';
   const isMedia = message.kind.type === 'media';
 
+  const containerStyles = [
+    styles.bubble,
+    alignLeft ? styles.agentBubble : styles.userBubble,
+    variant === 'compact' && styles.compactBubble,
+  ];
+
   return (
     <View style={[styles.container, alignLeft ? styles.leftAlign : styles.rightAlign]}>
       <Pressable
-        style={({ pressed }) => [
-          styles.bubble,
-          alignLeft ? styles.agentBubble : styles.userBubble,
-          pressed && styles.bubblePressed,
-        ]}
+        style={({ pressed }) => [...containerStyles, pressed && styles.bubblePressed]}
         onPress={() => onPress?.(message)}
       >
-        {isText ? renderText(message, alignLeft) : null}
-        {isMedia ? renderMedia(message) : null}
+        {isText ? renderTextContent(message, variant, alignLeft) : null}
+        {isMedia ? renderMediaContent(message, variant) : null}
       </Pressable>
     </View>
   );
 };
 
-const renderText = (message: ChatMessage, alignLeft: boolean) => (
-  <Text style={[styles.text, alignLeft ? styles.agentText : styles.userText]}>
-    {message.kind.type === 'text' ? message.kind.text : ''}
-  </Text>
-);
+const renderTextContent = (
+  message: ChatMessage,
+  variant: 'compact' | 'full',
+  alignLeft: boolean
+) => {
+  if (message.kind.type !== 'text') {
+    return null;
+  }
 
-const renderMedia = (message: ChatMessage) => {
-  const url = message.kind.type === 'media' ? message.kind.thumbnail || message.kind.url : '';
+  const text = message.kind.text;
+  const isCallStarted = text === 'Call started';
+  const isCallEnded = text?.startsWith('Call ended');
+
+  return (
+    <View style={styles.textRow}>
+      {(isCallStarted || isCallEnded) && (
+        <Ionicons
+          name={isCallStarted ? 'call' : 'call-outline'}
+          size={14}
+          color="#fff"
+          style={styles.callIcon}
+        />
+      )}
+      <Text
+        style={[
+          styles.text,
+          alignLeft ? styles.agentText : styles.userText,
+          variant === 'compact' && styles.compactText,
+        ]}
+        numberOfLines={variant === 'compact' ? 3 : undefined}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+};
+
+const renderMediaContent = (message: ChatMessage, variant: 'compact' | 'full') => {
+  if (message.kind.type !== 'media') {
+    return null;
+  }
+  const url = message.kind.thumbnail || message.kind.url;
+
+  if (variant === 'compact') {
+    const isVideo =
+      message.kind.url.toLowerCase().endsWith('.mp4') ||
+      message.kind.url.toLowerCase().includes('video');
+    return (
+      <View style={styles.mediaCompactRow}>
+        <Ionicons
+          name={isVideo ? 'play-circle' : 'image'}
+          size={18}
+          color="#fff"
+          style={{ marginRight: 8 }}
+        />
+        <Text style={styles.mediaCompactText}>{isVideo ? 'Show Video' : 'Show Image'}</Text>
+      </View>
+    );
+  }
+
   return (
     <View>
       <Image source={{ uri: url }} style={styles.media} />
@@ -63,19 +119,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    maxWidth: '82%',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
     marginVertical: 4,
   },
+  compactBubble: {
+    maxWidth: '90%',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
   agentBubble: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(255,138,196,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,138,196,0.55)',
   },
   userBubble: {
-    backgroundColor: '#FF6EA1',
-    borderBottomRightRadius: 4,
+    backgroundColor: 'rgba(15,15,15,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   bubblePressed: {
     transform: [{ scale: 0.98 }],
@@ -103,6 +166,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mediaCompactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mediaCompactText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  textRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  callIcon: {
+    marginRight: 8,
+  },
+  compactText: {
+    fontSize: 13,
+    flexShrink: 1,
   },
 });
 

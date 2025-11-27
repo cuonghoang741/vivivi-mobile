@@ -10,11 +10,6 @@ export type ChatMessage = {
   createdAt: string; // ISO timestamp
 };
 
-export type ChatQuickReply = {
-  id: string;
-  text: string;
-};
-
 export type ChatViewState = {
   messages: ChatMessage[];
   showChatList: boolean;
@@ -26,6 +21,5 @@ export type ChatViewState = {
   streakDays?: number;
   hasUnclaimed?: boolean;
   showStreakConfetti?: boolean;
-  quickReplies: ChatQuickReply[];
 };
 

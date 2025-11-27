@@ -38,7 +38,7 @@ export const EnergySheet: React.FC<EnergySheetProps> = ({
       onRequestClose={closeSheet}
     >
       <LinearGradient
-        style={[styles.gradient, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}
+        style={[styles.gradient, { paddingTop: 20, paddingBottom: insets.bottom + 16 }]}
         colors={['#E2005A', '#FF3888', '#FFFFFF']}
         start={{ x: 0.5, y: -0.1 }}
         end={{ x: 0.1, y: 1 }}

@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
 import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
@@ -23,13 +22,8 @@ import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
 import { UserCharacterPreferenceService } from './src/services/UserCharacterPreferenceService';
 import { VRMProvider, useVRMContext } from './src/context/VRMContext';
-import { QuestSheet } from './src/components/sheets/QuestSheet';
-import { BackgroundSheet } from './src/components/sheets/BackgroundSheet';
-import { CharacterSheet } from './src/components/sheets/CharacterSheet';
-import { CostumeSheet } from './src/components/sheets/CostumeSheet';
-import { MediaSheet } from './src/components/sheets/MediaSheet';
-import { EnergySheet } from './src/components/sheets/EnergySheet';
-import { LevelSheet } from './src/components/sheets/LevelSheet';
+import { AppSheets } from './src/components/AppSheets';
+import { CharacterQuickSwitcher } from './src/components/CharacterQuickSwitcher';
 import { BackgroundItem } from './src/repositories/BackgroundRepository';
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
@@ -44,6 +38,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
+import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
 
 type RootStackParamList = {
   Experience: undefined;
@@ -53,11 +48,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 type ExperienceNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Experience'>;
 
-const LEGAL_URLS = {
-  terms: 'https://vivivi.ai/terms',
-  privacy: 'https://vivivi.ai/privacy',
-  eula: 'https://vivivi.ai/eula',
-};
+import { LEGAL_URLS } from './src/constants/appConstants';
 
 const AppContent = () => {
   const {
@@ -92,9 +83,12 @@ const AppContent = () => {
   const [showLoginRewardsSheet, setShowLoginRewardsSheet] = useState(false);
   const [showEnergySheet, setShowEnergySheet] = useState(false);
   const [showLevelSheet, setShowLevelSheet] = useState(false);
+  const [showCharacterDetailSheet, setShowCharacterDetailSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
+  const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
+  const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const {
     refresh: refreshCurrency,
     setPurchaseCompleteCallback,
@@ -123,7 +117,6 @@ const AppContent = () => {
     isClaiming: isClaimingLoginReward,
   } = useLoginRewards();
   const quests = useQuests(hasRestoredSession && !!session);
-  const trackQuestProgress = quests.trackProgress;
   const activeCharacterId = currentCharacter?.id ?? initialData?.character.id;
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
@@ -147,6 +140,39 @@ const AppContent = () => {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    QuestProgressTracker.setDelegate(quests.trackProgress);
+    return () => {
+      QuestProgressTracker.setDelegate(null);
+    };
+  }, [quests.trackProgress]);
+
+  // Load all characters and owned characters
+  useEffect(() => {
+    if (!session) return;
+    
+    const loadCharacters = async () => {
+      try {
+        const characterRepo = new CharacterRepository();
+        const assetRepo = new AssetRepository();
+        
+        const [characters, owned] = await Promise.all([
+          characterRepo.fetchAllCharacters(),
+          assetRepo.fetchOwnedAssets('character'),
+        ]);
+        
+        // Filter to only owned characters
+        const ownedCharacters = characters.filter(c => owned.has(c.id));
+        setAllCharacters(ownedCharacters);
+        setOwnedCharacterIds(owned);
+      } catch (error) {
+        console.warn('[App] Failed to load characters for quick switcher:', error);
+      }
+    };
+    
+    loadCharacters();
+  }, [session, activeCharacterId]);
 
   useEffect(() => {
     return () => {
@@ -187,7 +213,6 @@ const AppContent = () => {
   }, [muteBgmIfNeeded]);
   const {
     state: chatState,
-    sendQuickReply,
     toggleChatList: toggleChatListInternal,
     openHistory,
     closeHistory,
@@ -240,6 +265,10 @@ const AppContent = () => {
 
   const handleCurrencyPurchaseComplete = useCallback(async (payload: { vcoinAdded: number; rubyAdded: number }) => {
     await refreshCurrency();
+    
+    // Track quest progress for payment
+    await QuestProgressTracker.track('make_payment');
+    
     // Resume pending purchase after currency refresh (like Swift version with 0.2s delay)
     setTimeout(async () => {
       const result = await resumePendingPurchase();
@@ -427,22 +456,14 @@ const AppContent = () => {
         // Ignore haptic errors
       }
 
-      await Promise.allSettled([
-        trackQuestProgress('capture_characters'),
-        trackQuestProgress('capture_backgrounds'),
-      ]);
+      await QuestProgressTracker.trackMany(['capture_characters', 'capture_backgrounds']);
     } catch (error) {
       console.error('[App] Failed to capture snapshot:', error);
       Alert.alert('Unable to save image', 'Please try again in a moment.');
     } finally {
       setIsSavingSnapshot(false);
     }
-  }, [
-    ensureMediaPermission,
-    isSavingSnapshot,
-    presentSavedToast,
-    trackQuestProgress,
-  ]);
+  }, [ensureMediaPermission, isSavingSnapshot, presentSavedToast]);
 
   const handleSendPhoto = useCallback(() => {
     if (!activeCharacterId) {
@@ -464,13 +485,13 @@ const AppContent = () => {
     try {
       webBridgeRef.current.triggerDance();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-      trackQuestProgress('dance_character').catch(error =>
+      QuestProgressTracker.track('dance_character').catch(error =>
         console.warn('[App] Failed to track dance quest progress:', error)
       );
     } catch (error) {
       console.error('[App] Failed to trigger dance:', error);
     }
-  }, [ensureWebBridge, trackQuestProgress]);
+  }, [ensureWebBridge]);
 
   const characterTitle = useMemo(() => {
     if (currentCharacter?.name?.trim()) {
@@ -494,6 +515,7 @@ const AppContent = () => {
         const assetRepo = new AssetRepository();
         let ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
         let isOwned = ownedCharacterIds.has(item.id);
+        const wasOwned = isOwned;
 
         if (!isOwned) {
           const priceVcoin = item.price_vcoin ?? 0;
@@ -526,6 +548,16 @@ const AppContent = () => {
 
           ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
           isOwned = ownedCharacterIds.has(item.id);
+          
+          const totalOwnedCharacters = ownedCharacterIds.size;
+          const unlockedNow = !wasOwned && isOwned;
+          
+          if (unlockedNow) {
+            await QuestProgressTracker.track('unlock_character');
+            if (QuestProgressTracker.shouldTrackCollectionMilestone(totalOwnedCharacters)) {
+              await QuestProgressTracker.track('obtain_characters');
+            }
+          }
         }
 
         if (!isOwned) {
@@ -572,11 +604,29 @@ const AppContent = () => {
     ]
   );
 
+  const handleCharacterSelectByIndex = useCallback(
+    async (index: number) => {
+      if (index < 0 || index >= allCharacters.length) return;
+      const character = allCharacters[index];
+      if (character) {
+        await handleCharacterSelect(character);
+      }
+    },
+    [allCharacters, handleCharacterSelect]
+  );
+
+  const currentCharacterIndex = useMemo(() => {
+    if (!activeCharacterId || allCharacters.length === 0) return 0;
+    const index = allCharacters.findIndex(c => c.id === activeCharacterId);
+    return index >= 0 ? index : 0;
+  }, [activeCharacterId, allCharacters]);
+
   const handleBackgroundSelect = useCallback(
     async (item: BackgroundItem) => {
       try {
         const assetRepo = new AssetRepository();
         let ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        const alreadyOwned = ownedBackgroundIds.has(item.id);
 
         const applyBackground = async (ownedSet: Set<string>) => {
           if (!currentCharacter) {
@@ -593,7 +643,7 @@ const AppContent = () => {
           setShowBackgroundSheet(false);
         };
 
-        if (ownedBackgroundIds.has(item.id)) {
+        if (alreadyOwned) {
           await applyBackground(ownedBackgroundIds);
           clearConfirmPurchaseRequest();
           return;
@@ -637,7 +687,16 @@ const AppContent = () => {
         }
 
         ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        const nowOwned = ownedBackgroundIds.has(item.id);
         await applyBackground(ownedBackgroundIds);
+
+        if (!alreadyOwned && nowOwned) {
+          await QuestProgressTracker.track('unlock_background');
+          if (QuestProgressTracker.shouldTrackCollectionMilestone(ownedBackgroundIds.size)) {
+            await QuestProgressTracker.track('obtain_backgrounds');
+          }
+        }
+
         clearConfirmPurchaseRequest();
       } catch (error) {
         console.error('❌ Error selecting background:', error);
@@ -664,8 +723,8 @@ const AppContent = () => {
 
       try {
         const assetRepo = new AssetRepository();
-        const ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
-        const isOwned = ownedCostumeIds.has(item.id);
+        let ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+        const alreadyOwned = ownedCostumeIds.has(item.id);
 
         const applyCostume = async () => {
           await UserCharacterPreferenceService.applyCostumeById(item.id, webViewRef);
@@ -674,7 +733,7 @@ const AppContent = () => {
           });
         };
 
-        if (isOwned) {
+        if (alreadyOwned) {
           await applyCostume();
           clearConfirmPurchaseRequest();
           return;
@@ -690,6 +749,7 @@ const AppContent = () => {
             Alert.alert('Unable to add costume', 'Please try again in a moment.');
             return;
           }
+          ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
         } else {
           const choice = await confirmCostumePurchase(item);
           console.log('🎯 [CostumeSelect] Purchase choice:', choice);
@@ -710,16 +770,17 @@ const AppContent = () => {
               priceVcoin: finalPriceVcoin,
               priceRuby: finalPriceRuby,
             });
-            
-            // Refresh owned costumes after successful purchase (like Swift version)
-            const updatedOwnedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
-            console.log('✅ [CostumeSelect] Owned costumes after purchase:', Array.from(updatedOwnedCostumeIds));
+            ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
           } catch (error) {
             console.error('❌ [CostumeSelect] Purchase error:', error);
             handlePurchaseError(error);
             clearConfirmPurchaseRequest();
             return;
           }
+        }
+
+        if (!alreadyOwned && ownedCostumeIds.has(item.id)) {
+          await QuestProgressTracker.track('unlock_costume');
         }
 
         await applyCostume();
@@ -749,10 +810,17 @@ const AppContent = () => {
     isBgmOnRef.current = isBgmOn;
   }, [isBgmOn]);
 
+  const previousCallConnectedRef = useRef(false);
+  const callStartTimeRef = useRef<number | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const applyVoiceState = async () => {
       if (voiceState.isConnected) {
+        if (!previousCallConnectedRef.current) {
+          // Call just started
+          callStartTimeRef.current = Date.now();
+        }
         lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
         webBridgeRef.current?.setCallMode(true);
         if (isBgmOnRef.current) {
@@ -766,6 +834,21 @@ const AppContent = () => {
           }
         }
       } else {
+        // Call ended - track quest progress
+        if (previousCallConnectedRef.current && callStartTimeRef.current) {
+          const callDurationSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+          if (callDurationSeconds > 0) {
+            const minutes = Math.max(1, Math.floor(callDurationSeconds / 60));
+            const questType = isCameraModeOn ? 'video_call' : 'voice_call';
+            try {
+              await QuestProgressTracker.track(questType, minutes);
+            } catch (error) {
+              console.warn('[App] Failed to track call quest progress:', error);
+            }
+          }
+          callStartTimeRef.current = null;
+        }
+        
         webBridgeRef.current?.setCallMode(false);
         if (lastBgmBeforeVoiceRef.current) {
           try {
@@ -779,12 +862,13 @@ const AppContent = () => {
         }
         lastBgmBeforeVoiceRef.current = false;
       }
+      previousCallConnectedRef.current = voiceState.isConnected;
     };
     applyVoiceState();
     return () => {
       cancelled = true;
     };
-  }, [voiceState.isConnected]);
+  }, [voiceState.isConnected, isCameraModeOn]);
 
   useEffect(() => {
     setOverlayFlags(prev => ({ ...prev, hasIncompleteQuests: quests.hasIncompleteDaily }));
@@ -1233,10 +1317,7 @@ const AppContent = () => {
         <View pointerEvents="box-none" style={styles.chatOverlay}>
           <ChatBottomOverlay
             messages={chatState.messages}
-            quickReplies={chatState.quickReplies}
             showChatList={chatState.showChatList}
-            onMessagePress={message => console.log('💬 message pressed', message.id)}
-            onQuickReply={sendQuickReply}
             onSendText={handleSendChatText}
             onCapture={handleCapture}
             onSendPhoto={handleSendPhoto}
@@ -1251,61 +1332,56 @@ const AppContent = () => {
                   : undefined
             }
             inputDisabled={voiceState.isBooting || voiceState.status === 'connecting'}
+            streakDays={chatState.streakDays}
+            hasUnclaimed={chatState.hasUnclaimed}
+            showStreakConfetti={chatState.showStreakConfetti}
+            onStreakTap={() => setShowLoginRewardsSheet(true)}
+            onOpenHistory={openHistory}
           />
         </View>
-        <BackgroundSheet
-          isOpened={showBackgroundSheet}
-          onIsOpenedChange={setShowBackgroundSheet}
+        <CharacterQuickSwitcher
+          characters={allCharacters}
+          currentIndex={currentCharacterIndex}
+          onCharacterTap={handleCharacterSelectByIndex}
+          onAddCharacter={() => setShowCharacterSheet(true)}
+          isInputActive={isKeyboardVisible || chatState.showChatList}
+          keyboardHeight={0}
+          isModelLoading={false}
         />
-        <CharacterSheet
-          isOpened={showCharacterSheet}
-          onIsOpenedChange={setShowCharacterSheet}
-        />
-        <CostumeSheet
-          isOpened={showCostumeSheet}
-          onIsOpenedChange={setShowCostumeSheet}
-          characterId={currentCharacter?.id ?? initialData?.character.id}
-        />
-        <MediaSheet
-          isOpened={showMediaSheet}
-          onIsOpenedChange={setShowMediaSheet}
-          characterId={activeCharacterId}
+        <AppSheets
+          showQuestSheet={showQuestSheet}
+          setShowQuestSheet={setShowQuestSheet}
+          quests={quests}
+          showBackgroundSheet={showBackgroundSheet}
+          setShowBackgroundSheet={setShowBackgroundSheet}
+          showCharacterSheet={showCharacterSheet}
+          setShowCharacterSheet={setShowCharacterSheet}
+          showCostumeSheet={showCostumeSheet}
+          setShowCostumeSheet={setShowCostumeSheet}
+          activeCharacterId={activeCharacterId}
+          showMediaSheet={showMediaSheet}
+          setShowMediaSheet={setShowMediaSheet}
           characterName={currentCharacter?.name ?? initialData?.character.name}
-        />
-        <LevelSheet
-          isOpened={showLevelSheet}
-          onIsOpenedChange={setShowLevelSheet}
+          showCharacterDetailSheet={showCharacterDetailSheet}
+          setShowCharacterDetailSheet={setShowCharacterDetailSheet}
+          characterAvatarURL={currentCharacter?.avatar || initialData?.character.avatar || initialData?.character.thumbnail_url}
+          characterDescription={initialData?.character.description}
+          showLevelSheet={showLevelSheet}
+          setShowLevelSheet={setShowLevelSheet}
           level={overlayStats.level}
           xp={overlayStats.xp}
           nextLevelXp={overlayStats.nextLevelXp}
-        />
-        <EnergySheet
-          isOpened={showEnergySheet}
-          onIsOpenedChange={setShowEnergySheet}
+          showEnergySheet={showEnergySheet}
+          setShowEnergySheet={setShowEnergySheet}
           energy={overlayStats.energy}
           energyMax={overlayStats.energyMax}
-        />
-        <QuestSheet
-          isOpened={showQuestSheet}
-          onIsOpenedChange={setShowQuestSheet}
-          dailyState={quests.daily}
-          levelState={quests.level}
-          onRefreshDaily={quests.refreshDaily}
-          onClaimDaily={quests.claimDailyQuest}
-          onClaimLevel={quests.claimLevelQuest}
-        />
-        <LoginRewardCalendarModal
-          visible={showLoginRewardsSheet}
-          onClose={() => setShowLoginRewardsSheet(false)}
-          rewards={loginRewardState.rewards}
-          currentDay={loginRewardState.currentDay}
-          canClaimToday={loginRewardState.canClaimToday}
-          hasClaimedToday={loginRewardState.hasClaimedToday}
-          isLoading={loginRewardState.isLoading}
-          error={loginRewardState.error}
-          onReload={loadLoginRewards}
-          onClaim={handleClaimLoginReward}
-          isClaiming={isClaimingLoginReward}
+          showLoginRewardsSheet={showLoginRewardsSheet}
+          setShowLoginRewardsSheet={setShowLoginRewardsSheet}
+          loginRewardState={loginRewardState}
+          loadLoginRewards={loadLoginRewards}
+          claimLoginReward={claimLoginReward}
+          isClaimingLoginReward={isClaimingLoginReward}
+          onClaimLoginReward={handleClaimLoginReward}
         />
         <SettingsModal
           visible={showSettings}
@@ -1331,24 +1407,22 @@ export default function App() {
     <ElevenLabsProvider>
       <VRMProvider>
         <PurchaseProvider>
-          <SafeAreaProvider>
-            <NavigationContainer>
-              <Stack.Navigator
-                screenOptions={{
-                  headerTransparent: true,
-                  headerTitleAlign: 'center',
-                  headerTintColor: '#fff',
-                  contentStyle: { backgroundColor: '#000' },
-                }}
-              >
-                <Stack.Screen
-                  name="Experience"
-                  component={AppContent}
-                  options={{ headerShown: false }}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </SafeAreaProvider>
+          <NavigationContainer>
+            <Stack.Navigator
+              screenOptions={{
+                headerTransparent: true,
+                headerTitleAlign: 'center',
+                headerTintColor: '#fff',
+                contentStyle: { backgroundColor: '#000' },
+              }}
+            >
+              <Stack.Screen
+                name="Experience"
+                component={AppContent}
+                options={{ headerShown: false }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
         </PurchaseProvider>
       </VRMProvider>
     </ElevenLabsProvider>

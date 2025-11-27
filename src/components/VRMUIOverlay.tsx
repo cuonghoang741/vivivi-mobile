@@ -2,12 +2,10 @@ import React, { useCallback, useMemo } from "react";
 import {
   Image,
   Pressable,
-  StyleProp,
   StyleSheet,
   Text,
   View,
   ViewProps,
-  ViewStyle,
 } from "react-native";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -86,9 +84,8 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     setShowPurchaseSheet(true);
   }, [setShowPurchaseSheet]);
 
-  const xpPercentLabel = `${Math.round(levelProgress * 100)}% XP`;
   const energyColor =
-    energyRatio < 0.2 ? "#FF6B6B" : energyRatio < 0.5 ? "#FFC857" : "#8CF29C";
+    energyRatio < 0.2 ? "#FF4F5E" : energyRatio < 0.5 ? "#FFA533" : "#FFD24D";
 
   return (
     <View
@@ -97,49 +94,37 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       {...rest}
     >
       <View style={styles.leftColumn}>
-        <GlassTile onPress={onLevelPress}>
-          <View style={styles.levelHeader}>
+        <ButtonTile onPress={onLevelPress}>
+          <View style={styles.levelCompactRow}>
             <Text style={styles.levelLabel}>{`LV. ${level}`}</Text>
-            <Text style={styles.levelXpSmall}>{xpPercentLabel}</Text>
+            <View style={styles.levelCompactTrack}>
+              <LinearGradient
+                colors={["#FF247C", "#FF247C"]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={[
+                  styles.levelCompactFill,
+                  { width: `${levelProgress * 100}%` },
+                ]}
+              />
+            </View>
           </View>
+        </ButtonTile>
 
-          <View style={styles.levelProgressTrack}>
-            <LinearGradient
-              colors={["#FF9ACB", "#A068FF"]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={[
-                styles.levelProgressFill,
-                { width: `${levelProgress * 100}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.levelXpLabel}>{`${xp}/${nextLevelXp} XP`}</Text>
-        </GlassTile>
-
-        <GlassTile onPress={onEnergyPress}>
+        <ButtonTile onPress={onEnergyPress}>
           <View style={styles.energyRow}>
-            <Ionicons name="flash" size={14} color={energyColor} />
-            <Text
-              style={[styles.energyLabel, { color: energyColor }]}
-            >{`${energy}/${energyMax}`}</Text>
+            <Ionicons name="flash" size={14} color="#111" />
+            <Text style={styles.energyLabel}>{`${energy}/${energyMax}`}</Text>
           </View>
-        </GlassTile>
+        </ButtonTile>
 
-        <View style={styles.currencyStack}>
-          <CurrencyRow
-            icon={VCOIN_ICON}
-            amount={animatedBalance.vcoin}
-            onPress={handleCurrencyPress}
-          />
-          <CurrencyRow
-            icon={RUBY_ICON}
-            amount={animatedBalance.ruby}
-            onPress={handleCurrencyPress}
-          />
-        </View>
+        <ButtonTile onPress={handleCurrencyPress}>
+          <CurrencyRow icon={VCOIN_ICON} amount={animatedBalance.vcoin} />
+        </ButtonTile>
+        <ButtonTile onPress={handleCurrencyPress}>
+          <CurrencyRow icon={RUBY_ICON} amount={animatedBalance.ruby} />
+        </ButtonTile>
       </View>
-
       <View style={styles.rightColumn}>
         <IconButton iconName="map-outline" onPress={onBackgroundPress} />
         <IconButton iconName="shirt-outline" onPress={onCostumePress} />
@@ -169,16 +154,11 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
 const CurrencyRow: React.FC<{
   icon: any;
   amount: number;
-  onPress?: () => void;
-}> = ({ icon, amount, onPress }) => (
-  <LiquidGlass style={styles.currencyTile} onPress={onPress} pressable>
-    <View
-      style={styles.currencyRow}
-    >
-      <Image source={icon} style={styles.currencyIcon} />
-      <Text style={styles.currencyLabel}>{amount.toLocaleString("en-US")}</Text>
-    </View>
-  </LiquidGlass>
+}> = ({ icon, amount }) => (
+  <View style={styles.currencyRow}>
+    <Image source={icon} style={styles.currencyIcon} />
+    <Text style={styles.currencyLabel}>{formatCompactCurrency(amount)}</Text>
+  </View>
 );
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
@@ -188,26 +168,47 @@ const IconButton: React.FC<{
   onPress?: () => void;
   highlight?: boolean;
 }> = ({ iconName, onPress, highlight }) => (
-  <Button
-    size="sm"
-    variant="liquid"
-    color="primary"
-    isIconOnly
-    startIconName={iconName}
+  <Pressable
     onPress={onPress}
     style={[styles.iconButton, highlight && styles.iconButtonHighlight]}
-  />
+  >
+    <LiquidGlass style={styles.iconButtonGlass} pressable={false}>
+      <Ionicons name={iconName} size={18} color="#111" />
+    </LiquidGlass>
+  </Pressable>
 );
 
-const GlassTile: React.FC<{
+const ButtonTile: React.FC<{
   children: React.ReactNode;
   onPress?: () => void;
-  style?: StyleProp<ViewStyle>;
-}> = ({ children, onPress, style }) => (
-  <LiquidGlass style={[styles.glassTile, style]} onPress={onPress} pressable>
-    {children}
-  </LiquidGlass>
+}> = ({ children, onPress }) => (
+  <Button variant="liquid" style={styles.tilePressable} onPress={onPress}>
+    <View style={styles.tileContentRow}>{children}</View>
+  </Button>
 );
+
+const formatCompactCurrency = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+
+  if (abs >= 1_000_000_000) {
+    return `${sign}${(abs / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  }
+
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+
+  if (abs >= 1_000) {
+    return `${sign}${(abs / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+
+  return `${value}`;
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -217,51 +218,44 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   leftColumn: {
-    gap: 10,
-    maxWidth: "60%",
+    gap: 12,
+    width: "auto",
+    alignSelf: "flex-start",
   },
   rightColumn: {
     alignItems: "flex-end",
     gap: 10,
   },
-  glassTile: {
-    borderRadius: 14,
-    padding: 10,
+  tilePressable: {
+    borderRadius: 22,
+    minHeight: 44,
+    alignSelf: "flex-start",
   },
-  tileContent: {
-    gap: 6,
+  tileContentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   levelLabel: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 4,
+    color: "#111",
+    fontSize: 14,
+    fontWeight: "700",
   },
-  levelHeader: {
+  levelCompactRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    gap: 8,
   },
-  levelXpSmall: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  levelProgressTrack: {
+  levelCompactTrack: {
+    width: 86,
     height: 12,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderRadius: 10,
     overflow: "hidden",
   },
-  levelProgressFill: {
+  levelCompactFill: {
     height: "100%",
-    borderRadius: 6,
-  },
-  levelXpLabel: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 11,
-    marginTop: 4,
+    borderRadius: 10,
   },
   energyRow: {
     flexDirection: "row",
@@ -269,16 +263,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   energyLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  currencyStack: {
-    gap: 8,
-  },
-  currencyTile: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111",
   },
   currencyRow: {
     flexDirection: "row",
@@ -291,18 +278,26 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   currencyLabel: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
+    color: "#111",
+    fontSize: 14,
+    fontWeight: "700",
   },
   iconButton: {
-    width: 38,
-    height: 38,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconButtonGlass: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
   iconButtonHighlight: {
-    backgroundColor: "rgba(255,149,0,0.22)",
+    backgroundColor: "rgba(255,149,0,0.18)",
   },
   pressed: {
     opacity: 0.85,

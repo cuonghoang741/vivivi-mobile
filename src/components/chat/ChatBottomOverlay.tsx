@@ -1,17 +1,14 @@
 import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ChatMessagesOverlay } from './ChatMessagesOverlay';
-import { QuickMessageChips } from './QuickMessageChips';
-import type { ChatMessage, ChatQuickReply } from '../../types/chat';
+import type { ChatMessage } from '../../types/chat';
 import { ChatBottomActions } from './ChatBottomActions';
 import { ChatInputBar } from './ChatInputBar';
 
 type Props = {
   messages: ChatMessage[];
-  quickReplies: ChatQuickReply[];
   showChatList: boolean;
   onMessagePress?: (message: ChatMessage) => void;
-  onQuickReply: (id: string) => void;
   onSendText: (text: string) => void;
   onCapture: () => void;
   onSendPhoto: () => void;
@@ -20,14 +17,17 @@ type Props = {
   onToggleMic?: () => void;
   inputPlaceholder?: string;
   inputDisabled?: boolean;
+  streakDays?: number;
+  hasUnclaimed?: boolean;
+  showStreakConfetti?: boolean;
+  onStreakTap?: () => void;
+  onOpenHistory?: () => void;
 };
 
 export const ChatBottomOverlay: React.FC<Props> = ({
   messages,
-  quickReplies,
   showChatList,
   onMessagePress,
-  onQuickReply,
   onSendText,
   onCapture,
   onSendPhoto,
@@ -36,6 +36,11 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onToggleMic,
   inputPlaceholder,
   inputDisabled,
+  streakDays,
+  hasUnclaimed,
+  showStreakConfetti,
+  onStreakTap,
+  onOpenHistory,
 }) => {
   const [inputValue, setInputValue] = useState('');
 
@@ -53,10 +58,16 @@ export const ChatBottomOverlay: React.FC<Props> = ({
       <ChatMessagesOverlay
         messages={messages}
         showChatList={showChatList}
-        onMessagePress={onMessagePress}
+        onMessagePress={message => {
+          onMessagePress?.(message);
+          onOpenHistory?.();
+        }}
         isTyping={isTyping}
+        streakDays={streakDays}
+        hasUnclaimed={hasUnclaimed}
+        showStreakConfetti={showStreakConfetti}
+        onStreakTap={onStreakTap}
       />
-      <QuickMessageChips replies={quickReplies} onSelect={onQuickReply} />
       <ChatBottomActions
         onCapture={onCapture}
         onSendPhoto={onSendPhoto}

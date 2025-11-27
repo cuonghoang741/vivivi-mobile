@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Button from '../Button';
 import type { QuestReward } from '../../services/QuestService';
@@ -61,6 +63,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
   onClaimDaily,
   onClaimLevel,
 }) => {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('daily');
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [levelClaimingId, setLevelClaimingId] = useState<string | null>(null);
@@ -262,6 +265,8 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
     );
   };
 
+  const content = activeTab === 'daily' ? renderDailyTab() : renderLevelTab();
+
   return (
     <Modal
       visible={isOpened}
@@ -269,15 +274,19 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={() => onIsOpenedChange(false)}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Button
-            size='md'
-            variant='liquid'
-            onPress={handleRefreshDaily}
-            startIconName='refresh'
-            isIconOnly
-          />
+      <LinearGradient
+        style={[
+          styles.gradient,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 },
+        ]}
+        colors={['#E2005A', '#FF3888', '#FFFFFF']}
+        start={{ x: 0.5, y: -0.1 }}
+        end={{ x: 0.1, y: 1 }}
+      >
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={handleRefreshDaily}>
+            <Ionicons name="refresh" size={18} color="#fff" />
+          </Pressable>
           <View style={styles.tabSwitcher}>
             <Pressable
               onPress={() => setActiveTab('daily')}
@@ -296,18 +305,12 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
               </Text>
             </Pressable>
           </View>
-          <Button
-            size='md'
-            variant='liquid'
-            onPress={() => onIsOpenedChange(false)}
-            startIconName='close'
-            isIconOnly
-          />
+          <Pressable style={styles.iconButton} onPress={() => onIsOpenedChange(false)}>
+            <Ionicons name="close" size={18} color="#fff" />
+          </Pressable>
         </View>
-        <View style={styles.content}>
-          {activeTab === 'daily' ? renderDailyTab() : renderLevelTab()}
-        </View>
-      </View>
+        <View style={styles.contentWrapper}>{content}</View>
+      </LinearGradient>
     </Modal>
   );
 };
@@ -468,29 +471,35 @@ const QuestCardSkeleton = () => (
 );
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-    columnGap: 16,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabSwitcher: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 999,
     padding: 4,
+    gap: 6,
   },
   tabButton: {
     paddingVertical: 6,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     borderRadius: 999,
   },
   tabButtonActive: {
@@ -498,67 +507,71 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
+    color: 'rgba(255,255,255,0.7)',
     fontWeight: '600',
   },
   tabLabelActive: {
-    color: '#000',
+    color: '#111',
   },
-  content: {
+  contentWrapper: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
+    color: '#6c6c6c',
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 12,
+    textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   cardTitle: {
-    color: '#fff',
+    color: '#111',
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
   cardSubtitle: {
-    color: 'rgba(255,255,255,0.6)',
+    color: '#6b6b6b',
     fontSize: 12,
   },
   difficultyBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#F5F5F5',
   },
   difficultyText: {
-    color: '#fff',
+    color: '#333',
     fontSize: 12,
     textTransform: 'capitalize',
     fontWeight: '600',
   },
   progressBar: {
     height: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 4,
+    backgroundColor: '#F3F4F6',
     overflow: 'hidden',
-    marginTop: 4,
+    marginTop: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#7C5CFF',
+    backgroundColor: '#FF247C',
   },
   progressLabels: {
     flexDirection: 'row',
@@ -567,11 +580,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   progressLabel: {
-    color: '#fff',
+    color: '#111',
     fontSize: 12,
+    fontWeight: '600',
   },
   progressStatus: {
-    color: 'rgba(255,255,255,0.6)',
+    color: '#6b6b6b',
     fontSize: 12,
   },
   rewardRow: {
@@ -587,7 +601,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#F5F5F5',
   },
   rewardImage: {
     width: 16,
@@ -595,7 +609,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   rewardLabel: {
-    color: '#fff',
+    color: '#111',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -603,47 +617,45 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   centerContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 40,
     paddingHorizontal: 24,
+    gap: 12,
   },
   errorTitle: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 8,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   errorMessage: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 12,
   },
   emptyTitle: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 8,
   },
   emptySubTitle: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 12,
   },
   skeletonContainer: {
-    gap: 12,
+    gap: 16,
   },
   skeletonLine: {
     height: 12,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 6,
     marginBottom: 8,
   },
   skeletonLineLarge: {
     height: 18,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 6,
     marginBottom: 12,
   },
@@ -657,12 +669,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   levelTitle: {
-    color: '#fff',
+    color: '#111',
     fontSize: 16,
     fontWeight: '700',
   },
   levelProgress: {
-    color: 'rgba(255,255,255,0.7)',
+    color: '#6b6b6b',
     fontSize: 12,
   },
   bottomSpacer: {

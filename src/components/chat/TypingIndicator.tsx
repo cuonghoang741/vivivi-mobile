@@ -45,6 +45,7 @@ export const TypingIndicator: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: 'rgba(255,110,161,0.3)',

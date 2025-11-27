@@ -103,7 +103,7 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
     >
-      <Ionicons name={iconName} size={24} color="#fff" />
+      <Ionicons name={iconName} size={24} />
     </HapticPressable>
   );
 };
@@ -130,7 +130,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   characterName: {
-    color: "#fff",
     fontSize: 13,
     fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.35)",
@@ -144,7 +143,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   relationshipLabel: {
-    color: "rgba(255,255,255,0.75)",
     fontSize: 10,
     flexShrink: 1,
   },
@@ -152,12 +150,12 @@ const styles = StyleSheet.create({
     width: 28,
     height: 3,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(0,0,0,0.2)",
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "rgba(255,255,255,0.65)",
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
   avatarWrapper: {
     width: 20,

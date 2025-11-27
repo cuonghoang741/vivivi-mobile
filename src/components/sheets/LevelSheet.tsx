@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Modal,
   View,
   Text,
@@ -7,10 +8,16 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Image,
+  Easing,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CharacterRepository } from '../../repositories/CharacterRepository';
+import AssetRepository from '../../repositories/AssetRepository';
+
+const LEVEL_BADGE = require('../../assets/images/LevelBadge.png');
 
 type LevelSheetProps = {
   isOpened: boolean;
@@ -28,7 +35,64 @@ export const LevelSheet: React.FC<LevelSheetProps> = ({
   nextLevelXp,
 }) => {
   const insets = useSafeAreaInsets();
-  const progress = nextLevelXp > 0 ? Math.min(1, Math.max(0, xp / nextLevelXp)) : 0;
+  const { metrics } = useLevelInventoryMetrics();
+  const levelStartXp = useMemo(
+    () => Math.max(0, Math.pow(Math.max(level, 1) - 1, 2) * 100),
+    [level]
+  );
+  const xpInLevel = useMemo(() => Math.max(0, xp - levelStartXp), [xp, levelStartXp]);
+  const xpNeeded = useMemo(
+    () => Math.max(1, nextLevelXp - levelStartXp),
+    [nextLevelXp, levelStartXp]
+  );
+  const progress = useMemo(
+    () => (xpNeeded > 0 ? Math.min(1, Math.max(0, xpInLevel / xpNeeded)) : 0),
+    [xpInLevel, xpNeeded]
+  );
+  const statCards = useMemo<StatMetricCardProps[]>(() => {
+    return [
+      {
+        key: 'characters',
+        title: 'Characters',
+        value: formatCount(metrics.characterCount, { pad: true }),
+      },
+      {
+        key: 'backgrounds',
+        title: 'Backgrounds',
+        value: formatCount(metrics.backgroundCount, { pad: true }),
+      },
+      {
+        key: 'costumes',
+        title: 'Costumes',
+        value: formatCount(metrics.costumeCount, { pad: true }),
+      },
+      {
+        key: 'xp',
+        title: 'XP',
+        value: formatCompactNumber(xp),
+      },
+      {
+        key: 'photos',
+        title: 'Captured Photos',
+        value: formatCount(metrics.mediaCount),
+      },
+      {
+        key: 'messages',
+        title: 'Messages',
+        value: '—',
+      },
+      {
+        key: 'voice',
+        title: 'Voice Call',
+        value: '—',
+      },
+      {
+        key: 'video',
+        title: 'Video Call',
+        value: '—',
+      },
+    ];
+  }, [metrics, xp]);
 
   const closeSheet = () => onIsOpenedChange(false);
 
@@ -40,7 +104,7 @@ export const LevelSheet: React.FC<LevelSheetProps> = ({
       onRequestClose={closeSheet}
     >
       <LinearGradient
-        style={[styles.gradient, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}
+        style={[styles.gradient, { paddingTop: 16, paddingBottom: insets.bottom + 16 }]}
         colors={['#E2005A', '#FF3888', '#FFFFFF']}
         start={{ x: 0.5, y: -0.1 }}
         end={{ x: 0.1, y: 1 }}
@@ -59,7 +123,13 @@ export const LevelSheet: React.FC<LevelSheetProps> = ({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <LevelStatusCard level={level} xp={xp} nextLevelXp={nextLevelXp} progress={progress} />
+          <LevelStatusCard
+            level={level}
+            xpInLevel={xpInLevel}
+            xpNeeded={xpNeeded}
+            progress={progress}
+          />
+          <StatsGrid metrics={statCards} />
           <LevelHowCard />
           <LevelTipsCard />
         </ScrollView>
@@ -70,29 +140,56 @@ export const LevelSheet: React.FC<LevelSheetProps> = ({
 
 const LevelStatusCard: React.FC<{
   level: number;
-  xp: number;
-  nextLevelXp: number;
+  xpInLevel: number;
+  xpNeeded: number;
   progress: number;
-}> = ({ level, xp, nextLevelXp, progress }) => (
-  <View style={styles.card}>
-    <View style={styles.cardHeading}>
-      <Text style={styles.cardTitle}>Current Level</Text>
-      <Text style={styles.cardSubtitle}>Each level unlocks new perks</Text>
+}> = ({ level, xpInLevel, xpNeeded, progress }) => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [floatAnim]);
+
+  return (
+    <View style={[styles.card, styles.levelCard]}>
+      <View style={styles.levelCardRow}>
+        <Animated.View style={[styles.badgeWrapper, { transform: [{ translateY: floatAnim }] }]}>
+          <Image source={LEVEL_BADGE} style={styles.badgeImage} />
+          <Text style={styles.badgeValue}>{level}</Text>
+        </Animated.View>
+        <View style={styles.levelDetails}>
+          <Text style={styles.levelSectionLabel}>Current level</Text>
+          <View style={styles.levelHeaderRow}>
+            <Text style={styles.levelHeaderTitle}>{`Level ${level}`}</Text>
+            <Text style={styles.levelHeaderStats}>{`${xpInLevel}/${xpNeeded}`}</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
+          <Text style={styles.levelHint}>Level up to get more quests</Text>
+        </View>
+      </View>
     </View>
-    <View style={styles.levelRow}>
-      <Text style={styles.levelBadge}>{`LV. ${level}`}</Text>
-      <Text style={styles.levelPercent}>{`${Math.round(progress * 100)}%`}</Text>
-    </View>
-    <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-    </View>
-    <Text style={styles.levelStats}>{`${xp} / ${nextLevelXp} XP`}</Text>
-    <Text style={styles.cardBodyText}>
-      Complete interactions, daily quests, and events to earn XP. Higher levels improve your bond and
-      unlock premium scenes.
-    </Text>
-  </View>
-);
+  );
+};
 
 const LevelHowCard: React.FC = () => (
   <View style={styles.card}>
@@ -121,19 +218,126 @@ const LevelTipsCard: React.FC = () => (
       <Text style={styles.cardSubtitle}>Level up faster</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="checkmark.circle.fill" size={18} color="#F52B7B" />
+      <Ionicons name="checkmark-circle" size={18} color="#F52B7B" />
       <Text style={styles.tipText}>Claim streak rewards daily to lock in bonus XP.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="chatbubble-ellipses.fill" size={18} color="#F52B7B" />
+      <Ionicons name="chatbubble-ellipses" size={18} color="#F52B7B" />
       <Text style={styles.tipText}>Run multi-step chats instead of single-line replies.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="flame.fill" size={18} color="#F52B7B" />
+      <Ionicons name="flame" size={18} color="#F52B7B" />
       <Text style={styles.tipText}>Keep events and photo shoots active for premium XP rewards.</Text>
     </View>
   </View>
 );
+
+const StatsGrid: React.FC<{ metrics: StatMetricCardProps[] }> = ({ metrics }) => (
+  <View style={styles.card}>
+    <View style={styles.cardHeading}>
+      <Text style={styles.cardTitle}>Current Stats</Text>
+      <Text style={styles.cardSubtitle}>Your progress</Text>
+    </View>
+    <View style={styles.statsGrid}>
+      {metrics.map(metric => (
+        <StatMetricCard key={metric.key} {...metric} />
+      ))}
+    </View>
+  </View>
+);
+
+type StatMetricCardProps = {
+  key: string;
+  title: string;
+  value: string;
+};
+
+const StatMetricCard: React.FC<StatMetricCardProps> = ({ title, value }) => (
+  <View style={styles.statCard}>
+    <Text style={styles.statTitle}>{title}</Text>
+    <Text style={styles.statValue}>{value}</Text>
+  </View>
+);
+
+const useLevelInventoryMetrics = () => {
+  const [metrics, setMetrics] = useState<{
+    characterCount: number | null;
+    backgroundCount: number | null;
+    costumeCount: number | null;
+    mediaCount: number | null;
+  }>({
+    characterCount: null,
+    backgroundCount: null,
+    costumeCount: null,
+    mediaCount: null,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const characterRepo = new CharacterRepository();
+    const assetRepo = new AssetRepository();
+
+    (async () => {
+      try {
+        const [ownedCharacters, ownedBackgrounds, ownedCostumes, ownedMedia] = await Promise.all([
+          characterRepo.fetchOwnedCharacterIds(),
+          assetRepo.fetchOwnedAssets('background'),
+          assetRepo.fetchOwnedAssets('character_costume'),
+          assetRepo.fetchOwnedAssets('media'),
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        setMetrics({
+          characterCount: ownedCharacters.size,
+          backgroundCount: ownedBackgrounds.size,
+          costumeCount: ownedCostumes.size,
+          mediaCount: ownedMedia.size,
+        });
+      } catch (error) {
+        console.warn('[LevelSheet] Failed to load inventory metrics', error);
+        if (!mounted) {
+          return;
+        }
+        setMetrics(prev => ({ ...prev }));
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return { metrics };
+};
+
+const formatCount = (value: number | null | undefined, options?: { pad?: boolean }) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '—';
+  }
+
+  if (options?.pad) {
+    return value >= 10 ? `${value}` : `0${value}`;
+  }
+
+  return `${value}`;
+};
+
+const formatCompactNumber = (value: number | null | undefined) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '—';
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  return `${value}`;
+};
 
 const styles = StyleSheet.create({
   gradient: {
@@ -193,21 +397,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(0,0,0,0.6)',
   },
-  levelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  levelBadge: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FF247C',
-  },
-  levelPercent: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#F52B7B',
-  },
   progressTrack: {
     height: 14,
     borderRadius: 7,
@@ -218,16 +407,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 7,
     backgroundColor: '#FF247C',
-  },
-  levelStats: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111',
-  },
-  cardBodyText: {
-    fontSize: 14,
-    color: 'rgba(0,0,0,0.7)',
-    lineHeight: 20,
   },
   listBody: {
     gap: 10,
@@ -247,6 +426,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(0,0,0,0.75)',
     lineHeight: 20,
+  },
+  levelCard: {
+    paddingBottom: 32,
+  },
+  levelCardRow: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'center',
+  },
+  badgeWrapper: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeImage: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  badgeValue: {
+    position: 'absolute',
+    fontSize: 56,
+    fontWeight: '900',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  levelDetails: {
+    flex: 1,
+    gap: 8,
+  },
+  levelSectionLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111',
+  },
+  levelHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  levelHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111',
+  },
+  levelHeaderStats: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111',
+  },
+  levelHint: {
+    fontSize: 12,
+    color: 'rgba(0,0,0,0.6)',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statCard: {
+    flexBasis: '48%',
+    backgroundColor: '#FFF5F9',
+    borderRadius: 20,
+    padding: 16,
+    gap: 4,
+  },
+  statTitle: {
+    fontSize: 13,
+    color: 'rgba(0,0,0,0.6)',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111',
   },
 });
 

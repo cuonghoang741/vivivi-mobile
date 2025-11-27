@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { FlatList, StyleSheet, View, Animated } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ChatMessage } from '../../types/chat';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { TypingIndicator } from './TypingIndicator';
@@ -11,6 +13,10 @@ type Props = {
   onMessagePress?: (message: ChatMessage) => void;
   isTyping?: boolean;
   bottomInset?: number;
+  streakDays?: number;
+  hasUnclaimed?: boolean;
+  showStreakConfetti?: boolean;
+  onStreakTap?: () => void;
 };
 
 // Spring animation config matching Swift version
@@ -20,11 +26,14 @@ const SPRING_CONFIG = {
   useNativeDriver: true,
 };
 
+const BADGE_HEIGHT = 54;
+
 type ChatOverlayItemProps = {
   message: ChatMessage;
   index: number;
   total: number;
   onMessagePress?: (message: ChatMessage) => void;
+  variant?: 'compact' | 'full';
 };
 
 const ChatOverlayItem: React.FC<ChatOverlayItemProps> = ({
@@ -32,6 +41,7 @@ const ChatOverlayItem: React.FC<ChatOverlayItemProps> = ({
   index,
   total,
   onMessagePress,
+  variant = 'compact',
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(10)).current;
@@ -64,6 +74,7 @@ const ChatOverlayItem: React.FC<ChatOverlayItemProps> = ({
         message={message}
         alignLeft={message.isAgent}
         onPress={() => onMessagePress?.(message)}
+        variant={variant}
       />
     </Animated.View>
   );
@@ -75,6 +86,10 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   onMessagePress,
   isTyping,
   bottomInset = 48,
+  streakDays,
+  hasUnclaimed,
+  showStreakConfetti,
+  onStreakTap,
 }) => {
   const displayedMessages = useMemo(() => messages.slice(-3), [messages]);
   const opacityAnim = useRef(new Animated.Value(showChatList ? 1 : 0)).current;
@@ -111,39 +126,47 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         },
       ]}
     >
-      <FlatList
-        data={displayedMessages}
-        renderItem={({ item, index }) => (
+      <View style={[styles.overlayContent, { paddingBottom: bottomInset }]}>
+        {typeof streakDays === 'number' && (
+          <StreakBadge
+            days={streakDays}
+            hasUnclaimed={!!hasUnclaimed}
+            showConfetti={!!showStreakConfetti}
+            onPress={onStreakTap}
+          />
+        )}
+
+        {displayedMessages.map((message, index) => (
           <ChatOverlayItem
-            message={item}
+            key={message.id}
+            message={message}
             index={index}
             total={displayedMessages.length}
             onMessagePress={onMessagePress}
+            variant="compact"
           />
-        )}
-        keyExtractor={item => item.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset }]}
-        scrollEnabled={false}
-      />
-      <Animated.View
-        style={[
-          styles.typingContainer,
-          {
-            opacity: typingOpacityAnim,
-            transform: [
-              {
-                translateY: typingOpacityAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [10, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-        pointerEvents={isTyping ? 'auto' : 'none'}
-      >
-        {isTyping && <TypingIndicator />}
-      </Animated.View>
+        ))}
+
+        <Animated.View
+          style={[
+            styles.typingContainer,
+            {
+              opacity: typingOpacityAnim,
+              transform: [
+                {
+                  translateY: typingOpacityAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents={isTyping ? 'auto' : 'none'}
+        >
+          {isTyping && <TypingIndicator />}
+        </Animated.View>
+      </View>
     </Animated.View>
   );
 };
@@ -154,11 +177,246 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 4,
   },
-  listContent: {
-    gap: 4,
+  overlayContent: {
+    gap: 6,
+    paddingHorizontal: 20,
   },
   typingContainer: {
+    paddingTop: 4,
+    alignSelf: 'flex-start',
+  },
+  streakContainer: {
+    height: BADGE_HEIGHT,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  streakClaimable: {
+    shadowColor: '#FF5E9E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+  },
+  streakPressed: {
+    transform: [{ scale: 0.98 }],
+  },
+  streakGradient: {
+    flex: 1,
+  },
+  streakContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  streakLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  streakSubtitle: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  claimPill: {
     paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  claimText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  confettiContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: BADGE_HEIGHT,
+    pointerEvents: 'none',
+  },
+  confettiPiece: {
+    position: 'absolute',
+    width: 4,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: '#fff',
+  },
+});
+
+const StreakBadge: React.FC<{
+  days: number;
+  hasUnclaimed: boolean;
+  showConfetti: boolean;
+  onPress?: () => void;
+}> = ({ days, hasUnclaimed, showConfetti, onPress }) => {
+  const label = days > 0 ? `${days} day streak` : 'Start streak';
+  const icon = hasUnclaimed ? 'flame' : 'flame-outline';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.streakContainer,
+        hasUnclaimed && styles.streakClaimable,
+        pressed && styles.streakPressed,
+      ]}
+    >
+      <LinearGradient
+        colors={
+          hasUnclaimed
+            ? ['#FF9ACB', '#FF5E9E']
+            : ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.04)']
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.streakGradient}
+      >
+        <View style={styles.streakContent}>
+          <Ionicons
+            name={icon as any}
+            size={18}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.streakLabel}>{label}</Text>
+            <Text style={styles.streakSubtitle}>
+              {hasUnclaimed ? 'Claim your reward' : 'Chat daily to earn boosts'}
+            </Text>
+          </View>
+          {hasUnclaimed && (
+            <View style={styles.claimPill}>
+              <Text style={styles.claimText}>CLAIM</Text>
+            </View>
+          )}
+        </View>
+      </LinearGradient>
+      {showConfetti && <MiniConfetti />}
+    </Pressable>
+  );
+};
+
+const MiniConfetti: React.FC = () => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [anim]);
+
+  const pieces = new Array(8).fill(null).map((_, index) => {
+    const translateY = anim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 18 + index * 2],
+    });
+    const opacity = anim.interpolate({
+      inputRange: [0, 0.7, 1],
+      outputRange: [0, 0.8, 0],
+    });
+    return (
+      <Animated.View
+        key={`confetti-${index}`}
+        style={[
+          styles.confettiPiece,
+          {
+            left: (index % 4) * 12 + 8,
+            transform: [{ translateY }],
+            opacity,
+          },
+        ]}
+      />
+    );
+  });
+  return <View style={styles.confettiContainer}>{pieces}</View>;
+};
+
+const additionalStyles = StyleSheet.create({
+  streakShadow: {
+    shadowColor: '#FF5E9E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+  },
+});
+
+Object.assign(styles, {
+  streakContainer: {
+    height: BADGE_HEIGHT,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  streakClaimable: {
+    ...additionalStyles.streakShadow,
+  },
+  streakPressed: {
+    transform: [{ scale: 0.98 }],
+  },
+  streakGradient: {
+    flex: 1,
+  },
+  streakContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  streakLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  streakSubtitle: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  claimPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  claimText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  confettiContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: BADGE_HEIGHT,
+    pointerEvents: 'none',
+  },
+  confettiPiece: {
+    position: 'absolute',
+    width: 4,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: '#fff',
   },
 });
 

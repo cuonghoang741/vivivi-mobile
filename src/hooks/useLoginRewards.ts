@@ -24,6 +24,10 @@ const INITIAL_STATE: LoginRewardHookState = {
 
 const loginRewardService = new LoginRewardService();
 
+export type ClaimResult =
+  | (LoginRewardClaimResult & { success: true })
+  | { success: false; error: string };
+
 export const useLoginRewards = () => {
   const [state, setState] = useState<LoginRewardHookState>(INITIAL_STATE);
   const [record, setRecord] = useState<UserLoginReward | null>(null);
@@ -58,10 +62,7 @@ export const useLoginRewards = () => {
     }
   }, []);
 
-  const claimToday = useCallback(async (): Promise<
-    | (LoginRewardClaimResult & { success: true })
-    | { success: false; error: string }
-  > => {
+  const claimToday = useCallback(async (): Promise<ClaimResult> => {
     if (!record) {
       return { success: false, error: 'Reward state is not ready yet' };
     }
