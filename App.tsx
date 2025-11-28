@@ -220,6 +220,7 @@ const AppContent = () => {
     loadMoreHistory,
     addAgentMessage,
     addUserMessage,
+    refreshStreak,
   } = useChatManager(activeCharacterId, { onAgentReply: handleAgentReply });
 
   const {
@@ -589,6 +590,12 @@ const AppContent = () => {
         }
 
         await refreshInitialData();
+        
+        // Refresh streak for the new character (like swift-version)
+        if (refreshStreak) {
+          await refreshStreak(item.id, false);
+        }
+        
         setShowCharacterSheet(false);
       } catch (error) {
         console.error('❌ Error selecting character:', error);
@@ -601,6 +608,7 @@ const AppContent = () => {
       performPurchase,
       refreshInitialData,
       setCurrentCharacterState,
+      refreshStreak,
     ]
   );
 
@@ -731,6 +739,7 @@ const AppContent = () => {
           await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
             current_costume_id: item.id,
           });
+          setShowCostumeSheet(false);
         };
 
         if (alreadyOwned) {
@@ -784,7 +793,6 @@ const AppContent = () => {
         }
 
         await applyCostume();
-        setShowCostumeSheet(false);
         clearConfirmPurchaseRequest();
       } catch (error) {
         console.error('❌ Error selecting costume:', error);

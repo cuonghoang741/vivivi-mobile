@@ -1,4 +1,5 @@
-import { QuestService } from '../services/QuestService';
+import { DailyQuestManager } from '../managers/DailyQuestManager';
+import { LevelQuestManager } from '../managers/LevelQuestManager';
 
 type TrackDelegate = (questType: string, increment?: number) => Promise<void>;
 
@@ -27,7 +28,6 @@ export type QuestAction = keyof typeof QUEST_TYPE_MAP;
 const COLLECTION_THRESHOLDS = [5, 10];
 
 class QuestProgressTrackerImpl {
-  private questService = new QuestService();
   private delegate?: TrackDelegate;
 
   setDelegate(delegate?: TrackDelegate | null) {
@@ -46,7 +46,13 @@ class QuestProgressTrackerImpl {
     await Promise.all(actions.map(action => this.track(action, increment)));
   }
 
-  async trackQuestType(questType: string, increment = 1) {
+  /**
+   * Updates progress for both daily and level quests (like swift-version)
+   * @param questType Quest type identifier
+   * @param increment Amount applied to daily quests (minutes, counts, etc.)
+   * @param levelIncrement Optional override for level quest increments (e.g. seconds for call quests)
+   */
+  async trackQuestType(questType: string, increment = 1, levelIncrement?: number) {
     if (!questType || increment <= 0) {
       return;
     }
@@ -54,7 +60,17 @@ class QuestProgressTrackerImpl {
       if (this.delegate) {
         await this.delegate(questType, increment);
       } else {
-        await this.questService.trackQuestProgress(questType, increment);
+        // Update daily quests only when there is meaningful progress
+        if (increment > 0) {
+          await DailyQuestManager.updateProgress(questType, increment);
+        }
+
+        // Determine increment for level quests (may differ from daily quests)
+        const resolvedLevelIncrement = levelIncrement ?? (increment > 0 ? increment : undefined);
+
+        if (resolvedLevelIncrement && resolvedLevelIncrement > 0) {
+          await LevelQuestManager.updateProgress(questType, resolvedLevelIncrement);
+        }
       }
     } catch (error) {
       console.warn('[QuestProgressTracker] track failed:', error);

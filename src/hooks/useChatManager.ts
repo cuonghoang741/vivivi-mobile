@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatService } from '../services/ChatService';
+import { streakService } from '../services/StreakService';
 import { ChatMessage, ChatViewState } from '../types/chat';
 
 const DEFAULT_STATE: ChatViewState = {
@@ -10,7 +11,7 @@ const DEFAULT_STATE: ChatViewState = {
   history: [],
   historyLoading: false,
   historyReachedEnd: false,
-  streakDays: 7,
+  streakDays: 0,
   hasUnclaimed: false,
   showStreakConfetti: false,
 };
@@ -44,9 +45,48 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     }
   }, [characterId]);
 
+  const refreshStreak = useCallback(
+    async (newCharacterId: string, animateOnIncrease: boolean = false) => {
+      if (!newCharacterId) {
+        return;
+      }
+      try {
+        const previousStreak = state.streakDays;
+        const days = await streakService.fetchStreakDays(newCharacterId);
+        const newVal = Math.max(0, days);
+        const increased = newVal > previousStreak;
+
+        setState(prev => ({
+          ...prev,
+          streakDays: newVal,
+          showStreakConfetti: animateOnIncrease && increased,
+        }));
+
+        // Hide confetti after animation
+        if (animateOnIncrease && increased) {
+          setTimeout(() => {
+            setState(prev => ({ ...prev, showStreakConfetti: false }));
+          }, 1000);
+        }
+      } catch (error) {
+        console.warn('[useChatManager] Failed to refresh streak:', error);
+      }
+    },
+    [state.streakDays]
+  );
+
+  // Reset messages and refresh streak when characterId changes
   useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
+    // Reset messages immediately when characterId changes (like swift-version)
+    if (characterId) {
+      setState(prev => ({ ...prev, messages: [], history: [], historyReachedEnd: false }));
+      loadMessages();
+      refreshStreak(characterId, false);
+    } else {
+      // Reset everything when no character selected
+      setState(prev => ({ ...prev, messages: [], streakDays: 0, history: [], historyReachedEnd: false }));
+    }
+  }, [characterId, loadMessages, refreshStreak]);
 
   const appendMessage = useCallback((message: ChatMessage) => {
     setState(prev => ({
@@ -209,6 +249,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     loadMoreHistory,
     addAgentMessage,
     addUserMessage,
+    refreshStreak,
   };
 };
 

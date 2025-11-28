@@ -1,4 +1,4 @@
-import { QuestRepository, type DailyQuest, type UserDailyQuest, type UserLevelQuest } from '../repositories/QuestRepository';
+import { QuestRepository, type DailyQuest, type UserDailyQuest, type UserLevelQuest, type LevelQuest } from '../repositories/QuestRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
 
@@ -131,6 +131,58 @@ export class QuestService {
 
   async loadLevelQuests(): Promise<UserLevelQuest[]> {
     return this.repository.fetchUserLevelQuests();
+  }
+
+  async loadAvailableLevelQuests(userLevel: number): Promise<LevelQuest[]> {
+    return this.repository.fetchAvailableLevelQuests(userLevel);
+  }
+
+  async loadUserLevelQuests(userLevel: number): Promise<UserLevelQuest[]> {
+    return this.repository.fetchUserLevelQuests(userLevel);
+  }
+
+  async unlockLevelQuests(level: number): Promise<UserLevelQuest[]> {
+    // Fetch all quests for this level
+    const levelQuests = await this.repository.fetchLevelQuests(level);
+
+    // Fetch existing user quests to avoid duplicates
+    const existingQuests = await this.loadUserLevelQuests(level);
+    const existingQuestIds = new Set(existingQuests.map((q) => q.quest_id));
+
+    // Create user quest records for new quests
+    const unlockedQuests: UserLevelQuest[] = [];
+    for (const quest of levelQuests) {
+      // Skip if already unlocked
+      if (existingQuestIds.has(quest.id)) {
+        continue;
+      }
+
+      try {
+        const userQuest = await this.repository.createUserLevelQuest(quest.id);
+        unlockedQuests.push(userQuest);
+      } catch (error) {
+        console.warn(`⚠️ Failed to unlock quest ${quest.id}:`, error);
+      }
+    }
+
+    return unlockedQuests;
+  }
+
+  async updateLevelQuestProgress(
+    questId: string,
+    newProgress: number,
+    completed: boolean
+  ): Promise<void> {
+    await this.repository.updateLevelQuestProgress(
+      questId,
+      newProgress,
+      completed,
+      completed ? new Date().toISOString() : undefined
+    );
+  }
+
+  async claimLevelQuestReward(questId: string): Promise<void> {
+    await this.repository.markLevelQuestClaimed(questId);
   }
 
   async claimLevelQuestReward(userQuest: UserLevelQuest): Promise<{

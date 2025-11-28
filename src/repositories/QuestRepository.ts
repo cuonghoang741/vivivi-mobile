@@ -207,7 +207,7 @@ export class QuestRepository extends BaseRepository {
     }
   }
 
-  async fetchUserLevelQuests(): Promise<UserLevelQuest[]> {
+  async fetchUserLevelQuests(userLevel?: number): Promise<UserLevelQuest[]> {
     let query = this.client
       .from('user_level_quests')
       .select(LEVEL_SELECT)
@@ -224,6 +224,68 @@ export class QuestRepository extends BaseRepository {
     }
 
     return (data as UserLevelQuest[]) ?? [];
+  }
+
+  async fetchAvailableLevelQuests(userLevel: number): Promise<LevelQuest[]> {
+    const { data, error } = await this.client
+      .from<LevelQuest>('level_quests')
+      .select('*')
+      .lte('level_required', userLevel)
+      .eq('is_active', true)
+      .order('level_required', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch available level quests: ${error.message}`);
+    }
+
+    return data ?? [];
+  }
+
+  async fetchLevelQuests(level: number): Promise<LevelQuest[]> {
+    const { data, error } = await this.client
+      .from<LevelQuest>('level_quests')
+      .select('*')
+      .eq('level_required', level)
+      .eq('is_active', true);
+
+    if (error) {
+      throw new Error(`Failed to fetch level quests: ${error.message}`);
+    }
+
+    return data ?? [];
+  }
+
+  async createUserLevelQuest(questId: string): Promise<UserLevelQuest> {
+    const { userId, clientId } = await getAuthIdentifier();
+    if (!userId && !clientId) {
+      throw new Error('User is not authenticated');
+    }
+
+    const payload: Record<string, any> = {
+      quest_id: questId,
+      progress: 0,
+      completed: false,
+      claimed: false,
+      unlocked_at: new Date().toISOString(),
+    };
+
+    if (userId) {
+      payload.user_id = userId;
+    } else if (clientId) {
+      payload.client_id = clientId;
+    }
+
+    const { data, error } = await this.client
+      .from<UserLevelQuest>('user_level_quests')
+      .insert(payload)
+      .select(LEVEL_SELECT)
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create user level quest: ${error.message}`);
+    }
+
+    return data;
   }
 
   async markLevelQuestClaimed(id: string): Promise<void> {
