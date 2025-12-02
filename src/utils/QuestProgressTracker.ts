@@ -9,6 +9,7 @@ const QUEST_TYPE_MAP = {
   video_call: 'video_call',
   voice_call: 'voice_call',
   chat_streak: 'chat_streak',
+  send_messages: 'send_messages',
   unlock_character: 'unlock_character',
   unlock_costume: 'unlock_costume',
   unlock_background: 'unlock_background',

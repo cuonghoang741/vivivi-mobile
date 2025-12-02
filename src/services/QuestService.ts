@@ -1,6 +1,7 @@
 import { QuestRepository, type DailyQuest, type UserDailyQuest, type UserLevelQuest, type LevelQuest } from '../repositories/QuestRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
+import { toastManager, CurrencyKind } from '../managers/ToastManager';
 
 export type QuestReward = {
   vcoin: number;
@@ -123,6 +124,17 @@ export class QuestService {
       this.repository.markQuestClaimed(userQuest.id),
     ]);
 
+    // Show toast notifications for rewards (like swift-version)
+    if (reward.vcoin > 0) {
+      toastManager.showCurrencyToast(CurrencyKind.VCOIN, reward.vcoin);
+    }
+    if (reward.ruby > 0) {
+      toastManager.showCurrencyToast(CurrencyKind.RUBY, reward.ruby);
+    }
+    if (reward.xp > 0) {
+      toastManager.showXPToast(reward.xp);
+    }
+
     return {
       quest: { ...userQuest, claimed: true },
       reward,
@@ -210,6 +222,17 @@ export class QuestService {
       this.awardXp(reward.xp),
       this.repository.markLevelQuestClaimed(userQuest.id),
     ]);
+
+    // Show toast notifications for rewards (like swift-version)
+    if (reward.vcoin > 0) {
+      toastManager.showCurrencyToast(CurrencyKind.VCOIN, reward.vcoin);
+    }
+    if (reward.ruby > 0) {
+      toastManager.showCurrencyToast(CurrencyKind.RUBY, reward.ruby);
+    }
+    if (reward.xp > 0) {
+      toastManager.showXPToast(reward.xp);
+    }
 
     return {
       quest: { ...userQuest, claimed: true },

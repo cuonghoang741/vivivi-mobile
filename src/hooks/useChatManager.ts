@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatService } from '../services/ChatService';
 import { streakService } from '../services/StreakService';
 import { ChatMessage, ChatViewState } from '../types/chat';
+import { QuestProgressTracker } from '../utils/QuestProgressTracker';
 
 const DEFAULT_STATE: ChatViewState = {
   messages: [],
@@ -108,6 +109,13 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
             text: trimmed,
             isAgent: false,
             characterId,
+          })
+          .then(() => {
+            // Track quest progress for sending messages (like swift-version)
+            // This works for both authenticated users and guests
+            QuestProgressTracker.track('send_messages').catch(err =>
+              console.warn('[useChatManager] track quest failed', err)
+            );
           })
           .catch(err => console.warn('[useChatManager] persist user message failed', err));
       }

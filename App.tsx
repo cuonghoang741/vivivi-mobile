@@ -24,7 +24,7 @@ import { UserCharacterPreferenceService } from './src/services/UserCharacterPref
 import { VRMProvider, useVRMContext } from './src/context/VRMContext';
 import { AppSheets } from './src/components/AppSheets';
 import { CharacterQuickSwitcher } from './src/components/CharacterQuickSwitcher';
-import { BackgroundItem } from './src/repositories/BackgroundRepository';
+import { BackgroundItem, BackgroundRepository } from './src/repositories/BackgroundRepository';
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
 import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
@@ -39,6 +39,9 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
+import { ToastStackView } from './src/components/toast/ToastStackView';
+import { RewardClaimOverlay, RewardClaimOverlayHelpers, type RewardItem } from './src/components/toast/RewardClaimOverlay';
+import { Persistence } from './src/utils/persistence';
 
 type RootStackParamList = {
   Experience: undefined;
@@ -65,6 +68,7 @@ const AppContent = () => {
 
   const navigation = useNavigation<ExperienceNavigationProp>();
   const webViewRef = useRef<any>(null);
+  const snapshotViewRef = useRef<View | null>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
   const agentIdCacheRef = useRef<Map<string, string>>(new Map());
   const characterRepoRef = useRef<CharacterRepository | null>(null);
@@ -75,6 +79,7 @@ const AppContent = () => {
     canClaimCalendar: true,
     hasMessages: true,
     showChatList: false,
+    unclaimedQuestCount: 0,
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
@@ -89,11 +94,20 @@ const AppContent = () => {
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
+  const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
+  const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
+  const [isChatScrolling, setIsChatScrolling] = useState(false);
+  const [showRewardOverlay, setShowRewardOverlay] = useState(false);
+  const [rewardOverlayData, setRewardOverlayData] = useState<{
+    title: string;
+    subtitle?: string;
+    rewards: RewardItem[];
+  } | null>(null);
   const {
     refresh: refreshCurrency,
     setPurchaseCompleteCallback,
-    confirmPurchase,
     confirmCostumePurchase,
+    confirmCharacterPurchase,
     confirmBackgroundPurchase,
     clearConfirmPurchaseRequest,
     performPurchase,
@@ -117,6 +131,112 @@ const AppContent = () => {
     isClaiming: isClaimingLoginReward,
   } = useLoginRewards();
   const quests = useQuests(hasRestoredSession && !!session);
+
+  // Helper to generate unique ID
+  const generateId = useCallback(() => {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }, []);
+
+  // Wrapper functions to show RewardClaimOverlay after claiming quest rewards
+  const handleClaimDailyQuest = useCallback(
+    async (questId: string) => {
+      try {
+        const result = await quests.claimDailyQuest(questId);
+        // Show reward overlay (like swift-version)
+        const rewardItems: RewardItem[] = [];
+        if (result.reward.vcoin > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'vcoin',
+            amount: result.reward.vcoin,
+            icon: 'cash',
+            color: 'green',
+          });
+        }
+        if (result.reward.ruby > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'ruby',
+            amount: result.reward.ruby,
+            icon: 'diamond',
+            color: 'pink',
+          });
+        }
+        if (result.reward.xp > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'xp',
+            amount: result.reward.xp,
+            icon: 'star',
+            color: 'yellow',
+          });
+        }
+        if (rewardItems.length > 0) {
+          setRewardOverlayData({
+            title: 'Daily Quest Completed!',
+            subtitle: result.quest.quest?.description,
+            rewards: rewardItems,
+          });
+          setShowRewardOverlay(true);
+        }
+        return result;
+      } catch (error) {
+        console.error('❌ Failed to claim daily quest:', error);
+        throw error;
+      }
+    },
+    [quests, generateId]
+  );
+
+  const handleClaimLevelQuest = useCallback(
+    async (questId: string) => {
+      try {
+        const result = await quests.claimLevelQuest(questId);
+        // Show reward overlay (like swift-version)
+        const rewardItems: RewardItem[] = [];
+        if (result.reward.vcoin > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'vcoin',
+            amount: result.reward.vcoin,
+            icon: 'cash',
+            color: 'green',
+          });
+        }
+        if (result.reward.ruby > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'ruby',
+            amount: result.reward.ruby,
+            icon: 'diamond',
+            color: 'pink',
+          });
+        }
+        if (result.reward.xp > 0) {
+          rewardItems.push({
+            id: generateId(),
+            type: 'xp',
+            amount: result.reward.xp,
+            icon: 'star',
+            color: 'yellow',
+          });
+        }
+        if (rewardItems.length > 0) {
+          setRewardOverlayData({
+            title: 'Level Quest Completed!',
+            subtitle: result.quest.quest?.description,
+            rewards: rewardItems,
+          });
+          setShowRewardOverlay(true);
+        }
+        return result;
+      } catch (error) {
+        console.error('❌ Failed to claim level quest:', error);
+        throw error;
+      }
+    },
+    [quests, generateId]
+  );
   const activeCharacterId = currentCharacter?.id ?? initialData?.character.id;
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
@@ -223,36 +343,42 @@ const AppContent = () => {
     refreshStreak,
   } = useChatManager(activeCharacterId, { onAgentReply: handleAgentReply });
 
+  // Memoize voice conversation callbacks to prevent recreation (like swift-version)
+  const voiceCallbacks = useMemo(
+    () => ({
+      onAgentResponse: (text: string) => {
+        if (!text?.trim()) {
+          return;
+        }
+        addAgentMessage(text);
+      },
+      onUserTranscription: (text: string) => {
+        if (!text?.trim()) {
+          return;
+        }
+        addUserMessage(text);
+      },
+      onAgentVolume: (volume: number) => {
+        if (webBridgeRef.current) {
+          webBridgeRef.current.setMouthOpen(volume);
+        }
+      },
+      onConnectionChange: (connected: boolean) => {
+        if (!connected && webBridgeRef.current) {
+          webBridgeRef.current.setMouthOpen(0);
+        }
+      },
+      onError: (message: string) => Alert.alert('Voice call', message),
+    }),
+    [addAgentMessage, addUserMessage]
+  );
+
   const {
     state: voiceState,
     startCall,
     endCall,
     sendText: sendVoiceText,
-  } = useVoiceConversation({
-    onAgentResponse: text => {
-      if (!text?.trim()) {
-        return;
-      }
-      addAgentMessage(text);
-    },
-    onUserTranscription: text => {
-      if (!text?.trim()) {
-        return;
-      }
-      addUserMessage(text);
-    },
-    onAgentVolume: volume => {
-      if (webBridgeRef.current) {
-        webBridgeRef.current.setMouthOpen(volume);
-      }
-    },
-    onConnectionChange: connected => {
-      if (!connected && webBridgeRef.current) {
-        webBridgeRef.current.setMouthOpen(0);
-      }
-    },
-    onError: message => Alert.alert('Voice call', message),
-  });
+  } = useVoiceConversation(voiceCallbacks);
 
   useEffect(() => {
     const character = initialData?.character;
@@ -260,6 +386,13 @@ const AppContent = () => {
       agentIdCacheRef.current.set(character.id, character.agent_elevenlabs_id);
     }
   }, [initialData?.character]);
+
+  // Sync currentBackgroundId with initialData preference
+  useEffect(() => {
+    if (initialData?.preference?.backgroundId) {
+      setCurrentBackgroundId(initialData.preference.backgroundId);
+    }
+  }, [initialData?.preference?.backgroundId]);
   const handleOverlayChatToggle = () => {
     toggleChatListInternal();
   };
@@ -281,7 +414,11 @@ const AppContent = () => {
           const costume = await costumeRepo.fetchCostumeById(result.itemId);
           
           if (costume && currentCharacter) {
-            await UserCharacterPreferenceService.applyCostumeById(costume.id, webViewRef);
+            await UserCharacterPreferenceService.applyCostumeById(
+              costume.id,
+              webViewRef,
+              currentCharacter.id
+            );
             await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
               current_costume_id: costume.id,
             });
@@ -360,22 +497,29 @@ const AppContent = () => {
   }, [activeCharacterId]);
 
   const handleToggleMic = useCallback(async () => {
+    // Prevent multiple simultaneous calls (like swift-version)
     if (voiceState.isBooting || voiceState.status === 'connecting') {
       return;
     }
+    
+    if (voiceState.isConnected) {
+      // End call if already connected (like swift-version)
+      await endCall();
+      return;
+    }
+    
+    // Start call (like swift-version)
     if (!activeCharacterId) {
       Alert.alert('Voice unavailable', 'Please select a character before starting a call.');
       return;
     }
-    if (voiceState.isConnected) {
-      await endCall();
-      return;
-    }
+    
     const agentId = await resolveAgentId();
     if (!agentId) {
       Alert.alert('Voice unavailable', 'This character does not have a voice agent available yet.');
       return;
     }
+    
     try {
       await startCall({
         agentId,
@@ -427,7 +571,7 @@ const AppContent = () => {
   }, []);
 
   const handleCapture = useCallback(async () => {
-    if (!webViewRef.current || isSavingSnapshot) {
+    if (!snapshotViewRef.current || isSavingSnapshot) {
       return;
     }
     setIsSavingSnapshot(true);
@@ -441,7 +585,7 @@ const AppContent = () => {
         return;
       }
 
-      const snapshotUri = await captureRef(webViewRef, {
+      const snapshotUri = await captureRef(snapshotViewRef.current, {
         format: 'png',
         quality: 1,
         result: 'tmpfile',
@@ -530,21 +674,24 @@ const AppContent = () => {
               return;
             }
           } else {
-            const confirmed = await confirmPurchase('Purchase Character', priceVcoin, priceRuby);
-            if (!confirmed) {
+            const choice = await confirmCharacterPurchase(item);
+            if (!choice) {
               return;
             }
+            const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
+            const finalPriceRuby = choice.useRuby ? priceRuby : 0;
             try {
               await performPurchase({
                 itemId: item.id,
                 itemType: 'character',
-                priceVcoin,
-                priceRuby,
+                priceVcoin: finalPriceVcoin,
+                priceRuby: finalPriceRuby,
               });
             } catch (error) {
               handlePurchaseError(error);
               return;
             }
+            clearConfirmPurchaseRequest();
           }
 
           ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
@@ -555,9 +702,7 @@ const AppContent = () => {
           
           if (unlockedNow) {
             await QuestProgressTracker.track('unlock_character');
-            if (QuestProgressTracker.shouldTrackCollectionMilestone(totalOwnedCharacters)) {
-              await QuestProgressTracker.track('obtain_characters');
-            }
+            await QuestProgressTracker.track('obtain_characters');
           }
         }
 
@@ -585,7 +730,8 @@ const AppContent = () => {
           await UserCharacterPreferenceService.loadFallbackModel(
             item.name,
             item.base_model_url,
-            webViewRef
+            webViewRef,
+            item.id
           );
         }
 
@@ -603,7 +749,8 @@ const AppContent = () => {
       }
     },
     [
-      confirmPurchase,
+      clearConfirmPurchaseRequest,
+      confirmCharacterPurchase,
       handlePurchaseError,
       performPurchase,
       refreshInitialData,
@@ -629,6 +776,100 @@ const AppContent = () => {
     return index >= 0 ? index : 0;
   }, [activeCharacterId, allCharacters]);
 
+  // Load backgrounds on mount
+  useEffect(() => {
+    const loadBackgrounds = async () => {
+      try {
+        const backgroundRepo = new BackgroundRepository();
+        const backgrounds = await backgroundRepo.fetchAllBackgrounds();
+        setAllBackgrounds(backgrounds);
+        console.log(`✅ Loaded ${backgrounds.length} backgrounds`);
+      } catch (error) {
+        console.error('❌ Failed to load backgrounds:', error);
+      }
+    };
+    if (hasRestoredSession) {
+      loadBackgrounds();
+    }
+  }, [hasRestoredSession]);
+
+  // Advance background by offset (for swipe navigation) - like swift-version
+  const advanceBackground = useCallback(
+    async (offset: number) => {
+      if (allBackgrounds.length === 0) {
+        console.warn('⚠️ Cannot swipe backgrounds: allBackgrounds is empty');
+        // Fallback: try to use webView functions if available
+        if (webViewRef.current) {
+          const js = offset > 0 
+            ? 'window.nextBackground&&window.nextBackground();'
+            : 'window.prevBackground&&window.prevBackground();';
+          webViewRef.current.injectJavaScript(js);
+        }
+        return;
+      }
+
+      const count = allBackgrounds.length;
+      if (count === 0) return;
+
+      // Find current index (like swift-version)
+      const currentIndex = currentBackgroundId
+        ? allBackgrounds.findIndex(bg => bg.id === currentBackgroundId)
+        : 0;
+      
+      // Calculate new index with modulo (like swift-version)
+      let newIndex = (currentIndex + offset + count) % count;
+      if (newIndex < 0) newIndex += count;
+      
+      const background = allBackgrounds[newIndex];
+
+      if (background && currentCharacter) {
+        // Get owned backgrounds to check if we can apply
+        const assetRepo = new AssetRepository();
+        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        
+        // Apply background (will only apply if owned, like swift-version)
+        await UserCharacterPreferenceService.applyBackgroundById(
+          background.id,
+          webViewRef,
+          ownedBackgroundIds
+        );
+        await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+          current_background_id: background.id,
+        });
+        setCurrentBackgroundId(background.id);
+        await Persistence.setCharacterBackgroundSelection(currentCharacter.id, {
+          backgroundId: background.id,
+          backgroundURL: background.image || '',
+          backgroundName: background.name || '',
+        });
+        
+        // Track swipe background quest (like swift-version)
+        await QuestProgressTracker.track('swipe_background');
+      }
+    },
+    [allBackgrounds, currentBackgroundId, currentCharacter, webViewRef]
+  );
+
+  // Change character by offset (for swipe navigation) - like swift-version
+  const changeCharacter = useCallback(
+    async (offset: number) => {
+      if (allCharacters.length <= 1) {
+        return; // Only change if user has more than one character
+      }
+
+      const newIndex = (currentCharacterIndex + offset + allCharacters.length) % allCharacters.length;
+      const character = allCharacters[newIndex];
+
+      if (character) {
+        await handleCharacterSelect(character);
+        // Track swipe character quest
+        await QuestProgressTracker.track('swipe_character');
+      }
+    },
+    [allCharacters, currentCharacterIndex, handleCharacterSelect]
+  );
+
+
   const handleBackgroundSelect = useCallback(
     async (item: BackgroundItem) => {
       try {
@@ -648,7 +889,13 @@ const AppContent = () => {
           await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
             current_background_id: item.id,
           });
+          setCurrentBackgroundId(item.id); // Update current background ID
           setShowBackgroundSheet(false);
+          await Persistence.setCharacterBackgroundSelection(currentCharacter.id, {
+            backgroundId: item.id,
+            backgroundURL: item.image || '',
+            backgroundName: item.name || '',
+          });
         };
 
         if (alreadyOwned) {
@@ -700,9 +947,7 @@ const AppContent = () => {
 
         if (!alreadyOwned && nowOwned) {
           await QuestProgressTracker.track('unlock_background');
-          if (QuestProgressTracker.shouldTrackCollectionMilestone(ownedBackgroundIds.size)) {
-            await QuestProgressTracker.track('obtain_backgrounds');
-          }
+          await QuestProgressTracker.track('obtain_backgrounds');
         }
 
         clearConfirmPurchaseRequest();
@@ -735,7 +980,11 @@ const AppContent = () => {
         const alreadyOwned = ownedCostumeIds.has(item.id);
 
         const applyCostume = async () => {
-          await UserCharacterPreferenceService.applyCostumeById(item.id, webViewRef);
+          await UserCharacterPreferenceService.applyCostumeById(
+            item.id,
+            webViewRef,
+            currentCharacter.id
+          );
           await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
             current_costume_id: item.id,
           });
@@ -879,8 +1128,17 @@ const AppContent = () => {
   }, [voiceState.isConnected, isCameraModeOn]);
 
   useEffect(() => {
-    setOverlayFlags(prev => ({ ...prev, hasIncompleteQuests: quests.hasIncompleteDaily }));
-  }, [quests.hasIncompleteDaily]);
+    // Calculate unclaimed quest count (completed but not claimed)
+    const unclaimedCount = quests.daily.visibleQuests.filter(
+      (quest) => quest.completed && !quest.claimed
+    ).length;
+    
+    setOverlayFlags(prev => ({ 
+      ...prev, 
+      hasIncompleteQuests: quests.hasIncompleteDaily,
+      unclaimedQuestCount: unclaimedCount,
+    }));
+  }, [quests.hasIncompleteDaily, quests.daily.visibleQuests]);
 
 
   const endCallRef = useRef(endCall);
@@ -888,11 +1146,15 @@ const AppContent = () => {
     endCallRef.current = endCall;
   }, [endCall]);
 
+  // Cleanup: end call on unmount (like swift-version)
   useEffect(() => {
     return () => {
-      endCallRef.current();
+      // Only end call if actually connected
+      if (voiceState.isConnected) {
+        endCallRef.current();
+      }
     };
-  }, []);
+  }, [voiceState.isConnected]);
 
   useEffect(() => {
     if (!session && voiceState.isConnected) {
@@ -1054,7 +1316,7 @@ const AppContent = () => {
             iconName={isBgmOn ? 'volume-high' : 'volume-mute'}
             onPress={handleToggleBgm}
             accessibilityLabel="Toggle background music"
-            active={isBgmOn}
+            active={isBgmOn} 
           />
         </View>
       ),
@@ -1293,12 +1555,14 @@ const AppContent = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <VRMWebView
-          ref={webViewRef}
-          onModelReady={handleModelReady}
-          onMessage={handleMessage}
-          enableDebug={false}
-        />
+        <View style={styles.webViewWrapper} ref={snapshotViewRef}>
+          <VRMWebView
+            ref={webViewRef}
+            onModelReady={handleModelReady}
+            onMessage={handleMessage}
+            enableDebug={false}
+          />
+        </View>
         <VRMUIOverlay
           level={overlayStats.level}
           xp={overlayStats.xp}
@@ -1307,6 +1571,7 @@ const AppContent = () => {
           energyMax={overlayStats.energyMax}
           hasIncompleteQuests={overlayFlags.hasIncompleteQuests}
           canClaimCalendar={overlayFlags.canClaimCalendar}
+          unclaimedQuestCount={overlayFlags.unclaimedQuestCount}
           hasMessages={overlayFlags.hasMessages}
           showChatList={overlayFlags.showChatList}
           onLevelPress={() => setShowLevelSheet(true)}
@@ -1316,6 +1581,10 @@ const AppContent = () => {
           onQuestPress={handleQuestPress}
           onCalendarPress={handleCalendarPress}
           onToggleChatList={handleOverlayChatToggle}
+          onSwipeBackground={advanceBackground}
+          onSwipeCharacter={changeCharacter}
+          isChatScrolling={isChatScrolling}
+          canSwipeCharacter={allCharacters.length > 1}
         />
         {showSavedToast ? (
           <View pointerEvents="none" style={styles.savedToastContainer}>
@@ -1345,6 +1614,8 @@ const AppContent = () => {
             showStreakConfetti={chatState.showStreakConfetti}
             onStreakTap={() => setShowLoginRewardsSheet(true)}
             onOpenHistory={openHistory}
+            onChatScrollStateChange={setIsChatScrolling}
+            onToggleChatList={toggleChatListInternal}
           />
         </View>
         <CharacterQuickSwitcher
@@ -1359,7 +1630,11 @@ const AppContent = () => {
         <AppSheets
           showQuestSheet={showQuestSheet}
           setShowQuestSheet={setShowQuestSheet}
-          quests={quests}
+          quests={{
+            ...quests,
+            claimDailyQuest: handleClaimDailyQuest,
+            claimLevelQuest: handleClaimLevelQuest,
+          }}
           showBackgroundSheet={showBackgroundSheet}
           setShowBackgroundSheet={setShowBackgroundSheet}
           showCharacterSheet={showCharacterSheet}
@@ -1391,6 +1666,7 @@ const AppContent = () => {
           isClaimingLoginReward={isClaimingLoginReward}
           onClaimLoginReward={handleClaimLoginReward}
         />
+        <ToastStackView />
         <SettingsModal
           visible={showSettings}
           onClose={() => setShowSettings(false)}
@@ -1401,6 +1677,18 @@ const AppContent = () => {
             null
           }
         />
+        {rewardOverlayData && (
+          <RewardClaimOverlay
+            isPresented={showRewardOverlay}
+            rewards={rewardOverlayData.rewards}
+            title={rewardOverlayData.title}
+            subtitle={rewardOverlayData.subtitle}
+            onClaim={() => {
+              setShowRewardOverlay(false);
+              setRewardOverlayData(null);
+            }}
+          />
+        )}
       </View>
     );
   };
@@ -1441,6 +1729,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  webViewWrapper: {
+    flex: 1,
   },
   loadingState: {
     flex: 1,

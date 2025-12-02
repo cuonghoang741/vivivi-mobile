@@ -72,7 +72,8 @@ export const VRMWebView = React.forwardRef<WebView, VRMWebViewProps>(({
         // Generate file list JSON (similar to Swift's FileDiscovery.generateFileListJSON())
         const fileListJSON = await FileDiscovery.generateFileListJSON();
         console.log('📁 [VRMWebView] File list JSON:', fileListJSON);
-        const script = `window.discoveredFiles = ${fileListJSON};
+        const script = `window.__isReactNativeShell = true;
+window.discoveredFiles = ${fileListJSON};
 console.log('🎯 Injected files:', window.discoveredFiles);`;
         setFileListScript(script);
         setDebugInfo(prev => ({ ...prev, fileListReady: true }));

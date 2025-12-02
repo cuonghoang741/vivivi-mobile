@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ChatMessage } from '../../types/chat';
@@ -17,6 +17,7 @@ type Props = {
   hasUnclaimed?: boolean;
   showStreakConfetti?: boolean;
   onStreakTap?: () => void;
+  onScrollStateChange?: (isScrolling: boolean) => void;
 };
 
 // Spring animation config matching Swift version
@@ -90,11 +91,17 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   hasUnclaimed,
   showStreakConfetti,
   onStreakTap,
+  onScrollStateChange,
 }) => {
-  const displayedMessages = useMemo(() => messages.slice(-3), [messages]);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isUserScrollingRef = useRef(false);
+  const isNearBottomRef = useRef(true);
   const opacityAnim = useRef(new Animated.Value(showChatList ? 1 : 0)).current;
   const translateXAnim = useRef(new Animated.Value(showChatList ? 0 : 200)).current;
   const typingOpacityAnim = useRef(new Animated.Value(isTyping ? 1 : 0)).current;
+
+  // Show all messages (not just last 3) to allow scrolling (like swift-version)
+  const displayedMessages = useMemo(() => messages, [messages]);
 
   useEffect(() => {
     Animated.parallel([
@@ -116,6 +123,33 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
     }).start();
   }, [isTyping, typingOpacityAnim]);
 
+  // Auto scroll to bottom when new message arrives (only if user is near bottom)
+  useEffect(() => {
+    if (messages.length > 0 && scrollViewRef.current && isNearBottomRef.current && !isUserScrollingRef.current) {
+      // Small delay to ensure message is rendered
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages.length]);
+
+  const handleScroll = (event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    // Consider "near bottom" if within 100px
+    isNearBottomRef.current = distanceFromBottom < 100;
+  };
+
+  const handleScrollBeginDrag = () => {
+    isUserScrollingRef.current = true;
+    onScrollStateChange?.(true);
+  };
+
+  const handleScrollEndDrag = () => {
+    isUserScrollingRef.current = false;
+    onScrollStateChange?.(false);
+  };
+
   return (
     <Animated.View
       style={[
@@ -126,7 +160,18 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         },
       ]}
     >
-      <View style={[styles.overlayContent, { paddingBottom: bottomInset }]}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={[styles.overlayContent, { paddingBottom: bottomInset }]}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        nestedScrollEnabled={true}
+        onScroll={handleScroll}
+        onScrollBeginDrag={handleScrollBeginDrag}
+        onScrollEndDrag={handleScrollEndDrag}
+        scrollEventThrottle={16}
+      >
         {typeof streakDays === 'number' && (
           <StreakBadge
             days={streakDays}
@@ -166,7 +211,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         >
           {isTyping && <TypingIndicator />}
         </Animated.View>
-      </View>
+      </ScrollView>
     </Animated.View>
   );
 };
@@ -176,10 +221,22 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 12,
     paddingTop: 4,
+    // Limit height to prevent pushing input out of view
+    maxHeight: 300, // Fixed max height instead of percentage
+    // Ensure container is visible
+    minHeight: 0,
+  },
+  scrollView: {
+    // Remove flex: 1, use maxHeight only
+    maxHeight: 300, // Match container maxHeight
+    // Ensure scrollView is visible
+    minHeight: 0,
   },
   overlayContent: {
     gap: 6,
     paddingHorizontal: 20,
+    // Ensure content is visible
+    minHeight: 0,
   },
   typingContainer: {
     paddingTop: 4,

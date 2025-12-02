@@ -15,6 +15,8 @@ export const PersistKeys = {
   modelURL: 'persist.modelURL',
   backgroundURL: 'persist.backgroundURL',
   backgroundName: 'persist.backgroundName',
+  backgroundSelections: 'persist.backgroundSelections',
+  costumeSelections: 'persist.costumeSelections',
   clientId: 'persist.clientId',
   hasRatedApp: 'persist.hasRatedApp',
   lastReviewPromptAt: 'persist.lastReviewPromptAt',

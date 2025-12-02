@@ -105,21 +105,94 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const seedPersistenceSelections = useCallback(
     async (character: CharacterItem, preference: InitialPreference) => {
       try {
+        const persistedCostumeSelection = await Persistence.getCharacterCostumeSelection(
+          character.id
+        );
         if (preference.costumeId) {
           const costumeMeta =
+            await UserCharacterPreferenceService.loadCostumeMetadata(preference.costumeId);
+          if (costumeMeta) {
+            if (costumeMeta.modelURL && costumeMeta.costumeName) {
+              await Persistence.setModelName(costumeMeta.costumeName);
+              await Persistence.setModelURL(costumeMeta.modelURL);
+              await Persistence.setCharacterCostumeSelection(character.id, {
+                costumeId: preference.costumeId,
+                modelName: costumeMeta.costumeName,
+                modelURL: costumeMeta.modelURL,
+              });
+            } else if (costumeMeta.urlName) {
+              const modelName = `${costumeMeta.urlName}.vrm`;
+              await Persistence.setModelName(modelName);
+              await Persistence.setModelURL('');
+              await Persistence.setCharacterCostumeSelection(character.id, {
+                costumeId: preference.costumeId,
+                modelName,
+                modelURL: '',
+              });
+            } else {
+              await Persistence.setModelName(character.name);
+              await Persistence.setModelURL(character.base_model_url || '');
+              await Persistence.setCharacterCostumeSelection(character.id, {
+                costumeId: preference.costumeId,
+                modelName: character.name,
+                modelURL: character.base_model_url || '',
+              });
+            }
+          } else if (persistedCostumeSelection) {
+            await Persistence.setModelName(
+              persistedCostumeSelection.modelName || character.name
+            );
+            await Persistence.setModelURL(
+              persistedCostumeSelection.modelURL || character.base_model_url || ''
+            );
+            await Persistence.setCharacterCostumeSelection(character.id, persistedCostumeSelection);
+          } else {
+            await Persistence.setModelName(character.name);
+            await Persistence.setModelURL(character.base_model_url || '');
+            await Persistence.setCharacterCostumeSelection(character.id, {
+              costumeId: preference.costumeId,
+              modelName: character.name,
+              modelURL: character.base_model_url || '',
+            });
+          }
+        } else if (persistedCostumeSelection) {
+          await Persistence.setModelName(
+            persistedCostumeSelection.modelName || character.name
+          );
+          await Persistence.setModelURL(
+            persistedCostumeSelection.modelURL || character.base_model_url || ''
+          );
+          await Persistence.setCharacterCostumeSelection(character.id, persistedCostumeSelection);
+        } else if (character.default_costume_id) {
+          const costumeMeta =
             await UserCharacterPreferenceService.loadCostumeMetadata(
-              preference.costumeId
+              character.default_costume_id
             );
           if (costumeMeta?.modelURL && costumeMeta.costumeName) {
             await Persistence.setModelName(costumeMeta.costumeName);
             await Persistence.setModelURL(costumeMeta.modelURL);
+            await Persistence.setCharacterCostumeSelection(character.id, {
+              costumeId: character.default_costume_id,
+              modelName: costumeMeta.costumeName,
+              modelURL: costumeMeta.modelURL,
+            });
           } else {
             await Persistence.setModelName(character.name);
             await Persistence.setModelURL(character.base_model_url || '');
+            await Persistence.setCharacterCostumeSelection(character.id, {
+              costumeId: character.default_costume_id,
+              modelName: character.name,
+              modelURL: character.base_model_url || '',
+            });
           }
         } else {
           await Persistence.setModelName(character.name);
           await Persistence.setModelURL(character.base_model_url || '');
+          await Persistence.setCharacterCostumeSelection(character.id, {
+            costumeId: null,
+            modelName: character.name,
+            modelURL: character.base_model_url || '',
+          });
         }
 
         if (preference.backgroundId) {
@@ -130,10 +203,24 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (background?.image) {
             await Persistence.setBackgroundURL(background.image);
             await Persistence.setBackgroundName(background.name || '');
+            await Persistence.setCharacterBackgroundSelection(character.id, {
+              backgroundId: preference.backgroundId,
+              backgroundURL: background.image,
+              backgroundName: background.name || '',
+            });
           }
         } else {
-          await Persistence.setBackgroundURL('');
-          await Persistence.setBackgroundName('');
+          const persistedSelection = await Persistence.getCharacterBackgroundSelection(
+            character.id
+          );
+          if (persistedSelection?.backgroundURL) {
+            await Persistence.setBackgroundURL(persistedSelection.backgroundURL);
+            await Persistence.setBackgroundName(persistedSelection.backgroundName || '');
+          } else {
+            await Persistence.setBackgroundURL('');
+            await Persistence.setBackgroundName('');
+            await Persistence.setCharacterBackgroundSelection(character.id, null);
+          }
         }
       } catch (error) {
         console.warn('[VRMProvider] seedPersistenceSelections error', error);
@@ -220,24 +307,66 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const ownedBackgroundSet = new Set(ownedBackgroundIds);
 
       try {
-        if (preference.backgroundId) {
+        let backgroundIdToApply = preference.backgroundId;
+        if (!backgroundIdToApply) {
+          const persistedSelection = await Persistence.getCharacterBackgroundSelection(
+            character.id
+          );
+          backgroundIdToApply = persistedSelection?.backgroundId || null;
+        }
+
+        if (backgroundIdToApply) {
           await UserCharacterPreferenceService.applyBackgroundById(
-            preference.backgroundId,
+            backgroundIdToApply,
             webViewRef,
             ownedBackgroundSet
           );
         }
 
-        if (preference.costumeId) {
-          await UserCharacterPreferenceService.applyCostumeById(
-            preference.costumeId,
-            webViewRef
-          );
-        } else {
-          UserCharacterPreferenceService.loadFallbackModel(
+        const persistedCostumeSelection = await Persistence.getCharacterCostumeSelection(
+          character.id
+        );
+        let costumeApplied = false;
+        let costumeIdToApply =
+          preference.costumeId ||
+          persistedCostumeSelection?.costumeId ||
+          character.default_costume_id ||
+          null;
+
+        if (costumeIdToApply) {
+          try {
+            await UserCharacterPreferenceService.applyCostumeById(
+              costumeIdToApply,
+              webViewRef,
+              character.id
+            );
+            costumeApplied = true;
+          } catch (error) {
+            console.warn('[VRMProvider] Failed to apply saved costume, will fallback', error);
+          }
+        }
+
+        if (!costumeApplied) {
+          const fallbackName = persistedCostumeSelection?.modelName || character.name;
+          const fallbackUrl =
+            persistedCostumeSelection?.modelURL || character.base_model_url || null;
+          if (fallbackName && fallbackUrl) {
+            await UserCharacterPreferenceService.loadFallbackModel(
+              fallbackName,
+              fallbackUrl,
+              webViewRef,
+              character.id
+            );
+            costumeApplied = true;
+          }
+        }
+
+        if (!costumeApplied && character.base_model_url) {
+          await UserCharacterPreferenceService.loadFallbackModel(
             character.name,
-            character.base_model_url || null,
-            webViewRef
+            character.base_model_url,
+            webViewRef,
+            character.id
           );
         }
 
@@ -252,17 +381,8 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHasAppliedInitialModel(true);
       } catch (error) {
         console.error('[VRMProvider] Error applying initial model:', error);
-        if (webViewRef.current) {
-          webViewRef.current.injectJavaScript(`
-            (async()=>{
-              try {
-                await window.loadRandomFiles();
-              } catch(e) {
-                console.error('Failed to load random model:', e);
-              }
-            })();
-          `);
-        }
+        // Không random VRM nữa. Nếu lỗi, cứ để nguyên (giống cách Swift xử lý bảo thủ hơn)
+        // WebView sẽ tiếp tục dùng model hiện tại (nếu có) thay vì load random model.
       }
     },
     [initialData, hasAppliedInitialModel]

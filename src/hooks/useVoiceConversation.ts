@@ -87,54 +87,60 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
     []
   );
 
-  const conversation = useConversation({
-    onMessage: ({ message, source }) => {
-      if (!message?.trim()) {
-        return;
-      }
-      if (source === 'ai') {
-        callbacksRef.current.onAgentResponse?.(message);
-      } else {
-        callbacksRef.current.onUserTranscription?.(message);
-      }
-    },
-    onStatusChange: ({ status }) => {
-      setConnectionStatus(status);
-      if (status === 'connected') {
-        callStartTimeRef.current = Date.now();
+  // Memoize conversation callbacks to prevent recreation (like swift-version)
+  const conversationCallbacks = useMemo(
+    () => ({
+      onMessage: ({ message, source }: { message: string; source: string }) => {
+        if (!message?.trim()) {
+          return;
+        }
+        if (source === 'ai') {
+          callbacksRef.current.onAgentResponse?.(message);
+        } else {
+          callbacksRef.current.onUserTranscription?.(message);
+        }
+      },
+      onStatusChange: ({ status }: { status: ConversationStatus }) => {
+        setConnectionStatus(status);
+        if (status === 'connected') {
+          callStartTimeRef.current = Date.now();
+          updateBooting(false);
+        }
+        if (status === 'disconnected') {
+          callStartTimeRef.current = null;
+          setCallDurationSeconds(0);
+          setIsMuted(false);
+          setAgentVolume(0);
+        }
+      },
+      onModeChange: ({ mode }: { mode: string }) => {
+        setIsSpeaking(mode === 'speaking');
+      },
+      onAudio: (chunk: string) => {
+        volumeRef.current = computeVolumeFromAudio(chunk, volumeRef.current);
+        setAgentVolume(volumeRef.current);
+        callbacksRef.current.onAgentVolume?.(volumeRef.current);
+      },
+      onError: (message: string) => {
         updateBooting(false);
-      }
-      if (status === 'disconnected') {
-        callStartTimeRef.current = null;
-        setCallDurationSeconds(0);
-        setIsMuted(false);
-        setAgentVolume(0);
-      }
-    },
-    onModeChange: ({ mode }) => {
-      setIsSpeaking(mode === 'speaking');
-    },
-    onAudio: chunk => {
-      volumeRef.current = computeVolumeFromAudio(chunk, volumeRef.current);
-      setAgentVolume(volumeRef.current);
-      callbacksRef.current.onAgentVolume?.(volumeRef.current);
-    },
-    onError: (message: string) => {
-      updateBooting(false);
-      callbacksRef.current.onError?.(
-        typeof message === 'string' && message.length > 0
-          ? message
-          : 'Voice session error'
-      );
-    },
-    onDisconnect: details => {
-      setConnectionStatus('disconnected');
-      updateBooting(false);
-      if (details.reason === 'error') {
-        callbacksRef.current.onError?.(details.message || 'Voice session disconnected');
-      }
-    },
-  });
+        callbacksRef.current.onError?.(
+          typeof message === 'string' && message.length > 0
+            ? message
+            : 'Voice session error'
+        );
+      },
+      onDisconnect: (details: { reason: string; message?: string }) => {
+        setConnectionStatus('disconnected');
+        updateBooting(false);
+        if (details.reason === 'error') {
+          callbacksRef.current.onError?.(details.message || 'Voice session disconnected');
+        }
+      },
+    }),
+    [updateBooting]
+  );
+
+  const conversation = useConversation(conversationCallbacks);
 
   useEffect(() => {
     const connected = connectionStatus === 'connected';
@@ -172,9 +178,11 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
         callbacksRef.current.onError?.('Không tìm thấy agent ElevenLabs để kết nối');
         return;
       }
+      // Prevent starting if already connecting or connected (like swift-version)
       if (conversation.status === 'connecting' || conversation.status === 'connected') {
         return;
       }
+      // Set booting state before starting (like swift-version)
       updateBooting(true);
       try {
         await conversation.startSession({
@@ -183,6 +191,7 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
           tokenFetchUrl,
           userId,
         });
+        // Note: booting will be set to false in onStatusChange when connected
       } catch (error) {
         updateBooting(false);
         callbacksRef.current.onError?.(

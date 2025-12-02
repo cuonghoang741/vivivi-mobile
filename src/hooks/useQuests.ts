@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuestService, type QuestProgressUpdate, type QuestReward } from '../services/QuestService';
 import type { UserDailyQuest, UserLevelQuest } from '../repositories/QuestRepository';
+import { toastManager } from '../managers/ToastManager';
 
 type DailyState = {
   quests: UserDailyQuest[];
@@ -161,39 +162,79 @@ export const useQuests = (enabled = true) => {
     if (!updates.length) {
       return;
     }
-    setDailyState(prev => ({
-      ...prev,
-      quests: prev.quests.map(quest => {
+    setDailyState(prev => {
+      const newQuests = prev.quests.map(quest => {
         const update = updates.find(
           item => item.scope === 'daily' && item.id === quest.id
         );
         if (!update) {
           return quest;
         }
+        
+        // Check if quest just completed (was not completed, now is completed)
+        const wasCompleted = quest.completed;
+        const isNowCompleted = update.completed;
+        const justCompleted = !wasCompleted && isNowCompleted;
+        
+        if (justCompleted && quest.quest) {
+          // Show toast for completed daily quest
+          toastManager.showDailyQuestProgress(
+            quest.quest.description || 'Daily Quest Completed!',
+            update.progress,
+            quest.quest.target_value,
+            true
+          );
+        }
+        
         return {
           ...quest,
           progress: update.progress,
           completed: update.completed,
         };
-      }),
-    }));
+      });
+      
+      return {
+        ...prev,
+        quests: newQuests,
+      };
+    });
 
-    setLevelState(prev => ({
-      ...prev,
-      quests: prev.quests.map(quest => {
+    setLevelState(prev => {
+      const newQuests = prev.quests.map(quest => {
         const update = updates.find(
           item => item.scope === 'level' && item.id === quest.id
         );
         if (!update) {
           return quest;
         }
+        
+        // Check if quest just completed (was not completed, now is completed)
+        const wasCompleted = quest.completed;
+        const isNowCompleted = update.completed;
+        const justCompleted = !wasCompleted && isNowCompleted;
+        
+        if (justCompleted && quest.quest) {
+          // Show toast for completed level quest
+          toastManager.showLevelQuestProgress(
+            quest.quest.description || 'Level Quest Completed!',
+            update.progress,
+            quest.quest.target_value,
+            true
+          );
+        }
+        
         return {
           ...quest,
           progress: update.progress,
           completed: update.completed,
         };
-      }),
-    }));
+      });
+      
+      return {
+        ...prev,
+        quests: newQuests,
+      };
+    });
   }, []);
 
   const trackProgress = useCallback(

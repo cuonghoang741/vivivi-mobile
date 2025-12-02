@@ -2,6 +2,7 @@ import { type UserLevelQuest, type LevelQuest } from '../repositories/QuestRepos
 import { QuestService } from '../services/QuestService';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
+import { toastManager, ToastType } from './ToastManager';
 
 function sortLevelQuestsByLevel(quests: UserLevelQuest[]): UserLevelQuest[] {
   return [...quests].sort((a, b) => {
@@ -145,6 +146,35 @@ class LevelQuestManagerImpl {
       }
     }
 
+    // Show toast notifications for updated quests (like swift-version)
+    for (const { quest, isCompleted } of updatedQuests) {
+      if (!quest.quest) continue;
+
+      const progress = quest.progress;
+      const target = quest.quest.target_value;
+
+      // Show toast with progress bar
+      toastManager.showLevelQuestProgress(
+        quest.quest.description,
+        progress,
+        target,
+        isCompleted
+      );
+
+      // If completed, show completion toast
+      if (isCompleted) {
+        toastManager.showToast(
+          ToastType.QUEST,
+          'Quest Completed!',
+          quest.quest.description,
+          undefined,
+          'checkmark-circle',
+          undefined,
+          3000
+        );
+      }
+    }
+
     console.log(`📋 Updated ${updatedQuests.length} level quest(s) for type: ${type}`);
   }
 
@@ -219,6 +249,27 @@ class LevelQuestManagerImpl {
     }
 
     console.log(`✅ Level quest reward claimed: ${questData.reward_vcoin} VCoin, ${questData.reward_ruby} Ruby, ${questData.reward_xp} XP`);
+
+    // Show reward overlay (like swift-version)
+    // Note: This will be handled by App.tsx via notification/event system
+  }
+
+  // Helper to get reward items for overlay
+  getRewardItems(questId: string): Array<{ type: 'vcoin' | 'ruby' | 'xp'; amount: number }> {
+    const userQuest = this.userQuests.find((q) => q.id === questId);
+    if (!userQuest?.quest) return [];
+
+    const items: Array<{ type: 'vcoin' | 'ruby' | 'xp'; amount: number }> = [];
+    if (userQuest.quest.reward_vcoin > 0) {
+      items.push({ type: 'vcoin', amount: userQuest.quest.reward_vcoin });
+    }
+    if (userQuest.quest.reward_ruby > 0) {
+      items.push({ type: 'ruby', amount: userQuest.quest.reward_ruby });
+    }
+    if (userQuest.quest.reward_xp > 0) {
+      items.push({ type: 'xp', amount: userQuest.quest.reward_xp });
+    }
+    return items;
   }
 
   async checkAndUnlockNewQuests(userLevel: number): Promise<void> {

@@ -63,6 +63,9 @@ type PurchaseContextValue = {
   confirmCostumePurchase: (
     costume: CostumeItem
   ) => Promise<{ useVcoin: boolean; useRuby: boolean } | null>;
+  confirmCharacterPurchase: (
+    character: CharacterItem
+  ) => Promise<{ useVcoin: boolean; useRuby: boolean } | null>;
   confirmBackgroundPurchase: (
     background: BackgroundItem
   ) => Promise<{ useVcoin: boolean; useRuby: boolean } | null>;
@@ -411,6 +414,54 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
     [balance, setShowPurchaseSheet]
   );
 
+  const confirmCharacterPurchase = useCallback(
+    (
+      character: CharacterItem
+    ): Promise<{ useVcoin: boolean; useRuby: boolean } | null> =>
+      new Promise(resolve => {
+        const priceVcoin = character.price_vcoin ?? 0;
+        const priceRuby = character.price_ruby ?? 0;
+        const hasVcoinPrice = priceVcoin > 0;
+        const hasRubyPrice = priceRuby > 0;
+
+        if (!hasVcoinPrice && !hasRubyPrice) {
+          resolve(null);
+          return;
+        }
+
+        const request: ConfirmPurchaseType = {
+          type: 'currency-choice',
+          title: 'Purchase Character',
+          itemName: character.name,
+          priceVcoin,
+          priceRuby,
+          balanceVcoin: balance.vcoin,
+          balanceRuby: balance.ruby,
+          previewImage: character.thumbnail_url ?? character.avatar ?? undefined,
+          autoCloseOnSuccess: false,
+          onConfirm: choice => resolve(choice),
+          onCancel: () => resolve(null),
+          onTopUp: choice => {
+            console.log('🔄 [PurchaseContext] Character Top Up pressed', choice);
+            setShowBackgroundSheet(false);
+            setShowCharacterSheet(false);
+            setShowCostumeSheet(false);
+
+            setPendingPurchase({
+              type: 'character',
+              item: character,
+              useVcoin: choice.useVcoin,
+              useRuby: choice.useRuby,
+            });
+            setShowPurchaseSheet(true);
+            resolve(null);
+          },
+        };
+        setConfirmPurchaseRequest(request);
+      }),
+    [balance, setShowPurchaseSheet]
+  );
+
   const confirmBackgroundPurchase = useCallback(
     (
       background: BackgroundItem
@@ -597,6 +648,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
       // Purchase
       confirmPurchase,
       confirmCostumePurchase,
+      confirmCharacterPurchase,
       confirmBackgroundPurchase,
       performPurchase,
       handlePurchaseError,
@@ -624,6 +676,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
       setPurchaseCompleteCallback,
       confirmPurchase,
       confirmCostumePurchase,
+      confirmCharacterPurchase,
       confirmBackgroundPurchase,
       performPurchase,
       handlePurchaseError,

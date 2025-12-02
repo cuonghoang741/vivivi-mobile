@@ -89,7 +89,8 @@ export class UserCharacterPreferenceService {
 
   static async applyCostumeById(
     costumeId: string,
-    webViewRef: any
+    webViewRef: any,
+    characterId?: string
   ): Promise<void> {
     try {
       const meta = await this.loadCostumeMetadata(costumeId);
@@ -105,6 +106,13 @@ export class UserCharacterPreferenceService {
             webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
           await Persistence.setModelName(costumeName);
           await Persistence.setModelURL(modelURL);
+          if (characterId) {
+            await Persistence.setCharacterCostumeSelection(characterId, {
+              costumeId,
+              modelName: costumeName,
+              modelURL,
+            });
+          }
             console.log('✅ [UserCharacterPreferenceService] Applied costume by URL:', costumeName);
           return;
         }
@@ -115,6 +123,13 @@ export class UserCharacterPreferenceService {
             webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
           await Persistence.setModelName(modelName);
           await Persistence.setModelURL('');
+          if (characterId) {
+            await Persistence.setCharacterCostumeSelection(characterId, {
+              costumeId,
+              modelName,
+              modelURL: '',
+            });
+          }
             console.log('✅ [UserCharacterPreferenceService] Applied costume by name:', modelName);
         }
       }
@@ -167,7 +182,8 @@ export class UserCharacterPreferenceService {
   static async loadFallbackModel(
     modelName: string | null,
     modelURL: string | null,
-    webViewRef: any
+    webViewRef: any,
+    characterId?: string
   ): Promise<void> {
     if (!modelURL || !modelName || !webViewRef?.current) {
       return;
@@ -180,6 +196,13 @@ export class UserCharacterPreferenceService {
       webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
       await Persistence.setModelName(modelName);
       await Persistence.setModelURL(modelURL);
+      if (characterId) {
+        await Persistence.setCharacterCostumeSelection(characterId, {
+          costumeId: null,
+          modelName,
+          modelURL,
+        });
+      }
       console.log('✅ [UserCharacterPreferenceService] Loaded fallback model:', modelName);
     } catch (error) {
       console.error('❌ [UserCharacterPreferenceService] Error loading fallback model:', error);

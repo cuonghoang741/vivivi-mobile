@@ -1187,6 +1187,11 @@ window.addEventListener('DOMContentLoaded', async function() {
     // Swift will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
     const nativeName = (typeof window.nativeSelectedModelName === 'string' && window.nativeSelectedModelName.trim().length) ? window.nativeSelectedModelName.trim() : null;
     const nativeURL = (typeof window.nativeSelectedModelURL === 'string' && window.nativeSelectedModelURL.trim().length) ? window.nativeSelectedModelURL.trim() : null;
+    const isReactNative =
+        typeof window.__isReactNativeShell !== 'undefined'
+            ? !!window.__isReactNativeShell
+            : typeof window.ReactNativeWebView !== 'undefined';
+    console.log('🔍 Initial model context', { nativeName, nativeURL, isReactNative });
     
     // Auto-load model if provided (for React Native version)
     if (nativeName) {
@@ -1219,7 +1224,7 @@ window.addEventListener('DOMContentLoaded', async function() {
                 if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
             }
         }
-    } else {
+    } else if (!isReactNative) {
         // If no model selected, load a random model automatically
         // This ensures VRM is visible on screen
         try {
@@ -1230,6 +1235,11 @@ window.addEventListener('DOMContentLoaded', async function() {
             // If random load fails, mark animation as ready anyway
             if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
         }
+    } else {
+        // Running inside React Native but no persisted selection yet.
+        // Avoid flashing a random model; wait for native to instruct via injected JS.
+        console.log('⏳ React Native context detected with no persisted VRM. Waiting for native model load...');
+        if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
     }
     
     // No HTML-side BGM initialization

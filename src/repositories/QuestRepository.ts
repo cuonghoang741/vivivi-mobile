@@ -170,7 +170,6 @@ export class QuestRepository extends BaseRepository {
       .from('user_daily_quests')
       .update({
         claimed: true,
-        claimed_at: new Date().toISOString(),
       })
       .eq('id', id);
 

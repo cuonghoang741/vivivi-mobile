@@ -81,11 +81,12 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
   }, [levelState.quests]);
 
   const handleRefreshDaily = useCallback(() => {
+    const refreshEnergyCost = 50;
     Alert.alert(
       'Refresh Daily Quests',
-      'Làm mới sẽ tạo 6 nhiệm vụ mới và chi phí 50 Ruby hoặc 500 VCoin. Bạn có chắc không?',
+      `Refreshing will generate new daily quests and will cost ${refreshEnergyCost} Energy.`,
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Refresh',
           style: 'default',
@@ -93,8 +94,8 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             onRefreshDaily().catch((error) => {
               const message =
-                error instanceof Error ? error.message : 'Không thể làm mới quest';
-              Alert.alert('Refresh thất bại', message);
+                error instanceof Error ? error.message : 'Failed to refresh quests';
+              Alert.alert('Refresh Failed', message);
             });
           },
         },
@@ -114,7 +115,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
           });
         }
         await refresh();
-        Alert.alert('Hoàn thành nhiệm vụ', 'Bạn đã nhận thưởng thành công!');
+        // RewardClaimOverlay will be shown by App.tsx
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Không thể nhận thưởng';
         Alert.alert('Claim thất bại', message);
@@ -137,7 +138,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
           });
         }
         await refresh();
-        Alert.alert('Hoàn thành nhiệm vụ cấp độ', 'Bạn đã nhận thưởng thành công!');
+        // RewardClaimOverlay will be shown by App.tsx
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Không thể nhận thưởng';
         Alert.alert('Claim thất bại', message);
@@ -330,8 +331,10 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, claiming, onClaim }) => {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View>
-          <Text style={styles.cardTitle}>{questData?.description ?? 'Quest'}</Text>
+        <View style={styles.cardTitleContainer}>
+          <Text style={styles.cardTitle} numberOfLines={2} ellipsizeMode="tail">
+            {questData?.description ?? 'Quest'}
+          </Text>
           {questData?.quest_category ? (
             <Text style={styles.cardSubtitle}>{questData.quest_category}</Text>
           ) : null}
@@ -387,8 +390,10 @@ const LevelQuestCard: React.FC<LevelQuestCardProps> = ({ quest, claiming, onClai
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View>
-          <Text style={styles.cardTitle}>{questData?.description ?? 'Quest'}</Text>
+        <View style={styles.cardTitleContainer}>
+          <Text style={styles.cardTitle} numberOfLines={2} ellipsizeMode="tail">
+            {questData?.description ?? 'Quest'}
+          </Text>
           <Text style={styles.cardSubtitle}>
             {questData?.quest_category ?? questData?.quest_type ?? 'Quest'}
           </Text>
@@ -536,9 +541,15 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 14,
+    gap: 12,
+  },
+  cardTitleContainer: {
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
   },
   cardTitle: {
     color: '#111',
@@ -555,6 +566,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: '#F5F5F5',
+    flexShrink: 0,
   },
   difficultyText: {
     color: '#333',

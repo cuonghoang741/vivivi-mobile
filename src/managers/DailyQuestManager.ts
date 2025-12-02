@@ -3,6 +3,7 @@ import { getSupabaseClient, getAuthenticatedUserId } from '../services/supabase'
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toastManager, ToastType } from './ToastManager';
 
 const CLIENT_ID_KEY = 'client_id';
 
@@ -234,6 +235,35 @@ class DailyQuestManagerImpl {
       }
     }
 
+    // Show toast notifications for updated quests (like swift-version)
+    for (const { quest, isCompleted } of updatedQuests) {
+      if (!quest.quest) continue;
+
+      const progress = quest.progress;
+      const target = quest.quest.target_value;
+
+      // Show toast with progress bar
+      toastManager.showDailyQuestProgress(
+        quest.quest.description,
+        progress,
+        target,
+        isCompleted
+      );
+
+      // If completed, show completion toast
+      if (isCompleted) {
+        toastManager.showToast(
+          ToastType.QUEST,
+          'Daily Quest Completed!',
+          quest.quest.description,
+          undefined,
+          'checkmark-circle',
+          undefined,
+          3000
+        );
+      }
+    }
+
     // Recalculate completed count
     this.completedCount = this.todayQuests.filter((q) => q.completed).length;
 
@@ -311,8 +341,30 @@ class DailyQuestManagerImpl {
 
     console.log(`✅ Reward claimed: ${questData.reward_vcoin} VCoin, ${questData.reward_ruby} Ruby, ${questData.reward_xp} XP`);
 
+    // Show reward overlay (like swift-version)
+    // Note: This will be handled by App.tsx via notification/event system
+    // For now, we'll return the reward info so App.tsx can show the overlay
+
     // Track meta quest for completing daily quests
     // Note: This would need to be handled by QuestProgressTracker
+  }
+
+  // Helper to get reward items for overlay
+  getRewardItems(questId: string): Array<{ type: 'vcoin' | 'ruby' | 'xp'; amount: number }> {
+    const userQuest = this.todayQuests.find((q) => q.id === questId);
+    if (!userQuest?.quest) return [];
+
+    const items: Array<{ type: 'vcoin' | 'ruby' | 'xp'; amount: number }> = [];
+    if (userQuest.quest.reward_vcoin > 0) {
+      items.push({ type: 'vcoin', amount: userQuest.quest.reward_vcoin });
+    }
+    if (userQuest.quest.reward_ruby > 0) {
+      items.push({ type: 'ruby', amount: userQuest.quest.reward_ruby });
+    }
+    if (userQuest.quest.reward_xp > 0) {
+      items.push({ type: 'xp', amount: userQuest.quest.reward_xp });
+    }
+    return items;
   }
 }
 

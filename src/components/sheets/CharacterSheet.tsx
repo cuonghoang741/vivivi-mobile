@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   Pressable,
   FlatList,
   Modal,
@@ -13,12 +12,11 @@ import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import Button from '../Button';
 import { CharacterCard } from '../characters/CharacterCard';
-import { LiquidGlass } from '../LiquidGlass';
 import { useSceneActions } from '../../context/SceneActionsContext';
+import { ConfirmPurchasePortal } from '../../context/PurchaseContext';
 
 interface CharacterSheetProps {
   isOpened: boolean;
@@ -246,9 +244,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         </View>
 
         {isLoading && items.length === 0 ? (
-          <View style={styles.centerContainer}>
-            {renderSkeleton()}
-          </View>
+          <View style={styles.centerContainer}>{renderSkeleton()}</View>
         ) : errorMessage ? (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>Failed to load</Text>
@@ -268,7 +264,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
           <FlatList
             data={items}
             renderItem={useGrid ? renderGridItem : renderListItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={item => item.id}
             extraData={useGrid}
             numColumns={useGrid ? 2 : 1}
             columnWrapperStyle={useGrid ? styles.columnWrapper : undefined}
@@ -278,6 +274,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
           />
         )}
       </View>
+      <ConfirmPurchasePortal hostId="character-sheet" active={isOpened} />
     </Modal>
   );
 };

@@ -33,13 +33,7 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
   const relationshipLabel = relationshipName?.trim() || "Stranger";
 
   return (
-    <LiquidGlass style={styles.card}>
-      <HapticPressable
-        accessibilityRole="button"
-        accessibilityLabel="Mở thông tin nhân vật"
-        style={({ pressed }) => [styles.cardContent, pressed && styles.pressed]}
-        onPress={onPress}
-      >
+    <LiquidGlass style={styles.card} onPress={onPress}>
         <View style={styles.cardBody}>
           <View style={styles.topRow}>
             <View style={styles.avatarWrapper}>
@@ -76,9 +70,8 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
                 ]}
               />
             </View>
-          </View>
         </View>
-      </HapticPressable>
+      </View>
     </LiquidGlass>
   );
 };
@@ -114,6 +107,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 999,
     paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   cardContent: {
     paddingVertical: 6,
