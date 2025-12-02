@@ -279,12 +279,7 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
         />
       ) : (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading WebView...</Text>
-          <Text style={styles.statusText}>
-            HTML: {htmlContent ? '✅' : '⏳'} | 
-            FileList: {fileListScript ? '✅' : '⏳'} | 
-            Persisted: {persistedScript ? '✅' : '⏳'}
-          </Text>
+          <Text style={styles.loadingText}>Loading girl...</Text>
         </View>
       )}
 

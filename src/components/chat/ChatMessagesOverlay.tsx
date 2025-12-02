@@ -181,16 +181,31 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
           />
         )}
 
-        {displayedMessages.map((message, index) => (
-          <ChatOverlayItem
-            key={message.id}
-            message={message}
-            index={index}
-            total={displayedMessages.length}
-            onMessagePress={onMessagePress}
-            variant="compact"
-          />
-        ))}
+        {displayedMessages.length === 0 && !isTyping ? (
+          <View style={styles.emptyStateContainer}>
+            <ChatMessageBubble
+              message={{
+                id: 'default-message',
+                kind: { type: 'text', text: 'Ask Anything' },
+                isAgent: true,
+                createdAt: new Date().toISOString(),
+              }}
+              alignLeft={true}
+              variant="compact"
+            />
+          </View>
+        ) : (
+          displayedMessages.map((message, index) => (
+            <ChatOverlayItem
+              key={message.id}
+              message={message}
+              index={index}
+              total={displayedMessages.length}
+              onMessagePress={onMessagePress}
+              variant="compact"
+            />
+          ))
+        )}
 
         <Animated.View
           style={[
@@ -240,6 +255,9 @@ const styles = StyleSheet.create({
   },
   typingContainer: {
     paddingTop: 4,
+    alignSelf: 'flex-start',
+  },
+  emptyStateContainer: {
     alignSelf: 'flex-start',
   },
   streakContainer: {

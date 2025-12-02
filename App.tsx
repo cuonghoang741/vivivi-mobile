@@ -90,11 +90,12 @@ const AppContent = () => {
   const [showLevelSheet, setShowLevelSheet] = useState(false);
   const [showCharacterDetailSheet, setShowCharacterDetailSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
-  const { stats: overlayStats, refresh: refreshStats } = useUserStats();
+  const { stats: overlayStats, refresh: refreshStats, consumeEnergy, refillEnergy } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
+  const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
@@ -237,6 +238,18 @@ const AppContent = () => {
     },
     [quests, generateId]
   );
+
+  const handleRefreshDailyQuests = useCallback(async () => {
+    const refreshEnergyCost = 50;
+    const hasEnergy = await consumeEnergy(refreshEnergyCost);
+    if (!hasEnergy) {
+      Alert.alert('Insufficient Energy', `You need ${refreshEnergyCost} energy to refresh daily quests.`);
+      return;
+    }
+    await quests.refreshDaily();
+    await refreshStats();
+  }, [consumeEnergy, quests, refreshStats]);
+
   const activeCharacterId = currentCharacter?.id ?? initialData?.character.id;
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
@@ -393,6 +406,13 @@ const AppContent = () => {
       setCurrentBackgroundId(initialData.preference.backgroundId);
     }
   }, [initialData?.preference?.backgroundId]);
+
+  // Sync ownedBackgroundIds from initialData
+  useEffect(() => {
+    if (initialData?.ownedBackgroundIds) {
+      setOwnedBackgroundIds(new Set(initialData.ownedBackgroundIds));
+    }
+  }, [initialData?.ownedBackgroundIds]);
   const handleOverlayChatToggle = () => {
     toggleChatListInternal();
   };
@@ -784,6 +804,11 @@ const AppContent = () => {
         const backgrounds = await backgroundRepo.fetchAllBackgrounds();
         setAllBackgrounds(backgrounds);
         console.log(`✅ Loaded ${backgrounds.length} backgrounds`);
+        
+        // Also load owned backgrounds
+        const assetRepo = new AssetRepository();
+        const owned = await assetRepo.fetchOwnedAssets('background');
+        setOwnedBackgroundIds(owned);
       } catch (error) {
         console.error('❌ Failed to load backgrounds:', error);
       }
@@ -808,26 +833,32 @@ const AppContent = () => {
         return;
       }
 
-      const count = allBackgrounds.length;
-      if (count === 0) return;
+      // Filter to only owned backgrounds (like swift-version)
+      const ownedBackgrounds = allBackgrounds.filter(bg => ownedBackgroundIds.has(bg.id));
+      
+      if (ownedBackgrounds.length === 0) {
+        console.warn('⚠️ Cannot swipe backgrounds: no owned backgrounds');
+        return;
+      }
 
-      // Find current index (like swift-version)
+      const count = ownedBackgrounds.length;
+      
+      // Find current index in owned backgrounds only
       const currentIndex = currentBackgroundId
-        ? allBackgrounds.findIndex(bg => bg.id === currentBackgroundId)
+        ? ownedBackgrounds.findIndex(bg => bg.id === currentBackgroundId)
         : 0;
       
+      // If current background is not owned, start from first owned
+      const startIndex = currentIndex >= 0 ? currentIndex : 0;
+      
       // Calculate new index with modulo (like swift-version)
-      let newIndex = (currentIndex + offset + count) % count;
+      let newIndex = (startIndex + offset + count) % count;
       if (newIndex < 0) newIndex += count;
       
-      const background = allBackgrounds[newIndex];
+      const background = ownedBackgrounds[newIndex];
 
       if (background && currentCharacter) {
-        // Get owned backgrounds to check if we can apply
-        const assetRepo = new AssetRepository();
-        const ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
-        
-        // Apply background (will only apply if owned, like swift-version)
+        // Apply background (already owned, so no need to check)
         await UserCharacterPreferenceService.applyBackgroundById(
           background.id,
           webViewRef,
@@ -847,7 +878,7 @@ const AppContent = () => {
         await QuestProgressTracker.track('swipe_background');
       }
     },
-    [allBackgrounds, currentBackgroundId, currentCharacter, webViewRef]
+    [allBackgrounds, ownedBackgroundIds, currentBackgroundId, currentCharacter, webViewRef]
   );
 
   // Change character by offset (for swipe navigation) - like swift-version
@@ -875,6 +906,7 @@ const AppContent = () => {
       try {
         const assetRepo = new AssetRepository();
         let ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        setOwnedBackgroundIds(ownedBackgroundIds);
         const alreadyOwned = ownedBackgroundIds.has(item.id);
 
         const applyBackground = async (ownedSet: Set<string>) => {
@@ -942,6 +974,7 @@ const AppContent = () => {
         }
 
         ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+        setOwnedBackgroundIds(ownedBackgroundIds);
         const nowOwned = ownedBackgroundIds.has(item.id);
         await applyBackground(ownedBackgroundIds);
 
@@ -1634,6 +1667,7 @@ const AppContent = () => {
             ...quests,
             claimDailyQuest: handleClaimDailyQuest,
             claimLevelQuest: handleClaimLevelQuest,
+            refreshDaily: handleRefreshDailyQuests,
           }}
           showBackgroundSheet={showBackgroundSheet}
           setShowBackgroundSheet={setShowBackgroundSheet}

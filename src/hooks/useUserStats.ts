@@ -6,6 +6,8 @@ type UseUserStatsResult = {
   loading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
+  consumeEnergy: (amount: number) => Promise<boolean>;
+  refillEnergy: (amount: number) => Promise<void>;
 };
 
 const DEFAULT_STATE: UserStats = {
@@ -41,11 +43,26 @@ export const useUserStats = (): UseUserStatsResult => {
     fetchStats();
   }, [fetchStats]);
 
+  const consumeEnergy = useCallback(async (amount: number): Promise<boolean> => {
+    const success = await userStatsService.consumeEnergy(amount);
+    if (success) {
+      await fetchStats();
+    }
+    return success;
+  }, [fetchStats]);
+
+  const refillEnergy = useCallback(async (amount: number): Promise<void> => {
+    await userStatsService.refillEnergy(amount);
+    await fetchStats();
+  }, [fetchStats]);
+
   return {
     stats,
     loading,
     error,
     refresh: fetchStats,
+    consumeEnergy,
+    refillEnergy,
   };
 };
 

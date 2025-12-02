@@ -275,12 +275,19 @@ export const useQuests = (enabled = true) => {
     [visibleDailyQuests]
   );
 
+  // Daily quests: Always 6 total, if data has less than 6, the difference is completed
+  const DAILY_QUEST_TOTAL = 6;
+  const dailyCompletedCount = useMemo(() => {
+    const visibleCount = visibleDailyQuests.length;
+    return Math.max(0, DAILY_QUEST_TOTAL - visibleCount);
+  }, [visibleDailyQuests.length]);
+
   return {
     daily: {
       ...dailyState,
       visibleQuests: visibleDailyQuests,
-      completedCount: visibleDailyQuests.filter((quest) => quest.completed).length,
-      totalCount: visibleDailyQuests.length,
+      completedCount: dailyCompletedCount,
+      totalCount: DAILY_QUEST_TOTAL,
     },
     level: {
       ...levelState,

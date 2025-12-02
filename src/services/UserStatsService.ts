@@ -109,6 +109,71 @@ class UserStatsService {
   private clamp(value: number, min: number, max: number) {
     return Math.min(max, Math.max(min, value));
   }
+
+  /**
+   * Consume energy - returns true if successful, false if not enough energy
+   * Matching Swift version's consumeEnergy
+   */
+  async consumeEnergy(amount: number): Promise<boolean> {
+    try {
+      let row = await userStatsRepository.fetchStats();
+      if (!row) {
+        row = await userStatsRepository.createDefaultStats();
+      }
+
+      const regenResult = this.regenerateEnergy(row.energy, row.energy_updated_at);
+      const currentEnergy = regenResult.energy;
+
+      if (currentEnergy < amount) {
+        console.log(`⚡ Not enough energy: ${currentEnergy}/${amount}`);
+        return false;
+      }
+
+      const newEnergy = currentEnergy - amount;
+      console.log(`⚡ Consuming ${amount} energy (remaining: ${newEnergy})`);
+
+      await userStatsRepository.updateStats({
+        energy: newEnergy,
+        energy_updated_at: new Date().toISOString(),
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[UserStatsService] Failed to consume energy:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Refill energy - adds energy up to max (100)
+   * Matching Swift version's refillEnergy
+   */
+  async refillEnergy(amount: number): Promise<void> {
+    try {
+      let row = await userStatsRepository.fetchStats();
+      if (!row) {
+        row = await userStatsRepository.createDefaultStats();
+      }
+
+      const regenResult = this.regenerateEnergy(row.energy, row.energy_updated_at);
+      const currentEnergy = regenResult.energy;
+
+      const newEnergy = Math.min(ENERGY_MAX, currentEnergy + amount);
+      const added = newEnergy - currentEnergy;
+
+      if (added > 0) {
+        console.log(`⚡ Refilling ${added} energy (new total: ${newEnergy})`);
+        await userStatsRepository.updateStats({
+          energy: newEnergy,
+          energy_updated_at: new Date().toISOString(),
+        });
+      } else {
+        console.log(`⚡ Energy already at max (${ENERGY_MAX})`);
+      }
+    } catch (error) {
+      console.error('[UserStatsService] Failed to refill energy:', error);
+    }
+  }
 }
 
 export const userStatsService = new UserStatsService();

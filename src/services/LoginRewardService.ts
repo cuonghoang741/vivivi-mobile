@@ -1,6 +1,6 @@
 import { LoginRewardRepository, type LoginReward, type UserLoginReward } from '../repositories/LoginRewardRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
-import { userStatsRepository } from '../repositories/UserStatsRepository';
+import { userStatsService } from './UserStatsService';
 
 export type LoginRewardComputedState = {
   record: UserLoginReward;
@@ -141,20 +141,8 @@ export class LoginRewardService {
       return;
     }
 
-    let stats = await userStatsRepository.fetchStats();
-    if (!stats) {
-      stats = await userStatsRepository.createDefaultStats();
-    }
-
-    const currentEnergy = this.clamp(stats.energy ?? 100, 0, 100);
-    const newEnergy = this.clamp(currentEnergy + amount, 0, 100);
-
-    if (newEnergy !== currentEnergy) {
-      await userStatsRepository.updateStats({
-        energy: newEnergy,
-        energy_updated_at: new Date().toISOString(),
-      });
-    }
+    // Use UserStatsService.refillEnergy to match Swift version
+    await userStatsService.refillEnergy(amount);
   }
 
   private daysBetween(from: string, to: string): number {

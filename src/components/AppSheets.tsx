@@ -151,6 +151,9 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         onRefreshDaily={quests.refreshDaily}
         onClaimDaily={quests.claimDailyQuest}
         onClaimLevel={quests.claimLevelQuest}
+        level={level}
+        xp={xp}
+        nextLevelXp={nextLevelXp}
       />
       <LoginRewardCalendarModal
         visible={showLoginRewardsSheet}

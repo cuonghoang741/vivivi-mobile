@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { toastManager, ToastMessage, ToastType } from '../../managers/ToastManager';
 import { CurrencyIcon } from '../CurrencyIcon';
+import { LiquidGlass } from '../LiquidGlass';
 
 const ICON_NAME_MAP: Record<string, string> = {
   'sparkles': 'sparkles',
@@ -77,14 +78,14 @@ const ToastCard: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
   return (
     <Animated.View
       style={[
-        styles.toastCard,
         {
           opacity: fadeAnim,
           transform: [{ translateY: translateYAnim }],
         },
       ]}
     >
-      <View style={styles.content}>
+      <LiquidGlass style={styles.toastCard} pressable={false}>
+        <View style={styles.content}>
         {/* Icon */}
         <View style={styles.iconContainer}>
           {getCurrencyType(toast.type) ? (
@@ -95,9 +96,8 @@ const ToastCard: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
           ) : (
             <Ionicons
               name={iconName as any}
-              size={14}
+              size={18}
               color={iconColor}
-              style={styles.icon}
             />
           )}
         </View>
@@ -107,8 +107,14 @@ const ToastCard: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
           styles.textContainer,
           !toast.subtitle && toast.progress === undefined && styles.textContainerCenter
         ]}>
-          <View style={styles.textContent}>
-            <Text style={styles.title} numberOfLines={1}>
+          <View style={[
+            styles.textContent,
+            !toast.subtitle && toast.progress === undefined && styles.textContentCenter
+          ]}>
+            <Text style={[
+              styles.title,
+              !toast.subtitle && toast.progress === undefined && styles.titleCenter
+            ]} numberOfLines={1}>
               {toast.title}
             </Text>
             {toast.subtitle && (
@@ -141,6 +147,7 @@ const ToastCard: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
           )}
         </View>
       </View>
+      </LiquidGlass>
     </Animated.View>
   );
 };
@@ -234,12 +241,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 10000,
+    zIndex: 9999999,
     pointerEvents: 'box-none',
-    elevation: 10000, // For Android
+    elevation: 9999999, // For Android - must be higher than modals
   },
   toastCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -247,11 +253,6 @@ const styles = StyleSheet.create({
     minWidth: 100,
     maxWidth: '90%',
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
   },
   content: {
     flexDirection: 'row',
@@ -259,15 +260,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconContainer: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
-  },
-  icon: {
-    width: 20,
-    height: 20,
+    flexGrow: 0,
   },
   textContainer: {
     flexShrink: 1,
@@ -282,14 +280,20 @@ const styles = StyleSheet.create({
     gap: 1,
     flexShrink: 1,
     minWidth: 0,
+  },
+  textContentCenter: {
     justifyContent: 'center',
-    alignSelf: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 13,
     fontWeight: '600',
     color: '#000000',
     flexShrink: 1,
+    textAlign: 'left',
+  },
+  titleCenter: {
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 11,
