@@ -29,6 +29,23 @@ const SPRING_CONFIG = {
 
 const BADGE_HEIGHT = 54;
 
+// List of sweet default messages
+const SWEET_DEFAULT_MESSAGES = [
+  'What\'s on your mind? 💭',
+  'Tell me what you\'re thinking ✨',
+  'What would you like to talk about? 🌟',
+  'I\'m all ears! 👂',
+  'Let\'s start a conversation! 💕',
+  'What\'s your story today? 📖',
+  'I\'m ready to listen! 🎧',
+  'What brings you here? 🌸',
+  'Let\'s chat! I\'m here for you 💙',
+  'What\'s on your heart? ❤️',
+  'I\'m excited to hear from you! 🎉',
+  'What would make you smile today? 😊',
+  'Let\'s make today special together! 🌈',
+];
+
 type ChatOverlayItemProps = {
   message: ChatMessage;
   index: number;
@@ -102,6 +119,12 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
 
   // Show all messages (not just last 3) to allow scrolling (like swift-version)
   const displayedMessages = useMemo(() => messages, [messages]);
+
+  // Select a random sweet message for empty state
+  const defaultMessage = useMemo(() => {
+    const randomIndex = Math.floor(Math.random() * SWEET_DEFAULT_MESSAGES.length);
+    return SWEET_DEFAULT_MESSAGES[randomIndex];
+  }, []); // Only select once when component mounts
 
   useEffect(() => {
     Animated.parallel([
@@ -186,7 +209,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
             <ChatMessageBubble
               message={{
                 id: 'default-message',
-                kind: { type: 'text', text: 'Ask Anything' },
+                kind: { type: 'text', text: defaultMessage },
                 isAgent: true,
                 createdAt: new Date().toISOString(),
               }}
