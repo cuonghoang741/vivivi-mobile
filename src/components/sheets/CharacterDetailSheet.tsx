@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Modal,
   View,
@@ -10,10 +10,12 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LiquidGlass } from '../LiquidGlass';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
 import AssetRepository from '../../repositories/AssetRepository';
@@ -52,6 +54,7 @@ export const CharacterDetailSheet: React.FC<CharacterDetailSheetProps> = ({
   onSelectCostume,
 }) => {
   const [selectedTab, setSelectedTab] = useState(0);
+  const tabAnim = useRef(new Animated.Value(0)).current;
   const [showRelationshipTreeInfo, setShowRelationshipTreeInfo] = useState(false);
   
   // Relationship data
@@ -91,6 +94,16 @@ export const CharacterDetailSheet: React.FC<CharacterDetailSheetProps> = ({
     () => [...stages].sort((a, b) => a.relationship_threshold - b.relationship_threshold),
     [stages]
   );
+
+  // Hiệu ứng chuyển tab (Status / Character)
+  useEffect(() => {
+    Animated.spring(tabAnim, {
+      toValue: selectedTab,
+      useNativeDriver: true,
+      friction: 10,
+      tension: 80,
+    }).start();
+  }, [selectedTab, tabAnim]);
 
   const journeyStages = useMemo(() => {
     if (!relationship) {
@@ -208,24 +221,62 @@ export const CharacterDetailSheet: React.FC<CharacterDetailSheetProps> = ({
               <Ionicons name="information-circle-outline" size={20} color="#fff" />
             </Pressable>
 
-            <View style={styles.tabSelector}>
+            <LiquidGlass style={styles.tabSelector} pressable={false}>
               <Pressable
                 style={[styles.tabButton, selectedTab === 0 && styles.tabButtonActive]}
                 onPress={() => setSelectedTab(0)}
               >
-                <Text style={[styles.tabText, selectedTab === 0 && styles.tabTextActive]}>
+                <Animated.Text
+                  style={[
+                    styles.tabText,
+                    selectedTab === 0 && styles.tabTextActive,
+                    {
+                      opacity: tabAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0.7],
+                      }),
+                      transform: [
+                        {
+                          scale: tabAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1.05, 0.95],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
                   Status
-                </Text>
+                </Animated.Text>
               </Pressable>
               <Pressable
                 style={[styles.tabButton, selectedTab === 1 && styles.tabButtonActive]}
                 onPress={() => setSelectedTab(1)}
               >
-                <Text style={[styles.tabText, selectedTab === 1 && styles.tabTextActive]}>
+                <Animated.Text
+                  style={[
+                    styles.tabText,
+                    selectedTab === 1 && styles.tabTextActive,
+                    {
+                      opacity: tabAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.7, 1],
+                      }),
+                      transform: [
+                        {
+                          scale: tabAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.95, 1.05],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
                   Character
-                </Text>
+                </Animated.Text>
               </Pressable>
-            </View>
+            </LiquidGlass>
 
             <Pressable style={styles.headerButton} onPress={closeSheet}>
               <Ionicons name="close" size={20} color="#fff" />
@@ -792,7 +843,7 @@ const CostumesSection: React.FC<{
                 }
               }}
             >
-              <View style={[styles.costumeImageContainer, !isOwned && styles.costumeLocked]}>
+              <View style={styles.costumeImageContainer}>
                 {costume.thumbnail ? (
                   <ExpoImage
                     source={{ uri: costume.thumbnail }}
@@ -802,9 +853,26 @@ const CostumesSection: React.FC<{
                 ) : (
                   <View style={styles.costumeImagePlaceholder} />
                 )}
+
+                {/* Dimming overlay cho item chưa sở hữu – giống Swift / CostumeSheet */}
+                {!isOwned && <View style={styles.costumeDarkenOverlay} />}
+
+                {/* Pro badge (huân chương tier) góc trên bên phải */}
+                <View style={styles.costumeProBadgeContainer}>
+                  <ProBadge tier={costume.tier} />
+                </View>
+
+                {/* Price badges (VCoin / Ruby) góc trên bên trái cho item chưa sở hữu */}
+                {!isOwned && (costume.price_vcoin || costume.price_ruby) ? (
+                  <View style={styles.costumePriceBadgesContainer}>
+                    <PriceBadgesView vcoin={costume.price_vcoin} ruby={costume.price_ruby} />
+                  </View>
+                ) : null}
+
+                {/* Lock icon tròn ở giữa – giống Swift */}
                 {!isOwned && (
-                  <View style={styles.lockOverlay}>
-                    <Ionicons name="lock-closed" size={24} color="#fff" />
+                  <View style={styles.costumeLockIconContainer}>
+                    <LockIcon />
                   </View>
                 )}
               </View>
@@ -818,6 +886,47 @@ const CostumesSection: React.FC<{
     </View>
   );
 };
+
+// Pro badge / huân chương tier (clone từ CostumeSheet + Swift)
+const formatNumber = (value?: number | null) =>
+  typeof value === 'number' ? value.toLocaleString('en-US') : '0';
+
+const ProBadge = ({ tier }: { tier?: string | null }) => {
+  if (!tier || tier === 'free') {
+    return null;
+  }
+  return (
+    <View style={styles.proBadge}>
+      <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
+    </View>
+  );
+};
+
+const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number | null; ruby?: number | null }) => {
+  if (!vcoin && !ruby) {
+    return null;
+  }
+  return (
+    <View style={styles.priceBadges}>
+      {typeof vcoin === 'number' && vcoin > 0 ? (
+        <View style={styles.priceBadge}>
+          <Text style={styles.priceBadgeText}>V {formatNumber(vcoin)}</Text>
+        </View>
+      ) : null}
+      {typeof ruby === 'number' && ruby > 0 ? (
+        <View style={[styles.priceBadge, styles.rubyBadge]}>
+          <Text style={styles.priceBadgeText}>R {formatNumber(ruby)}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+const LockIcon = () => (
+  <View style={styles.lockIconCircle}>
+    <Ionicons name="lock-closed" size={20} color="#fff" />
+  </View>
+);
 
 // Relationship Level Card
 const RelationshipLevelCard: React.FC<{
@@ -860,17 +969,16 @@ const styles = StyleSheet.create({
   },
   tabSelector: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
+    borderRadius: 999,
     padding: 2,
   },
   tabButton: {
     paddingHorizontal: 20,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 999,
   },
   tabButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   tabText: {
     color: 'rgba(255,255,255,0.7)',
@@ -1184,9 +1292,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.06)',
-  },
-  costumeLocked: {
-    opacity: 0.6,
+    position: 'relative',
   },
   costumeImage: {
     width: '100%',
@@ -1197,11 +1303,24 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'rgba(0,0,0,0.06)',
   },
-  lockOverlay: {
+  costumeDarkenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  costumeProBadgeContainer: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+  },
+  costumePriceBadgesContainer: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+  },
+  costumeLockIconContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   costumeName: {
     fontSize: 12,
@@ -1222,6 +1341,44 @@ const styles = StyleSheet.create({
     color: 'rgba(0,0,0,0.6)',
     textAlign: 'center',
     padding: 20,
+  },
+  proBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  proBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: '#FFD700',
+  },
+  priceBadges: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  priceBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  priceBadgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  rubyBadge: {
+    backgroundColor: 'rgba(189,16,224,0.85)',
+  },
+  lockIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

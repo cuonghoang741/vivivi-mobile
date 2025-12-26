@@ -7,15 +7,15 @@ import { MediaSheet } from './sheets/MediaSheet';
 import { EnergySheet } from './sheets/EnergySheet';
 import { LevelSheet } from './sheets/LevelSheet';
 import { CharacterDetailSheet } from './sheets/CharacterDetailSheet';
-import { LoginRewardCalendarModal } from './sheets/LoginRewardCalendarModal';
 import type { useQuests } from '../hooks/useQuests';
-import type { useLoginRewards } from '../hooks/useLoginRewards';
 
 type AppSheetsProps = {
   // Quest Sheet
   showQuestSheet: boolean;
   setShowQuestSheet: (show: boolean) => void;
   quests: ReturnType<typeof useQuests>;
+  questSheetTabRequest?: { tab: 'daily' | 'level'; token: number } | null;
+  onRefreshLoginRewards?: () => void;
 
   // Background Sheet
   showBackgroundSheet: boolean;
@@ -54,20 +54,14 @@ type AppSheetsProps = {
   energy: number;
   energyMax: number;
 
-  // Login Rewards
-  showLoginRewardsSheet: boolean;
-  setShowLoginRewardsSheet: (show: boolean) => void;
-  loginRewardState: ReturnType<typeof useLoginRewards>['state'];
-  loadLoginRewards: () => Promise<void>;
-  claimLoginReward: () => Promise<import('../hooks/useLoginRewards').ClaimResult>;
-  isClaimingLoginReward: boolean;
-  onClaimLoginReward: () => Promise<void>;
 };
 
 export const AppSheets: React.FC<AppSheetsProps> = ({
   showQuestSheet,
   setShowQuestSheet,
   quests,
+  questSheetTabRequest,
+  onRefreshLoginRewards,
   showBackgroundSheet,
   setShowBackgroundSheet,
   showCharacterSheet,
@@ -91,13 +85,6 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
   setShowEnergySheet,
   energy,
   energyMax,
-  showLoginRewardsSheet,
-  setShowLoginRewardsSheet,
-  loginRewardState,
-  loadLoginRewards,
-  claimLoginReward,
-  isClaimingLoginReward,
-  onClaimLoginReward,
 }) => {
   return (
     <>
@@ -154,19 +141,8 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         level={level}
         xp={xp}
         nextLevelXp={nextLevelXp}
-      />
-      <LoginRewardCalendarModal
-        visible={showLoginRewardsSheet}
-        onClose={() => setShowLoginRewardsSheet(false)}
-        rewards={loginRewardState.rewards}
-        currentDay={loginRewardState.currentDay}
-        canClaimToday={loginRewardState.canClaimToday}
-        hasClaimedToday={loginRewardState.hasClaimedToday}
-        isLoading={loginRewardState.isLoading}
-        error={loginRewardState.error}
-        onReload={loadLoginRewards}
-        onClaim={onClaimLoginReward}
-        isClaiming={isClaimingLoginReward}
+        initialTabRequest={questSheetTabRequest ?? undefined}
+        onRefreshLoginRewards={onRefreshLoginRewards}
       />
     </>
   );

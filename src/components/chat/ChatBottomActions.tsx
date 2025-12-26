@@ -37,7 +37,8 @@ const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    justifyContent: 'center',
+    gap: 4,
     paddingHorizontal: 12,
     marginTop: 12,
   },

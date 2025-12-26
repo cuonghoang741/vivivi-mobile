@@ -14,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -159,6 +160,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
 
   const currentScreen = screenStack[screenStack.length - 1];
   const isRootScreen = currentScreen?.key === 'root';
+  const isSubscriptionScreen = currentScreen?.key === 'subscription';
 
   useEffect(() => {
     const unsubscribe = authManager.subscribe(() => {
@@ -443,8 +445,10 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
       presentationStyle="pageSheet"
       onRequestClose={handleBack}
     >
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
+      <SafeAreaView
+        style={[styles.safeArea, isSubscriptionScreen && styles.safeAreaSubscription]}
+      >
+        <View style={[styles.header, isSubscriptionScreen && styles.headerLight]}>
           <Button
             size="md"
             variant="liquid"
@@ -452,7 +456,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
             onPress={handleBack}
             isIconOnly
           />
-          <Text style={styles.title}>{headerTitle}</Text>
+          <Text style={[styles.title, isSubscriptionScreen && styles.titleLight]}>{headerTitle}</Text>
           {!isRootScreen && (
             <Button
               size="md"
@@ -464,7 +468,9 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
           )}
           {isRootScreen && <View style={{ width: 40 }} />}
         </View>
-        <View style={styles.body}>{renderScreen()}</View>
+        <View style={[styles.body, isSubscriptionScreen && styles.subscriptionBody]}>
+          {renderScreen()}
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -872,55 +878,93 @@ const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void
   );
 };
 
-const SubscriptionManagementScreen: React.FC<{ currentTier: SubscriptionTier }> = ({ currentTier }) => (
-  <ScrollView contentContainerStyle={styles.subscriptionScreen} showsVerticalScrollIndicator={false}>
-    <View style={styles.subscriptionStatusCard}>
-      <Text style={styles.subscriptionStatusTitle}>Current status</Text>
-      <Text style={styles.subscriptionStatusValue}>{SUBSCRIPTION_LABELS[currentTier]}</Text>
-      <Text style={styles.subscriptionStatusHint}>
-        {currentTier === 'free'
-          ? 'Upgrade to access all characters, rooms, and events.'
-          : 'You are enjoying premium perks.'}
-      </Text>
-    </View>
-    {SUBSCRIPTION_PLANS.map(plan => (
-      <View
-        key={plan.id}
-        style={[
-          styles.planCard,
-          plan.recommended && styles.planCardRecommended,
-          currentTier === plan.tier && styles.planCardCurrent,
-        ]}
-      >
-        <View style={styles.planHeader}>
-          <Text style={styles.planName}>{plan.displayName}</Text>
-          {plan.recommended ? <Text style={styles.planBadge}>RECOMMENDED</Text> : null}
-        </View>
-        <Text style={styles.planPrice}>{plan.price}</Text>
-        {plan.features.map(feature => (
-          <View key={feature} style={styles.planFeature}>
-            <Ionicons name="checkmark-circle" size={16} color="#fff" />
-            <Text style={styles.planFeatureText}>{feature}</Text>
+const SubscriptionManagementScreen: React.FC<{ currentTier: SubscriptionTier }> = ({ currentTier }) => {
+  const tierLabel = SUBSCRIPTION_LABELS[currentTier];
+  const isFree = currentTier === 'free';
+
+  return (
+    <View style={styles.subscriptionRoot}>
+      <ScrollView contentContainerStyle={styles.subscriptionScreen} showsVerticalScrollIndicator={false}>
+        {/* Banner giống SubscriptionManagementView / SubscriptionView bên Swift */}
+        <View style={styles.subscriptionBanner}>
+          <Image
+            source={{
+              uri: 'https://pub-14a49f54cd754145a7362876730a1a52.r2.dev/Packages/Store_Banner-min.png',
+            }}
+            style={styles.subscriptionBannerImage}
+            resizeMode="cover"
+          />
+          <View style={styles.subscriptionBannerOverlay}>
+            <Text style={styles.subscriptionBannerTier}>{tierLabel}</Text>
+            <Text style={styles.subscriptionBannerSubtitle}>
+              {isFree ? 'Choose a plan' : 'Active subscription'}
+            </Text>
           </View>
-        ))}
-        <Button
-          fullWidth
-          style={styles.planButton}
-          variant={currentTier === plan.tier ? 'outline' : 'solid'}
-          onPress={() =>
-            Linking.openURL(
-              `mailto:billing@vivivi.ai?subject=${encodeURIComponent(
-                `Upgrade to ${plan.displayName}`
-              )}`
-            ).catch(() => {})
-          }
-        >
-          {currentTier === plan.tier ? 'In use' : 'Contact to upgrade'}
-        </Button>
-  </View>
-    ))}
-  </ScrollView>
-);
+        </View>
+
+        <View style={styles.subscriptionStatusCard}>
+          <Text style={styles.subscriptionStatusTitle}>Current status</Text>
+          <Text style={styles.subscriptionStatusValue}>{tierLabel}</Text>
+          <Text style={styles.subscriptionStatusHint}>
+            {isFree
+              ? 'Upgrade to access all characters, rooms, and events.'
+              : 'You are enjoying premium perks.'}
+          </Text>
+        </View>
+
+        {SUBSCRIPTION_PLANS.map(plan => {
+          const isCurrent = currentTier === plan.tier;
+          return (
+            <View
+              key={plan.id}
+              style={[
+                styles.planCard,
+                plan.recommended && styles.planCardRecommended,
+                isCurrent && styles.planCardCurrent,
+              ]}
+            >
+              <View style={styles.planHeader}>
+                <Text style={styles.planName}>{plan.displayName}</Text>
+                {plan.recommended ? <Text style={styles.planBadge}>RECOMMENDED</Text> : null}
+              </View>
+              <Text style={styles.planPrice}>{plan.price}</Text>
+              {plan.features.map(feature => (
+                <View key={feature} style={styles.planFeature}>
+                  <Ionicons name="checkmark-circle" size={16} color="#FF5D9D" />
+                  <Text style={styles.planFeatureText}>{feature}</Text>
+                </View>
+              ))}
+              <Button
+                fullWidth
+                style={styles.planButton}
+                variant={isCurrent ? 'outline' : 'solid'}
+                onPress={() =>
+                  Linking.openURL(
+                    `mailto:billing@vivivi.ai?subject=${encodeURIComponent(
+                      `Upgrade to ${plan.displayName}`
+                    )}`
+                  ).catch(() => {})
+                }
+              >
+                {isCurrent ? 'In use' : 'Contact to upgrade'}
+              </Button>
+            </View>
+          );
+        })}
+
+        <View style={styles.subscriptionFooterLinks}>
+          <Text style={styles.subscriptionFooterLink}>Terms</Text>
+          <Text style={styles.subscriptionFooterDot}>•</Text>
+          <Text style={styles.subscriptionFooterLink}>Privacy</Text>
+          <Text style={styles.subscriptionFooterDot}>•</Text>
+          <Text style={styles.subscriptionFooterLink}>EULA</Text>
+          <Text style={styles.subscriptionFooterDot}>•</Text>
+          <Text style={styles.subscriptionFooterLink}>Restore</Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
 
 const normalizeTier = (tier?: string | null): SubscriptionTier => {
   const normalized = (tier ?? '').toLowerCase();
@@ -1049,6 +1093,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#050509',
   },
+  safeAreaSubscription: {
+    backgroundColor: '#FFD7E7',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1058,13 +1105,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
+  headerLight: {
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
   title: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
   },
+  titleLight: {
+    color: '#111',
+  },
   body: {
     flex: 1,
+  },
+  subscriptionBody: {
+    backgroundColor: '#FFD7E7',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -1326,35 +1382,68 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
     color: '#fff',
   },
+  subscriptionRoot: {
+    flex: 1,
+    backgroundColor: '#FFD7E7', // giống SubscriptionManagementView
+  },
   subscriptionScreen: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 16,
     gap: 16,
+  },
+  subscriptionBanner: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  subscriptionBannerImage: {
+    width: '100%',
+    height: 160,
+  },
+  subscriptionBannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
+  subscriptionBannerTier: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  subscriptionBannerSubtitle: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   subscriptionStatusCard: {
     borderRadius: 18,
     padding: 18,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
   subscriptionStatusTitle: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(0,0,0,0.6)',
     fontSize: 13,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   subscriptionStatusValue: {
-    color: '#fff',
+    color: '#111',
     fontSize: 20,
     fontWeight: '600',
     marginTop: 6,
   },
   subscriptionStatusHint: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(0,0,0,0.7)',
     marginTop: 6,
   },
   planCard: {
     borderRadius: 20,
     padding: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.98)',
     gap: 10,
   },
   planCardRecommended: {
@@ -1362,7 +1451,7 @@ const styles = StyleSheet.create({
     borderColor: '#FF91BD',
   },
   planCardCurrent: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#FFE5F1',
   },
   planHeader: {
     flexDirection: 'row',
@@ -1370,7 +1459,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   planName: {
-    color: '#fff',
+    color: '#111',
     fontSize: 20,
     fontWeight: '700',
   },
@@ -1384,7 +1473,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   planPrice: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(0,0,0,0.85)',
     fontSize: 16,
   },
   planFeature: {
@@ -1393,10 +1482,27 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   planFeatureText: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(0,0,0,0.8)',
   },
   planButton: {
     marginTop: 8,
+  },
+  subscriptionFooterLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  subscriptionFooterLink: {
+    fontSize: 12,
+    color: '#000',
+    fontWeight: '500',
+  },
+  subscriptionFooterDot: {
+    fontSize: 12,
+    color: 'rgba(0,0,0,0.5)',
   },
 });
 

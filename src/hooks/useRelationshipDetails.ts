@@ -115,9 +115,17 @@ export const useRelationshipDetails = (
   );
 
   const canClaimMilestone = useCallback(
-    (stage: RelationshipStage) =>
-      (relationship?.relationshipLevel ?? 0) >= stage.relationship_threshold &&
-      !claimedMilestones.has(stage.relationship_threshold),
+    (stage: RelationshipStage) => {
+      const milestone = stage.relationship_threshold;
+      // Chỉ cho claim các mốc milestone được định nghĩa (giống Swift + constraint DB)
+      if (!RELATIONSHIP_MILESTONES.includes(milestone as (typeof RELATIONSHIP_MILESTONES)[number])) {
+        return false;
+      }
+      return (
+        (relationship?.relationshipLevel ?? 0) >= milestone &&
+        !claimedMilestones.has(milestone)
+      );
+    },
     [relationship?.relationshipLevel, claimedMilestones]
   );
 
@@ -131,6 +139,13 @@ export const useRelationshipDetails = (
       }
 
       const milestone = stage.relationship_threshold;
+      // Bảo vệ: không cho claim các level không phải milestone hợp lệ
+      if (!RELATIONSHIP_MILESTONES.includes(milestone as (typeof RELATIONSHIP_MILESTONES)[number])) {
+        return {
+          success: false,
+          error: 'Mốc này không có phần thưởng để nhận.',
+        };
+      }
       if (claimedMilestones.has(milestone)) {
         return {
           success: false,

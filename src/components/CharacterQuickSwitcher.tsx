@@ -33,9 +33,9 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
   keyboardHeight = 0,
   isModelLoading = false,
 }) => {
-  const insets = useSafeAreaInsets();
   const opacityAnim = useRef(new Animated.Value(isModelLoading ? 0.5 : 1.0)).current;
   const offsetXAnim = useRef(new Animated.Value(isInputActive ? 120 : 0)).current;
+  const selectionAnim = useRef(new Animated.Value(1)).current;
 
   // Animate opacity when model loading changes
   useEffect(() => {
@@ -54,6 +54,17 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
       useNativeDriver: true,
     }).start();
   }, [isInputActive, offsetXAnim]);
+
+  // Animate khi đổi nhân vật được chọn (giả lập swipe feedback)
+  useEffect(() => {
+    selectionAnim.setValue(0);
+    Animated.spring(selectionAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 80,
+    }).start();
+  }, [currentIndex, selectionAnim]);
 
   const displayItems = useMemo(() => {
     if (characters.length === 0) return [];
@@ -105,36 +116,48 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
       {displayItems.map((item) => {
         const itemIndex = characters.findIndex(c => c.id === item.id);
         const isSelected = item.id === characters[currentIndex]?.id;
-        const avatarOpacity = isSelected ? 1.0 : 0.5;
-        const scale = isSelected ? 1.0 : 0.92;
+        const animatedScale = selectionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.9, 1.0],
+        });
+        const animatedOpacity = selectionAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.7, 1.0],
+        });
         const avatarURL = item.avatar || item.thumbnail_url || '';
         const unseenCount = unseenCounts[item.id] || 0;
 
         return (
           <View key={item.id} style={styles.avatarWrapper}>
-            <Pressable
+            <Animated.View
               style={[
                 styles.avatarContainer,
-                { opacity: avatarOpacity, transform: [{ scale }] },
+                isSelected
+                  ? { opacity: animatedOpacity, transform: [{ scale: animatedScale }] }
+                  : { opacity: 0.5, transform: [{ scale: 0.92 }] },
               ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (itemIndex !== -1) {
-                  onCharacterTap(itemIndex);
-                }
-              }}
             >
-              {avatarURL ? (
-                <ExpoImage
-                  source={{ uri: avatarURL }}
-                  style={styles.avatar}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder} />
-              )}
-              <View style={styles.avatarBorder} />
-            </Pressable>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (itemIndex !== -1) {
+                    onCharacterTap(itemIndex);
+                  }
+                }}
+              >
+                {avatarURL ? (
+                  <ExpoImage
+                    source={{ uri: avatarURL }}
+                    style={styles.avatar}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.avatarPlaceholder} />
+                )}
+                <View style={styles.avatarBorder} />
+              </Pressable>
+            </Animated.View>
             
             {/* Notification badge */}
             {unseenCount > 0 && (

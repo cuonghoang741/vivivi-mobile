@@ -7,12 +7,12 @@ const EAS_PROJECT_ID = '05bd0c6c-5433-4468-a849-ccee180ba617'; // Will be set af
 const PROJECT_SLUG = 'vivivi';
 
 // App production config
-const APP_NAME = 'VIVIVI - Digital AI Girlfriend';
+const APP_NAME = 'Roxie - Digital AI Girlfriend';
 const BUNDLE_IDENTIFIER = 'com.vivivi';
-const PACKAGE_NAME = 'com.eduti.vivivi';
+const PACKAGE_NAME = 'com.eduto.roxie';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
-const SCHEME = 'vrm';
+const SCHEME = 'roxie';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,

@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { mediaDevices, MediaStream, RTCView } from '@livekit/react-native-webrtc';
 import { VRMWebView } from './src/components/VRMWebView';
 import { VRMUIOverlay } from './src/components/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
@@ -17,6 +19,7 @@ import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { useChatManager } from './src/hooks/useChatManager';
 import { useVoiceConversation } from './src/hooks/useVoiceConversation';
+import { useVoiceCall } from './src/hooks/useVoiceCall';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
@@ -28,7 +31,6 @@ import { BackgroundItem, BackgroundRepository } from './src/repositories/Backgro
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
 import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
-import { LoginRewardCalendarModal } from './src/components/sheets/LoginRewardCalendarModal';
 import { useLoginRewards } from './src/hooks/useLoginRewards';
 import { useQuests } from './src/hooks/useQuests';
 import { SceneActionsProvider } from './src/context/SceneActionsContext';
@@ -65,6 +67,7 @@ const AppContent = () => {
     setCurrentCharacterState,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
+  const userId = session?.user?.id ?? null;
 
   const navigation = useNavigation<ExperienceNavigationProp>();
   const webViewRef = useRef<any>(null);
@@ -73,6 +76,8 @@ const AppContent = () => {
   const agentIdCacheRef = useRef<Map<string, string>>(new Map());
   const characterRepoRef = useRef<CharacterRepository | null>(null);
   const lastBgmBeforeVoiceRef = useRef(false);
+  const chatListWasVisibleBeforeCameraRef = useRef(false);
+  const lastCallWasVideoRef = useRef(false);
   const [showSwiftUIDemo, setShowSwiftUIDemo] = useState(false);
   const [overlayFlags, setOverlayFlags] = useState({
     hasIncompleteQuests: true,
@@ -85,13 +90,15 @@ const AppContent = () => {
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
   const [showNewUserGift, setShowNewUserGift] = useState(false);
   const [showQuestSheet, setShowQuestSheet] = useState(false);
-  const [showLoginRewardsSheet, setShowLoginRewardsSheet] = useState(false);
+  const [questSheetTabRequest, setQuestSheetTabRequest] = useState<{ tab: 'daily' | 'level'; token: number } | null>(null);
   const [showEnergySheet, setShowEnergySheet] = useState(false);
   const [showLevelSheet, setShowLevelSheet] = useState(false);
+  const [showCameraPreview, setShowCameraPreview] = useState(false);
   const [showCharacterDetailSheet, setShowCharacterDetailSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats, consumeEnergy, refillEnergy } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
@@ -105,7 +112,9 @@ const AppContent = () => {
     rewards: RewardItem[];
   } | null>(null);
   const {
+    balance,
     refresh: refreshCurrency,
+    updateVcoin,
     setPurchaseCompleteCallback,
     confirmCostumePurchase,
     confirmCharacterPurchase,
@@ -125,12 +134,7 @@ const AppContent = () => {
   const isBgmOnRef = useRef(false);
   const [isCameraModeOn, setIsCameraModeOn] = useState(false);
   const [autoPlayMusic, setAutoPlayMusic] = useState(false);
-  const {
-    state: loginRewardState,
-    load: loadLoginRewards,
-    claimToday: claimLoginReward,
-    isClaiming: isClaimingLoginReward,
-  } = useLoginRewards();
+  const { state: loginRewardState, load: loadLoginRewards } = useLoginRewards();
   const quests = useQuests(hasRestoredSession && !!session);
 
   // Helper to generate unique ID
@@ -347,6 +351,7 @@ const AppContent = () => {
   const {
     state: chatState,
     toggleChatList: toggleChatListInternal,
+    setShowChatList,
     openHistory,
     closeHistory,
     sendText: sendGeminiText,
@@ -392,6 +397,33 @@ const AppContent = () => {
     endCall,
     sendText: sendVoiceText,
   } = useVoiceConversation(voiceCallbacks);
+
+  // Voice call metering (like swift-version)
+  const currentAgentIdRef = useRef<string | null>(null);
+  const {
+    startCallMetering,
+    stopCallMetering,
+    reset: resetVoiceCall,
+  } = useVoiceCall({
+    characterId: activeCharacterId,
+    agentId: currentAgentIdRef.current,
+    getVcoinBalance: () => balance.vcoin, // Use callback to get latest balance
+    onVcoinChange: updateVcoin,
+    onOutOfFunds: async () => {
+      Alert.alert(
+        'Out of Funds',
+        'You don\'t have enough VCoin to continue the call. The call will end.',
+        [{ text: 'OK', onPress: async () => {
+          await endCall();
+          setShowPurchaseSheet(true);
+        }}]
+      );
+    },
+    onQuestUpdate: async (questType: string, seconds: number, minutes: number) => {
+      await QuestProgressTracker.track(questType, minutes);
+    },
+    questTypeResolver: () => (lastCallWasVideoRef.current ? 'video_call' : 'voice_call'),
+  });
 
   useEffect(() => {
     const character = initialData?.character;
@@ -453,34 +485,19 @@ const AppContent = () => {
   }, [refreshCurrency, resumePendingPurchase, currentCharacter, webViewRef]);
 
   const handleCalendarPress = useCallback(() => {
-    setShowLoginRewardsSheet(true);
+    if (!session) {
+      Alert.alert('Sign in required', 'Please sign in to view check-ins.');
+      return;
+    }
+    setQuestSheetTabRequest({
+      tab: 'daily',
+      token: Date.now(),
+    });
+    setShowQuestSheet(true);
     if (!loginRewardState.loaded && !loginRewardState.isLoading) {
       loadLoginRewards();
     }
-  }, [loginRewardState.loaded, loginRewardState.isLoading, loadLoginRewards]);
-
-  const handleClaimLoginReward = useCallback(async () => {
-    const result = await claimLoginReward();
-    if (result.success) {
-      await Promise.all([refreshCurrency(), refreshStats()]);
-      const rewardParts: string[] = [];
-      if (result.reward.reward_vcoin > 0) {
-        rewardParts.push(`${result.reward.reward_vcoin} VCoin`);
-      }
-      if (result.reward.reward_ruby > 0) {
-        rewardParts.push(`${result.reward.reward_ruby} Ruby`);
-      }
-      if (result.reward.reward_energy > 0) {
-        rewardParts.push(`${result.reward.reward_energy} Energy`);
-      }
-      Alert.alert(
-        '🎁 Reward claimed',
-        rewardParts.length ? rewardParts.join(' + ') : 'You have claimed the reward successfully!'
-      );
-    } else if (result.error) {
-      Alert.alert('Unable to claim reward', result.error);
-    }
-  }, [claimLoginReward, refreshCurrency, refreshStats]);
+  }, [session, loginRewardState.loaded, loginRewardState.isLoading, loadLoginRewards]);
 
   const handleOpenSettings = useCallback(() => {
     setShowSettings(true);
@@ -489,8 +506,9 @@ const AppContent = () => {
 
 
   const handleCharacterCardPress = useCallback(() => {
-    setShowCharacterSheet(true);
-  }, [setShowCharacterSheet]);
+    // Giống swift-version: nhấn vào card thông tin nhân vật sẽ mở Character Detail sheet
+    setShowCharacterDetailSheet(true);
+  }, [setShowCharacterDetailSheet]);
 
   const resolveAgentId = useCallback(async (): Promise<string | null> => {
     if (!activeCharacterId) {
@@ -555,6 +573,7 @@ const AppContent = () => {
       Alert.alert('Sign in required', 'Please sign in to view quests.');
       return;
     }
+    setQuestSheetTabRequest(null);
     setShowQuestSheet(true);
   }, [session]);
 
@@ -666,13 +685,133 @@ const AppContent = () => {
     return fallback ?? '';
   }, [currentCharacter?.name, initialData?.character?.name]);
 
-  const handleToggleCameraMode = useCallback(() => {
-    setIsCameraModeOn(prev => {
-      const next = !prev;
-      console.log(next ? '🎥 Camera mode on' : '🎥 Camera mode off');
-      return next;
-    });
+  const ensureCameraPermission = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera permission',
+            message: 'Camera access is required to start a video call.',
+            buttonPositive: 'OK',
+          }
+        );
+        return result === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (error) {
+        console.warn('[App] Camera permission request failed:', error);
+        return false;
+      }
+    }
+    // iOS will present the system prompt automatically when accessing the camera
+    return true;
   }, []);
+
+  const startCameraPreviewStream = useCallback(async () => {
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      const stream = await mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          frameRate: 30,
+          width: 720,
+          height: 1280,
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+      return true;
+    } catch (error) {
+      console.warn('[App] Failed to start camera preview:', error);
+      Alert.alert('Camera unavailable', 'Please allow camera access to start a video call.');
+      return false;
+    }
+  }, [cameraStream]);
+
+  const stopCameraPreview = useCallback(
+    (options?: { preserveVideoFlag?: boolean }) => {
+      setShowCameraPreview(false);
+      setIsCameraModeOn(false);
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      setCameraStream(null);
+      if (!options?.preserveVideoFlag) {
+        lastCallWasVideoRef.current = false;
+      }
+    },
+    [cameraStream]
+  );
+
+  const handleToggleCameraMode = useCallback(async () => {
+    if (showCameraPreview) {
+      stopCameraPreview({ preserveVideoFlag: voiceState.isConnected });
+      if (voiceState.isConnected) {
+        try {
+          await endCall();
+        } catch (error) {
+          console.warn('[App] Failed to end call for camera mode:', error);
+        }
+      }
+      return;
+    }
+
+    if (!activeCharacterId) {
+      Alert.alert('Voice unavailable', 'Please select a character before starting a video call.');
+      return;
+    }
+
+    const hasPermission = await ensureCameraPermission();
+    if (!hasPermission) {
+      Alert.alert('Camera permission required', 'Please allow camera access to start a video call.');
+      return;
+    }
+
+    const startedPreview = await startCameraPreviewStream();
+    if (!startedPreview) {
+      return;
+    }
+
+    setShowCameraPreview(true);
+    setIsCameraModeOn(true);
+
+    if (!voiceState.isConnected) {
+      const agentId = await resolveAgentId();
+      if (!agentId) {
+        Alert.alert('Voice unavailable', 'This character does not have a voice agent available yet.');
+        stopCameraPreview();
+        return;
+      }
+      try {
+        await startCall({
+          agentId,
+          userId,
+        });
+      } catch (error) {
+        console.warn('[App] Failed to start call for camera mode:', error);
+        stopCameraPreview();
+        Alert.alert('Voice call', 'Unable to start a call right now. Please try again in a moment.');
+      }
+    }
+  }, [
+    showCameraPreview,
+    voiceState.isConnected,
+    endCall,
+    activeCharacterId,
+    ensureCameraPermission,
+    startCameraPreviewStream,
+    resolveAgentId,
+    startCall,
+    stopCameraPreview,
+    userId,
+  ]);
+
+  const handleCameraOverlayClose = useCallback(() => {
+    if (showCameraPreview) {
+      void handleToggleCameraMode();
+    }
+  }, [showCameraPreview, handleToggleCameraMode]);
 
   const handleCharacterSelect = useCallback(
     async (item: CharacterItem) => {
@@ -1097,19 +1236,44 @@ const AppContent = () => {
   }, [chatState.showChatList]);
 
   useEffect(() => {
+    if (showCameraPreview) {
+      lastCallWasVideoRef.current = true;
+      chatListWasVisibleBeforeCameraRef.current = chatState.showChatList;
+      if (!voiceState.isConnected && chatState.showChatList) {
+        setShowChatList(false);
+      }
+    } else {
+      if (chatListWasVisibleBeforeCameraRef.current) {
+        setShowChatList(true);
+        chatListWasVisibleBeforeCameraRef.current = false;
+      }
+    }
+  }, [showCameraPreview, chatState.showChatList, setShowChatList, voiceState.isConnected]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
+  useEffect(() => {
     isBgmOnRef.current = isBgmOn;
   }, [isBgmOn]);
 
   const previousCallConnectedRef = useRef(false);
-  const callStartTimeRef = useRef<number | null>(null);
 
+  // Voice call metering integration (like swift-version)
   useEffect(() => {
     let cancelled = false;
     const applyVoiceState = async () => {
       if (voiceState.isConnected) {
         if (!previousCallConnectedRef.current) {
-          // Call just started
-          callStartTimeRef.current = Date.now();
+          // Call just started - start metering (like swift-version)
+          if (activeCharacterId && currentAgentIdRef.current) {
+            await startCallMetering();
+          }
         }
         lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
         webBridgeRef.current?.setCallMode(true);
@@ -1124,20 +1288,12 @@ const AppContent = () => {
           }
         }
       } else {
-        // Call ended - track quest progress
-        if (previousCallConnectedRef.current && callStartTimeRef.current) {
-          const callDurationSeconds = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
-          if (callDurationSeconds > 0) {
-            const minutes = Math.max(1, Math.floor(callDurationSeconds / 60));
-            const questType = isCameraModeOn ? 'video_call' : 'voice_call';
-            try {
-              await QuestProgressTracker.track(questType, minutes);
-            } catch (error) {
-              console.warn('[App] Failed to track call quest progress:', error);
-            }
-          }
-          callStartTimeRef.current = null;
+        // Call ended - stop metering and finalize (like swift-version)
+        if (previousCallConnectedRef.current) {
+          await stopCallMetering(true);
         }
+        stopCameraPreview({ preserveVideoFlag: true });
+        lastCallWasVideoRef.current = false;
         
         webBridgeRef.current?.setCallMode(false);
         if (lastBgmBeforeVoiceRef.current) {
@@ -1158,7 +1314,7 @@ const AppContent = () => {
     return () => {
       cancelled = true;
     };
-  }, [voiceState.isConnected, isCameraModeOn]);
+  }, [voiceState.isConnected, activeCharacterId, startCallMetering, stopCallMetering, isBgmOn, stopCameraPreview]);
 
   useEffect(() => {
     // Calculate unclaimed quest count (completed but not claimed)
@@ -1619,6 +1775,11 @@ const AppContent = () => {
           isChatScrolling={isChatScrolling}
           canSwipeCharacter={allCharacters.length > 1}
         />
+        <CameraPreviewOverlay
+          visible={showCameraPreview && !!cameraStream}
+          stream={cameraStream}
+          onClose={handleCameraOverlayClose}
+        />
         {showSavedToast ? (
           <View pointerEvents="none" style={styles.savedToastContainer}>
             <Text style={styles.savedToastText}>Saved to Photos</Text>
@@ -1645,7 +1806,7 @@ const AppContent = () => {
             streakDays={chatState.streakDays}
             hasUnclaimed={chatState.hasUnclaimed}
             showStreakConfetti={chatState.showStreakConfetti}
-            onStreakTap={() => setShowLoginRewardsSheet(true)}
+            onStreakTap={handleCalendarPress}
             onOpenHistory={openHistory}
             onChatScrollStateChange={setIsChatScrolling}
             onToggleChatList={toggleChatListInternal}
@@ -1692,13 +1853,8 @@ const AppContent = () => {
           setShowEnergySheet={setShowEnergySheet}
           energy={overlayStats.energy}
           energyMax={overlayStats.energyMax}
-          showLoginRewardsSheet={showLoginRewardsSheet}
-          setShowLoginRewardsSheet={setShowLoginRewardsSheet}
-          loginRewardState={loginRewardState}
-          loadLoginRewards={loadLoginRewards}
-          claimLoginReward={claimLoginReward}
-          isClaimingLoginReward={isClaimingLoginReward}
-          onClaimLoginReward={handleClaimLoginReward}
+        questSheetTabRequest={questSheetTabRequest}
+        onRefreshLoginRewards={loadLoginRewards}
         />
         <ToastStackView />
         <SettingsModal
@@ -1759,6 +1915,37 @@ export default function App() {
   );
 }
 
+type CameraPreviewOverlayProps = {
+  visible: boolean;
+  stream: MediaStream | null;
+  onClose: () => void;
+};
+
+const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, stream, onClose }) => {
+  if (!visible || !stream) {
+    return null;
+  }
+  return (
+    <View pointerEvents="box-none" style={styles.cameraOverlay}>
+      <View style={styles.cameraPreviewContainer}>
+        <RTCView
+          streamURL={stream.toURL()}
+          style={styles.cameraPreview}
+          objectFit="cover"
+          mirror
+        />
+        <TouchableOpacity style={styles.cameraCloseButton} onPress={onClose}>
+          <Ionicons name="close" size={18} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.cameraBadge}>
+          <Ionicons name="videocam" size={14} color="#fff" />
+          <Text style={styles.cameraBadgeText}>Video call mode</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1802,5 +1989,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     columnGap: 8,
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 50,
+  },
+  cameraPreviewContainer: {
+    width: '90%',
+    aspectRatio: 3 / 4,
+    borderRadius: 32,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  cameraPreview: {
+    flex: 1,
+  },
+  cameraCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 6,
+  },
+  cameraBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

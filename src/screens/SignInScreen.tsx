@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,11 +13,19 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PersistKeys } from '../config/supabase';
-  
-const HERO_IMAGE_URI = 'https://pub-14a49f54cd754145a7362876730a1a52.r2.dev/login.png';
-const VIVIVI_LOGO = require('../assets/images/vivvivi.png');
+import { VRMWebView } from '../components/VRMWebView';
+
+// Default VRM model - using a model from the app's CDN
+const DEFAULT_VRM_URL = 'https://n6n.top/Model/0001_01%202.vrm';
+const DEFAULT_VRM_NAME = '0001_01 2.vrm';
+
+// Icons (imported as React components via react-native-svg-transformer)
+import AppleIcon from '../assets/icons/apple.svg';
+import GoogleIcon from '../assets/icons/google.svg';
+
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
 
@@ -46,6 +54,8 @@ export const SignInScreen: React.FC<Props> = ({
   const [checkingAge, setCheckingAge] = useState(true);
   const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
+
+  const webViewRef = useRef<WebView>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -141,6 +151,37 @@ export const SignInScreen: React.FC<Props> = ({
     triggerProvider('google');
   }, [triggerProvider]);
 
+  // Prevent duplicate model loading
+  const hasLoadedModelRef = useRef(false);
+
+  const handleVRMMessage = useCallback((message: string) => {
+    console.log('[SignInScreen] Received VRM message:', message);
+    if (message === 'initialReady' && !hasLoadedModelRef.current) {
+      hasLoadedModelRef.current = true;
+
+      const escapedURL = DEFAULT_VRM_URL.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const escapedName = DEFAULT_VRM_NAME.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      // Use the updated default background
+      const backgroundURL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/JAZHAJFvr2Lj8gtKb7cBPSnpPiQBPcNoG7tlEihj.jpg';
+
+      const js = `
+        // Set background image
+        if (typeof window.setBackgroundImage === 'function') {
+           window.setBackgroundImage("${backgroundURL}");
+        } else {
+           document.body.style.backgroundImage = 'url("${backgroundURL}")';
+        }
+        // Load VRM model
+        if (typeof window.loadModelByURL === 'function') {
+           window.loadModelByURL("${escapedURL}", "${escapedName}");
+        }
+        true;
+      `;
+
+      webViewRef.current?.injectJavaScript(js);
+    }
+  }, []);
+
   const pendingProviderLabel = pendingProvider === 'google' ? 'Google' : 'Apple';
   const showAppleSpinner = isLoading && (pendingProvider ?? 'apple') === 'apple';
   const showGoogleSpinner = isLoading && pendingProvider === 'google';
@@ -149,76 +190,88 @@ export const SignInScreen: React.FC<Props> = ({
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={['#030303', '#050505', '#060606']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <Image source={{ uri: HERO_IMAGE_URI }} style={styles.heroImage} resizeMode="cover" />
 
-      <View style={styles.content}>
-        <View style={styles.logoStack}>
-          <Image source={VIVIVI_LOGO} style={styles.logo} resizeMode="contain" />
-          <View style={styles.logoTextBlock}>
-            <Text style={styles.title}>VIVIVI</Text>
-            <Text style={styles.subtitle}>Ai Digital Girlfriend</Text>
+      {/* VRM WebView - 80% height */}
+      <View style={styles.webViewSection}>
+        <VRMWebView
+          ref={webViewRef}
+          onMessage={handleVRMMessage}
+          enableDebug={false}
+        />
+      </View>
+
+      {/* Content overlay - absolute positioned */}
+      <View style={styles.contentOverlay} pointerEvents="box-none">
+        {/* Gradient overlay at top of content that overlaps WebView */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.7)', '#000']}
+          style={styles.gradientOverlay}
+          pointerEvents="none"
+        />
+
+        {/* Content section */}
+        <View style={styles.contentSection}>
+          <View style={styles.logoStack}>
+            <View style={styles.logoTextBlock}>
+              <Text style={styles.title}>Welcome, Master!</Text>
+              <Text style={styles.subtitle}>Just a few more taps until we can meet!</Text>
+            </View>
           </View>
-        </View>
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+          {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-        <View style={styles.buttonArea}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            disabled={disableAuthButtons}
-            style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
-            onPress={handleApplePress}
-          >
-            {showAppleSpinner ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.appleIcon}></Text>
-                <Text style={styles.appleLabel}>Sign in with Apple</Text>
-              </>
+          <View style={styles.buttonArea}>
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                disabled={disableAuthButtons}
+                style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
+                onPress={handleApplePress}
+              >
+                {showAppleSpinner ? (
+                  <ActivityIndicator color="#05030D" />
+                ) : (
+                  <>
+                    <AppleIcon width={24} height={24} style={styles.buttonIcon} />
+                    <Text style={styles.appleLabel}>Sign in with Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-          {onSignInWithGoogle ? (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={disableAuthButtons}
-              style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
-              onPress={handleGooglePress}
-            >
-              {showGoogleSpinner ? (
-                <ActivityIndicator color="#05030D" />
-              ) : (
-                <>
-                  <View style={styles.googleIconBadge}>
-                    <Text style={styles.googleIcon}>G</Text>
-                  </View>
-                  <Text style={styles.googleLabel}>Sign in with Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          ) : null}
-        </View>
+            {onSignInWithGoogle ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={disableAuthButtons}
+                style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
+                onPress={handleGooglePress}
+              >
+                {showGoogleSpinner ? (
+                  <ActivityIndicator color="#05030D" />
+                ) : (
+                  <>
+                    <GoogleIcon width={24} height={24} style={styles.buttonIcon} />
+                    <Text style={styles.googleLabel}>Sign in with Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-        <View style={styles.legalBlock}>
-          <Text style={styles.legalHint}>By signing in, you agree to our</Text>
-          <View style={styles.legalRow}>
-            <TouchableOpacity onPress={() => handleLegalPress('terms')}>
-              <Text style={styles.legalLink}>Terms of Service</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalSeparator}>,</Text>
-            <TouchableOpacity onPress={() => handleLegalPress('privacy')}>
-              <Text style={styles.legalLink}>Privacy Policy</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalSeparator}>, and</Text>
-            <TouchableOpacity onPress={() => handleLegalPress('eula')}>
-              <Text style={styles.legalLink}>EULA</Text>
-            </TouchableOpacity>
+          <View style={styles.legalBlock}>
+            <Text style={styles.legalHint}>By signing in, you agree to our</Text>
+            <View style={styles.legalRow}>
+              <TouchableOpacity onPress={() => handleLegalPress('terms')}>
+                <Text style={styles.legalLink}>Terms of Service</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSeparator}>,</Text>
+              <TouchableOpacity onPress={() => handleLegalPress('privacy')}>
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSeparator}>, and</Text>
+              <TouchableOpacity onPress={() => handleLegalPress('eula')}>
+                <Text style={styles.legalLink}>EULA</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -258,16 +311,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  content: {
+  webViewSection: {
+    height: '75%',
+  },
+  contentOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: '50%',
+  },
+  gradientOverlay: {
+    height: 120,
+    width: '100%',
+  },
+  contentSection: {
     flex: 1,
+    backgroundColor: '#000',
     paddingHorizontal: 24,
     paddingBottom: 40,
     justifyContent: 'flex-end',
     gap: 24,
-  },
-  heroImage: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.2,
   },
   logoStack: {
     alignItems: 'center',
@@ -282,14 +346,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
   },
   error: {
@@ -305,35 +369,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 999,
     paddingVertical: 16,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 24,
+    backgroundColor: '#fff',
   },
   buttonDisabled: {
     opacity: 0.5,
   },
-  appleIcon: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
-    color: '#fff',
-    marginRight: 8,
+  buttonIcon: {
+    marginRight: 10,
   },
   appleLabel: {
     fontSize: 16,
-    color: '#fff',
+    color: '#05030D',
     fontWeight: '600',
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 999,
     paddingVertical: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 24,
     backgroundColor: '#fff',
-    marginTop: 12,
   },
   googleIconBadge: {
     width: 28,
@@ -434,5 +493,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
-

@@ -174,6 +174,37 @@ class UserStatsService {
       console.error('[UserStatsService] Failed to refill energy:', error);
     }
   }
+
+  /**
+   * Add XP - increases user XP and updates level if needed
+   * Matching Swift version's addXP
+   */
+  async addXP(amount: number, reason?: string): Promise<void> {
+    try {
+      let row = await userStatsRepository.fetchStats();
+      if (!row) {
+        row = await userStatsRepository.createDefaultStats();
+      }
+
+      const currentXp = row.xp ?? 0;
+      const newXp = currentXp + amount;
+      const oldLevel = this.calculateLevelFromXp(currentXp);
+      const newLevel = this.calculateLevelFromXp(newXp);
+
+      console.log(`📈 Adding ${amount} XP (${currentXp} → ${newXp})${reason ? ` [${reason}]` : ''}`);
+
+      await userStatsRepository.updateStats({
+        xp: newXp,
+        level: newLevel,
+      });
+
+      if (newLevel > oldLevel) {
+        console.log(`🎉 Level up! ${oldLevel} → ${newLevel}`);
+      }
+    } catch (error) {
+      console.error('[UserStatsService] Failed to add XP:', error);
+    }
+  }
 }
 
 export const userStatsService = new UserStatsService();

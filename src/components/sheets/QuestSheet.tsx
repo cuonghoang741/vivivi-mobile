@@ -29,6 +29,13 @@ import { ToastStackView } from '../toast/ToastStackView';
 const VCOIN_ICON = require('../../assets/images/VCoin.png');
 const RUBY_ICON = require('../../assets/images/Ruby.png');
 
+type TabKey = 'daily' | 'level';
+
+type TabRequest = {
+  tab: TabKey;
+  token: number;
+};
+
 type QuestSheetProps = {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
@@ -55,9 +62,9 @@ type QuestSheetProps = {
   level: number;
   xp: number;
   nextLevelXp: number;
+  initialTabRequest?: TabRequest | null;
+  onRefreshLoginRewards?: () => void;
 };
-
-type TabKey = 'daily' | 'level';
 
 export const QuestSheet: React.FC<QuestSheetProps> = ({
   isOpened,
@@ -70,12 +77,21 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
   level,
   xp,
   nextLevelXp,
+  initialTabRequest,
+  onRefreshLoginRewards,
 }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('daily');
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [levelClaimingId, setLevelClaimingId] = useState<string | null>(null);
   const { animateIncrease, refresh } = usePurchaseContext();
+
+  useEffect(() => {
+    if (!isOpened || !initialTabRequest) {
+      return;
+    }
+    setActiveTab(initialTabRequest.tab);
+  }, [initialTabRequest?.token, initialTabRequest?.tab, isOpened]);
 
   const groupedLevelQuests = useMemo(() => {
     const groups = new Map<number, UserLevelQuest[]>();
@@ -164,19 +180,14 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
   );
 
   const renderDailyTab = () => {
-    const sortedQuests = useMemo(() => {
-      const completed = dailyState.visibleQuests.filter((q) => q.completed);
-      const inProgress = dailyState.visibleQuests.filter((q) => !q.completed);
-      return [...completed, ...inProgress];
-    }, [dailyState.visibleQuests]);
-
+    const completed = dailyState.visibleQuests.filter((q) => q.completed);
+    const inProgress = dailyState.visibleQuests.filter((q) => !q.completed);
+    const sortedQuests = [...completed, ...inProgress];
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.dailyTabContent}>
-          {/* Daily Check-In Section - Placeholder for now */}
-          <View style={styles.dailyCheckInSection}>
-            {/* WeeklyCheckinView will be added here */}
-          </View>
+          {/* Weekly Checkin Section (cloned from swift-version) */}
+          <WeeklyCheckinSection onRefreshLoginRewards={onRefreshLoginRewards} />
 
           {/* Daily Tasks Section */}
           <View style={styles.dailyTasksSection}>
@@ -673,6 +684,176 @@ const DailyTasksCountdownView: React.FC = () => {
   );
 };
 
+type WeekDay = {
+  id: number;
+  date: Date;
+  dateString: string;
+  isToday: boolean;
+  isCheckedIn: boolean;
+  canClaim: boolean;
+  isClaimed: boolean;
+  monthText: string;
+  dayText: string;
+};
+
+const WeeklyCheckinSection: React.FC<{
+  onRefreshLoginRewards?: () => void;
+}> = ({ onRefreshLoginRewards }) => {
+  const [weekDays, setWeekDays] = React.useState<WeekDay[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [canClaimToday, setCanClaimToday] = React.useState(false);
+  const [hasClaimedToday, setHasClaimedToday] = React.useState(false);
+
+  const loadWeekData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { LoginRewardService } = await import('../../services/LoginRewardService');
+      const service = new LoginRewardService();
+      const { state } = await service.hydrate();
+      const status = state;
+
+      setCanClaimToday(status.canClaimToday);
+      setHasClaimedToday(status.hasClaimedToday);
+
+      const calendar = new Date();
+      const now = new Date();
+      const weekday = now.getDay(); // 0 (Sun) - 6 (Sat)
+      const daysFromMonday = (weekday + 6) % 7; // Monday = 0
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - daysFromMonday);
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = `${date.getMonth() + 1}`.padStart(2, '0');
+        const day = `${date.getDate()}`.padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const todayString = formatDate(now);
+      const lastClaimDate = status.record.last_claim_date ?? null;
+
+      const days: WeekDay[] = [];
+      for (let i = 0; i < 7; i += 1) {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + i);
+        const isToday = formatDate(date) === todayString;
+        const dateString = formatDate(date);
+        const isCheckedIn = lastClaimDate === dateString;
+        const canClaim = isToday && status.canClaimToday;
+        const isClaimed = isToday && status.hasClaimedToday;
+        const finalIsCheckedIn = isCheckedIn || (isToday && isClaimed);
+
+        const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+        const monthText = monthFormatter.format(date);
+        const dayText = `${date.getDate()}`;
+
+        days.push({
+          id: i,
+          date,
+          dateString,
+          isToday,
+          isCheckedIn: finalIsCheckedIn,
+          canClaim,
+          isClaimed,
+          monthText,
+          dayText,
+        });
+      }
+
+      setWeekDays(days);
+    } catch (error) {
+      console.warn('[WeeklyCheckinSection] Failed to load week data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWeekData();
+  }, [loadWeekData]);
+
+  const subtitle = useMemo(() => {
+    if (canClaimToday && !hasClaimedToday) {
+      return 'Ready to claim rewards';
+    }
+    return 'Rewards claimed';
+  }, [canClaimToday, hasClaimedToday]);
+
+  const handleClaimToday = useCallback(async () => {
+    try {
+      const { LoginRewardService } = await import('../../services/LoginRewardService');
+      const service = new LoginRewardService();
+      const { rewards, state } = await service.hydrate();
+      const result = await service.claimTodayReward({ record: state.record, rewards });
+      if (result?.updatedRecord) {
+        setHasClaimedToday(true);
+        setCanClaimToday(false);
+        await loadWeekData();
+        onRefreshLoginRewards?.();
+      }
+    } catch (error) {
+      console.warn('[WeeklyCheckinSection] Failed to claim today reward:', error);
+    }
+  }, [loadWeekData, onRefreshLoginRewards]);
+
+  const isSkeleton = loading || weekDays.length === 0;
+
+  return (
+    <View style={styles.dailyCheckInSection}>
+      <View style={{ alignItems: 'center', gap: 16 }}>
+        <View style={{ alignItems: 'center', gap: 4 }}>
+          <Text style={styles.weeklyTitle}>Weekly Checkin</Text>
+          {isSkeleton ? (
+            <View style={styles.weeklySubtitleSkeleton} />
+          ) : (
+            <Text style={styles.weeklySubtitle}>{subtitle}</Text>
+          )}
+        </View>
+        {isSkeleton ? (
+          <View style={styles.weeklyDaysSkeletonRow}>
+            {Array.from({ length: 7 }).map((_, idx) => (
+              <View key={idx} style={styles.weeklyDaySkeletonCircle} />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.weeklyDaysRow}>
+            {weekDays.map(day => (
+              <View key={day.id} style={styles.weeklyDayContainer}>
+                {day.isToday && !day.isCheckedIn ? (
+                  <Pressable
+                    onPress={day.canClaim && !day.isClaimed ? handleClaimToday : undefined}
+                    style={styles.weeklyDayTodayCircle}
+                  >
+                    <View style={styles.weeklyDayInner}>
+                      <Text style={styles.weeklyDayMonthToday}>{day.monthText}</Text>
+                      <Text style={styles.weeklyDayNumberToday}>{day.dayText}</Text>
+                    </View>
+                    {day.canClaim && !day.isClaimed && <View style={styles.weeklyDayDot} />}
+                  </Pressable>
+                ) : day.isCheckedIn ? (
+                  <View style={styles.weeklyDayCheckedCircle}>
+                    <View style={styles.weeklyDayInner}>
+                      <Text style={styles.weeklyDayMonthChecked}>{day.monthText}</Text>
+                      <Text style={styles.weeklyDayNumberChecked}>{day.dayText}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.weeklyDayInactiveCircle}>
+                    <View style={styles.weeklyDayInner}>
+                      <Text style={styles.weeklyDayMonthInactive}>{day.monthText}</Text>
+                      <Text style={styles.weeklyDayNumberInactive}>{day.dayText}</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
 const CurrentLevelSection: React.FC<{ level: number; xp: number; nextLevelXp: number }> = ({
   level,
   xp,
@@ -1161,6 +1342,112 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: 'rgba(0, 0, 0, 0.6)',
+  },
+  weeklyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  weeklySubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(0, 0, 0, 0.6)',
+  },
+  weeklySubtitleSkeleton: {
+    width: 160,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  weeklyDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 4,
+  },
+  weeklyDaysSkeletonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 4,
+  },
+  weeklyDaySkeletonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  weeklyDayContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  weeklyDayInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+  },
+  weeklyDayTodayCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F52B7B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  weeklyDayMonthToday: {
+    fontSize: 8,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  weeklyDayNumberToday: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  weeklyDayDot: {
+    position: 'absolute',
+    bottom: -4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F52B7B',
+  },
+  weeklyDayCheckedCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF6CA6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weeklyDayMonthChecked: {
+    fontSize: 8,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  weeklyDayNumberChecked: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  weeklyDayInactiveCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weeklyDayMonthInactive: {
+    fontSize: 8,
+    fontWeight: '500',
+    color: '#F52B7B',
+  },
+  weeklyDayNumberInactive: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F52B7B',
   },
   dailyTasksSkeleton: {
     gap: 16,

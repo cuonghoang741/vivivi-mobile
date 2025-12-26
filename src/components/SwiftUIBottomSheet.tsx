@@ -24,11 +24,13 @@ export const SwiftUIBottomSheet: React.FC<SwiftUIBottomSheetProps> = ({
     <Host style={[styles.container, { width }]}>
       <BottomSheet
         isOpened={isOpened}
+        presentationDragIndicator="visible"
+        presentationDetents={[0.1, 0.5, 1]}
         onIsOpenedChange={onIsOpenedChange}
       >
         {title && (
           <VStack spacing={8}>
-            <Text style={styles.title}>{title}</Text>
+            <Text>{title}</Text>
           </VStack>
         )}
         {children}

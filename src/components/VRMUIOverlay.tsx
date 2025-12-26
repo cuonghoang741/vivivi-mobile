@@ -230,12 +230,12 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
           badgeCount={unclaimedQuestCount > 0 ? unclaimedQuestCount : undefined}
           onPress={onQuestPress}
         />
-        <IconButton
+        {/* <IconButton
           iconName="calendar-outline"
           highlight={canClaimCalendar}
           showBadge={canClaimCalendar}
           onPress={onCalendarPress}
-        />
+        /> */}
         {hasMessages ? (
           <IconButton
             iconName={
@@ -244,10 +244,10 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             onPress={onToggleChatList}
           />
         ) : null}
-        <IconButton
+        {/* <IconButton
           iconName="bug-outline"
           onPress={handleRandomToast}
-        />
+        /> */}
       </View>
     </View>
   );

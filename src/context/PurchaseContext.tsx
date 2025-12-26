@@ -47,6 +47,7 @@ type PurchaseContextValue = {
   loading: boolean;
   refresh: () => Promise<void>;
   animateIncrease: (delta: { vcoin?: number; ruby?: number }) => void;
+  updateVcoin: (newVcoin: number) => void; // For voice call metering
   showPurchaseSheet: boolean;
   setShowPurchaseSheet: React.Dispatch<React.SetStateAction<boolean>>;
   setPurchaseCompleteCallback: (
@@ -288,6 +289,16 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
     },
     [animateToValue]
   );
+
+  // Update vcoin directly (for voice call metering - no animation)
+  const updateVcoin = useCallback((newVcoin: number) => {
+    setBalance((prev) => {
+      const next = { ...prev, vcoin: Math.max(0, newVcoin) };
+      // Update animated balance immediately without animation
+      setAnimatedBalance((prevAnim) => ({ ...prevAnim, vcoin: next.vcoin }));
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!hasRestoredSession) {
@@ -642,6 +653,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
       loading,
       refresh,
       animateIncrease,
+      updateVcoin,
       showPurchaseSheet,
       setShowPurchaseSheet,
       setPurchaseCompleteCallback,
@@ -672,6 +684,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
       loading,
       refresh,
       animateIncrease,
+      updateVcoin,
       showPurchaseSheet,
       setPurchaseCompleteCallback,
       confirmPurchase,

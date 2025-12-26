@@ -181,6 +181,10 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     setState(prev => ({ ...prev, showChatList: !prev.showChatList }));
   }, []);
 
+  const setShowChatList = useCallback((value: boolean) => {
+    setState(prev => ({ ...prev, showChatList: value }));
+  }, []);
+
   const loadHistory = useCallback(
     async (cursor?: string) => {
       if (!characterId) return;
@@ -252,6 +256,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     state,
     sendText,
     toggleChatList,
+    setShowChatList,
     openHistory,
     closeHistory,
     loadMoreHistory,
