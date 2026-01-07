@@ -6,7 +6,7 @@ import { CurrencyIcon } from '../CurrencyIcon';
 
 export type RewardItem = {
   id: string;
-  type: 'vcoin' | 'ruby' | 'xp' | 'bp' | 'energy' | 'custom';
+  type: 'vcoin' | 'ruby' | 'xp' | 'bp' | 'energy' | 'costume' | 'custom';
   amount: number;
   icon: string;
   color: string;
@@ -168,8 +168,8 @@ export const RewardClaimOverlayHelpers = {
     }
 
     if (vcoin > 0) {
-        rewards.push({
-          id: generateId(),
+      rewards.push({
+        id: generateId(),
         type: 'vcoin',
         amount: vcoin,
         icon: 'cash',
@@ -178,8 +178,8 @@ export const RewardClaimOverlayHelpers = {
     }
 
     if (ruby > 0) {
-        rewards.push({
-          id: generateId(),
+      rewards.push({
+        id: generateId(),
         type: 'ruby',
         amount: ruby,
         icon: 'diamond',
@@ -188,8 +188,8 @@ export const RewardClaimOverlayHelpers = {
     }
 
     if (xp > 0) {
-        rewards.push({
-          id: generateId(),
+      rewards.push({
+        id: generateId(),
         type: 'xp',
         amount: xp,
         icon: 'star',

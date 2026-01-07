@@ -40,6 +40,20 @@
             pointer-events: none;
         }
 
+        #bgVideo {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 0;
+            opacity: 0;
+            transition: opacity 400ms ease;
+            pointer-events: none;
+            display: none;
+        }
+
         /* Call mode background blur layer. We re-use #bgFadeOverlay with this class. */
         #bgFadeOverlay.call-blur {
             opacity: 1 !important;
@@ -167,6 +181,7 @@
 
 <body>
     <div id="bgFadeOverlay"></div>
+    <video id="bgVideo" muted loop playsinline></video>
     <div id="loadingOverlay">
         <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" stroke="#fff">
             <g fill="none" fill-rule="evenodd" stroke-width="4">
@@ -1067,17 +1082,35 @@
                 /* please load a VRM model first */
                 return;
             }
+
+            // Stop current action completely to prevent position blending issues
+            if (currentAction) {
+                try {
+                    currentAction.stop();
+                } catch (e) { }
+            }
+
+            // Reset VRM scene and hips bone position to prevent cumulative drift
+            try {
+                currentVrm.scene.position.set(0, 0, 0);
+                // Also reset hips bone position if accessible
+                const hipsBone = currentVrm.humanoid?.getNormalizedBoneNode('hips');
+                if (hipsBone) {
+                    hipsBone.position.set(0, hipsBone.position.y, 0); // Keep Y, reset X/Z
+                }
+            } catch (e) { console.warn('Failed to reset VRM position:', e); }
+
             updateFileDisplay(document.getElementById('currentModel').textContent, `Loading ${animationName}...`);
             loadHumanoidAnimation(animationUrl, currentVrm)
                 .then((clip) => {
+                    // Reset position again before playing new animation
+                    try {
+                        currentVrm.scene.position.set(0, 0, 0);
+                    } catch (e) { }
+
                     const newAction = currentMixer.clipAction(clip);
                     newAction.reset();
-                    if (currentAction && currentAction !== newAction) {
-                        newAction.play();
-                        currentAction.crossFadeTo(newAction, crossFadeDuration, true);
-                    } else {
-                        newAction.play();
-                    }
+                    newAction.play();
                     currentAction = newAction;
                     updateFileDisplay(document.getElementById('currentModel').textContent, animationName);
                     if (!initialAnimationApplied) {
@@ -1177,14 +1210,53 @@
             }
         }
 
+        // Load a specific animation by name (exposed to native)
+        window.loadAnimationByName = async function (animName) {
+            try {
+                if (!currentVrm || !currentMixer) {
+                    console.warn('No VRM loaded, cannot load animation');
+                    return;
+                }
+                // Find animation in fbxFiles (case-insensitive match)
+                let matchedName = fbxFiles.find(f => f.toLowerCase() === animName.toLowerCase());
+                if (!matchedName) {
+                    // Try partial match
+                    matchedName = fbxFiles.find(f => f.toLowerCase().includes(animName.toLowerCase()));
+                }
+                if (!matchedName) {
+                    // Try matching without .fbx extension
+                    matchedName = fbxFiles.find(f => f.replace('.fbx', '').toLowerCase() === animName.toLowerCase());
+                }
+                if (matchedName) {
+                    console.log('Loading animation:', matchedName);
+                    const fbxUrl = await getAnimationURL(matchedName);
+                    loadFBX(fbxUrl, matchedName, 0.5);
+                } else {
+                    console.warn('Animation not found:', animName, '- falling back to random');
+                    window.loadNextAnimation();
+                }
+            } catch (e) {
+                console.error('Error loading animation by name:', e);
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', async function () {
             // Apply initial background from native if provided
             try {
                 if (typeof window.initialBackgroundUrl === 'string' && window.initialBackgroundUrl.trim().length) {
                     const url = window.initialBackgroundUrl.trim();
-                    document.body.style.backgroundImage = `url('${url}')`;
-                    // Mark ready since background is applied synchronously
-                    if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                    if (url.toLowerCase().endsWith('.mp4') || url.toLowerCase().endsWith('.webm')) {
+                        // It's a video
+                        if (window.setBackgroundVideo) window.setBackgroundVideo(url);
+                        else if (window.smoothSetBackgroundVideo) window.smoothSetBackgroundVideo(url);
+
+                        // Mark ready immediately to avoid blocking if video takes time
+                        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                    } else {
+                        document.body.style.backgroundImage = `url('${url}')`;
+                        // Mark ready since background is applied synchronously
+                        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                    }
                 } else {
                     // If no background URL provided, mark as ready anyway (use default background)
                     // This ensures initialReady can be sent even without persisted background
@@ -1358,6 +1430,13 @@
 
             function smoothSetBackground(url) {
                 try {
+                    // Hide video if active
+                    const video = document.getElementById('bgVideo');
+                    if (video) {
+                        video.style.opacity = '0';
+                        setTimeout(() => { if (video.style.opacity === '0') { video.pause(); video.style.display = 'none'; } }, 400);
+                    }
+
                     const overlay = document.getElementById('bgFadeOverlay');
                     if (!overlay || !url) {
                         document.body.style.backgroundImage = `url('${url}')`;
@@ -1409,32 +1488,105 @@
                 } catch { }
             }
 
+            function smoothSetBackgroundVideo(url) {
+                try {
+                    const video = document.getElementById('bgVideo');
+                    const overlay = document.getElementById('bgFadeOverlay');
+                    if (!video || !url) return;
+
+                    const myId = ++bgTransitionId;
+
+                    // Reset video state
+                    video.style.display = 'block';
+                    video.style.opacity = '0';
+                    video.src = url;
+                    video.load();
+
+                    // Wait for video to be ready before fading in
+                    const onCanPlay = () => {
+                        if (myId !== bgTransitionId) return; // Superseded by another transition
+
+                        video.removeEventListener('canplay', onCanPlay);
+                        video.removeEventListener('error', onError);
+
+                        // Start playing
+                        video.play().catch(e => console.error('Video play error:', e));
+
+                        // Fade in video
+                        requestAnimationFrame(() => {
+                            video.style.opacity = '1';
+                        });
+
+                        // Fade out overlay image
+                        if (overlay) {
+                            overlay.style.opacity = '0';
+                        }
+
+                        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                    };
+
+                    const onError = () => {
+                        video.removeEventListener('canplay', onCanPlay);
+                        video.removeEventListener('error', onError);
+                        console.error('Video load error for:', url);
+                        // Hide video on error
+                        video.style.display = 'none';
+                        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                    };
+
+                    video.addEventListener('canplay', onCanPlay, { once: true });
+                    video.addEventListener('error', onError, { once: true });
+
+                } catch (e) { console.error(e); }
+            }
+
             // Public controls
             window.nextBackground = function () {
                 try {
                     if (!backgroundList.length) { fetchBackgrounds(); return; }
                     bgIndex = (bgIndex + 1) % backgroundList.length;
-                    const url = backgroundList[bgIndex].image || backgroundList[bgIndex].thumbnail;
-                    if (url) smoothSetBackground(url);
+                    const item = backgroundList[bgIndex];
+                    if (item.video_url) {
+                        smoothSetBackgroundVideo(item.video_url);
+                    } else {
+                        const url = item.image || item.thumbnail;
+                        if (url) smoothSetBackground(url);
+                    }
                 } catch { }
             };
             window.prevBackground = function () {
                 try {
                     if (!backgroundList.length) { fetchBackgrounds(); return; }
                     bgIndex = (bgIndex - 1 + backgroundList.length) % backgroundList.length;
-                    const url = backgroundList[bgIndex].image || backgroundList[bgIndex].thumbnail;
-                    if (url) smoothSetBackground(url);
+                    const item = backgroundList[bgIndex];
+                    if (item.video_url) {
+                        smoothSetBackgroundVideo(item.video_url);
+                    } else {
+                        const url = item.image || item.thumbnail;
+                        if (url) smoothSetBackground(url);
+                    }
                 } catch { }
             };
             window.setBackgroundImage = function (url) {
                 try {
-                    if (url) smoothSetBackground(url);
+                    // Check if it looks like a video if calling setBackgroundImage generically
+                    if (url && (url.toLowerCase().endsWith('.mp4') || url.toLowerCase().endsWith('.webs') || url.toLowerCase().endsWith('.webm'))) {
+                        smoothSetBackgroundVideo(url);
+                    } else {
+                        if (url) smoothSetBackground(url);
+                    }
                     // Try to align bgIndex with the provided url if it exists in list
-                    const i = backgroundList.findIndex(r => r.image === url || r.thumbnail === url);
+                    const i = backgroundList.findIndex(r => r.image === url || r.thumbnail === url || r.video_url === url);
                     if (i >= 0) bgIndex = i;
                     // Maintain call mode blur if active
                     if (__callMode) { __applyCallBackgroundBlur(true); }
                 } catch { }
+            };
+            window.setBackgroundVideo = function (url) {
+                if (url) smoothSetBackgroundVideo(url);
+                // Try align index
+                const i = backgroundList.findIndex(r => r.video_url === url);
+                if (i >= 0) bgIndex = i;
             };
 
             // Expose current background name to native (kept for backward compatibility)
@@ -1454,6 +1606,22 @@
 
             // Initial fetch
             fetchBackgrounds();
+            window.playRandomGreeting = async function () {
+                try {
+                    const greetings = ["Standing Greeting.fbx", "Hand Raising.fbx", "Blow A Kiss.fbx", "Happy.fbx"];
+                    const randomName = getRandomItem(greetings);
+                    if (randomName) {
+                        console.log('🎲 Playing random greeting:', randomName);
+                        // Use getAnimationURL to benefit from caching and cors handling
+                        const url = await getAnimationURL(randomName);
+                        if (url) {
+                            loadFBX(url, randomName, 0.3);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to play random greeting:', e);
+                }
+            };
             window.triggerDance = function () {
                 try { window.loadNextAnimation && window.loadNextAnimation(); } catch { }
             };

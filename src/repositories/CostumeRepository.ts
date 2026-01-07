@@ -5,12 +5,14 @@ export interface CostumeItem {
   character_id: string;
   costume_name: string;
   url?: string | null;
+  video_url?: string | null;
   thumbnail?: string | null;
   model_url?: string | null;
   tier?: string | null;
   available?: boolean | null;
   price_vcoin?: number | null;
   price_ruby?: number | null;
+  streak_days?: number | null;
   created_at?: string;
 }
 
@@ -26,7 +28,7 @@ export class CostumeRepository extends BaseRepository {
     const { data, error } = await this.client
       .from('character_costumes')
       .select(
-        'id,character_id,costume_name,url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,created_at'
+        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,created_at'
       )
       .eq('character_id', targetCharacterId)
       .eq('available', true)
@@ -43,7 +45,7 @@ export class CostumeRepository extends BaseRepository {
     const { data, error } = await this.client
       .from('character_costumes')
       .select(
-        'id,character_id,costume_name,url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,created_at'
+        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,created_at'
       )
       .eq('id', costumeId)
       .limit(1);

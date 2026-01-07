@@ -1,6 +1,9 @@
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import AssetRepository from '../repositories/AssetRepository';
 import { TransactionRepository } from '../repositories/TransactionRepository';
+import { telegramNotificationService } from './TelegramNotificationService';
+import { getTelegramUserInfo } from '../utils/telegramUserHelper';
+import { analyticsService } from './AnalyticsService';
 
 type PurchaseParams = {
   itemId: string;
@@ -79,6 +82,21 @@ export class PurchaseService {
     if (!assetCreated) {
       throw new PurchaseError('Không thể lưu quyền sở hữu vật phẩm', 'PURCHASE_FAILED');
     }
+
+    // Send Telegram notification for purchase item (fire-and-forget)
+    getTelegramUserInfo().then(userInfo => {
+      telegramNotificationService.notifyPurchaseItem(
+        userInfo,
+        params.itemId,
+        params.itemType,
+        priceVcoin,
+        priceRuby
+      );
+    }).catch(err => console.warn('[PurchaseService] Failed to send Telegram notification:', err));
+    
+    // Track purchase and currency spend analytics
+    analyticsService.logPurchaseComplete(params.itemId, params.itemType, priceVcoin + priceRuby);
+    analyticsService.logCurrencySpend(priceVcoin, priceRuby, params.itemType);
 
     return {
       newBalance: nextBalance,

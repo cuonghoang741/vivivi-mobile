@@ -9,6 +9,8 @@ import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureClientId, clearClientId } from "../utils/clientId";
 import { getSupabaseAuthHeaders } from "../utils/supabaseHelpers";
+import { analyticsService } from "./AnalyticsService";
+import { revenueCatManager } from "./RevenueCatManager";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -381,7 +383,9 @@ export class AuthManager {
 
     try {
       await this.client.auth.signOut();
+      await revenueCatManager.logout();
       this.setState({ session: null, user: null });
+      analyticsService.logSignOut();
     } catch (error: any) {
       this.setState({ errorMessage: error.message || "Failed to sign out" });
       throw error;
@@ -415,6 +419,8 @@ export class AuthManager {
           session: data.session,
           user: data.user,
         });
+        analyticsService.logSignIn('email');
+        analyticsService.setUserId(data.user.id);
       }
 
       this.setState({ isLoading: false });
@@ -517,6 +523,10 @@ export class AuthManager {
         session: data.session ?? null,
         user: data.user ?? null,
       });
+      if (data.user) {
+        analyticsService.logSignIn('apple');
+        analyticsService.setUserId(data.user.id);
+      }
     } catch (error: any) {
       if (error?.code === "ERR_CANCELED") {
         console.log("[AuthManager] User cancelled Sign in with Apple");
@@ -575,7 +585,7 @@ export class AuthManager {
             authPayload.authCode
           );
 
-          console.log("sessionData",sessionData)
+        console.log("sessionData", sessionData)
         if (exchangeError) {
           throw exchangeError;
         }
@@ -584,6 +594,10 @@ export class AuthManager {
           session: sessionData.session ?? null,
           user: sessionData.user ?? null,
         });
+        if (sessionData.user) {
+          analyticsService.logSignIn('google');
+          analyticsService.setUserId(sessionData.user.id);
+        }
         return;
       }
 
@@ -602,6 +616,10 @@ export class AuthManager {
           session: sessionData.session ?? null,
           user: sessionData.user ?? null,
         });
+        if (sessionData.user) {
+          analyticsService.logSignIn('google');
+          analyticsService.setUserId(sessionData.user.id);
+        }
         return;
       }
 

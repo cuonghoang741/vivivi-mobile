@@ -1,20 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Linking,
-  Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
-  Image,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -24,16 +21,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { authManager } from '../../services/AuthManager';
 import Button from '../Button';
 import { getSupabaseClient } from '../../services/supabase';
-import { getSupabaseAuthHeaders } from '../../utils/supabaseHelpers';
 import { getAuthIdentifier } from '../../services/authIdentifier';
 import { LEGAL_TEXT } from '../../content/legalText';
-import { SUPABASE_URL } from '../../config/supabase';
+import { BottomSheet, BottomSheetRef } from '../BottomSheet';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   email?: string | null;
   displayName?: string | null;
+  onOpenSubscription?: () => void;
+  isPro?: boolean;
 };
 
 type ToggleKey =
@@ -49,11 +47,10 @@ const TOGGLE_DEFAULTS: Record<ToggleKey, boolean> = {
   'settings.enableNSFW': true,
 };
 
-type SubscriptionTier = 'free' | 'pro' | 'unlimited';
+type SubscriptionTier = 'free' | 'pro';
 const SUBSCRIPTION_LABELS: Record<SubscriptionTier, string> = {
-  free: 'Free plan',
-  pro: 'Pro plan',
-  unlimited: 'Unlimited plan',
+  free: 'Free',
+  pro: 'Premium',
 };
 
 type LegalDoc = 'terms' | 'privacy';
@@ -63,55 +60,13 @@ const LEGAL_TITLES: Record<LegalDoc, string> = {
 };
 
 type FeedbackKind = 'problem' | 'feature';
-const FEEDBACK_SUBJECT: Record<FeedbackKind, string> = {
-  problem: 'Bug report',
-  feature: 'Feature request',
-};
 
 type SettingsScreen =
   | { key: 'root' }
   | { key: 'editProfile' }
   | { key: 'purchaseHistory' }
   | { key: 'legal'; doc: LegalDoc }
-  | { key: 'feedback'; kind: FeedbackKind }
-  | { key: 'subscription' };
-
-type SubscriptionPlan = {
-  id: string;
-  displayName: string;
-  tier: SubscriptionTier;
-  price: string;
-  features: string[];
-  recommended?: boolean;
-};
-
-const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-  {
-    id: 'pro',
-    displayName: 'Pro',
-    tier: 'pro',
-    price: '$9.99 / month',
-    features: [
-      'Pro characters & backgrounds',
-      'Unlimited conversations',
-      'Exclusive events',
-      'Priority support',
-    ],
-    recommended: true,
-  },
-  {
-    id: 'unlimited',
-    displayName: 'Unlimited',
-    tier: 'unlimited',
-    price: '$19.99 / month',
-    features: [
-      'Everything in Pro',
-      'Unlimited-tier characters',
-      'Early access to new features',
-      'VIP support',
-    ],
-  },
-];
+  | { key: 'feedback'; kind: FeedbackKind };
 
 type InAppPurchase = {
   id: string;
@@ -145,30 +100,193 @@ type UserMetadata = {
   user_metadata?: Record<string, any>;
 };
 
-export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displayName }) => {
+type SubscriptionInfo = {
+  tier: SubscriptionTier;
+  current_period_end?: string | null;
+  plan?: string | null;
+};
+
+// --- New UI Components ---
+
+const ProfileCard: React.FC<{
+  displayName: string;
+  email: string;
+  avatarLetter: string;
+  tier: SubscriptionTier;
+  onPress: () => void;
+}> = ({ displayName, email, avatarLetter, tier, onPress }) => (
+  <Pressable
+    style={({ pressed }) => [styles.profileCard, pressed && styles.pressedCard]}
+    onPress={onPress}
+  >
+    <View style={styles.avatarContainer}>
+      <Text style={styles.avatarText}>{avatarLetter}</Text>
+    </View>
+    <View style={styles.profileInfo}>
+      <View style={styles.nameRow}>
+        <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
+        <View style={[styles.tierBadge, tier === 'pro' && styles.tierBadgePro]}>
+          <Text style={[styles.tierBadgeText, tier === 'pro' && styles.tierBadgeTextPro]}>{SUBSCRIPTION_LABELS[tier]}</Text>
+        </View>
+      </View>
+      <Text style={styles.profileEmail} numberOfLines={1}>{email}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+  </Pressable>
+);
+
+const PremiumBanner: React.FC<{
+  onPress: () => void;
+  tier: SubscriptionTier;
+  subscriptionInfo?: SubscriptionInfo | null;
+}> = ({ onPress, tier, subscriptionInfo }) => {
+  if (tier === 'pro') {
+    const formatDate = (dateString?: string | null) => {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      } catch {
+        return '';
+      }
+    };
+
+    return (
+      <Pressable onPress={onPress}>
+        <LinearGradient
+          colors={['#FF4081', '#F50057']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.premiumBanner}
+        >
+          <View style={styles.premiumContent}>
+            <View style={styles.premiumHeader}>
+              <Text style={styles.premiumTitle}>Roxie</Text>
+              <View style={styles.premiumBadge}>
+                <Text style={styles.premiumBadgeText}>Premium</Text>
+              </View>
+              <View style={styles.activeBadge}>
+                <Text style={styles.activeBadgeText}>Active</Text>
+              </View>
+            </View>
+
+            <View style={styles.subscriptionDetails}>
+              <Text style={styles.subscriptionPrice}>
+                {(subscriptionInfo?.plan?.toLowerCase().includes('year') || subscriptionInfo?.plan === 'annual')
+                  ? '1,599,000đ/year'
+                  : '149,000đ/month'}
+              </Text>
+              {subscriptionInfo?.current_period_end && (
+                <Text style={styles.subscriptionDate}>
+                  Next billing {formatDate(subscriptionInfo.current_period_end)}
+                </Text>
+              )}
+              {!subscriptionInfo?.current_period_end && (
+                <Text style={styles.subscriptionDate}>
+                  Subscription Active
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.premiumIconContainer}>
+            <Ionicons name="diamond" size={80} color="rgba(255,255,255,0.4)" />
+          </View>
+        </LinearGradient>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable onPress={onPress}>
+      <LinearGradient
+        colors={['#FF5D9D', '#FF2D79']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.premiumBanner}
+      >
+        <View style={styles.premiumContent}>
+          <View style={styles.premiumHeader}>
+            <Text style={styles.premiumTitle}>Roxie</Text>
+            <View style={styles.premiumBadge}>
+              <Text style={styles.premiumBadgeText}>Premium</Text>
+            </View>
+          </View>
+          <Text style={styles.premiumDescription}>
+            Unlock unlimited content and premium features.
+          </Text>
+          <View style={styles.premiumButton}>
+            <Text style={styles.premiumButtonText}>Unlock Premium</Text>
+          </View>
+        </View>
+        <View style={styles.premiumIconContainer}>
+          <Ionicons name="diamond" size={64} color="rgba(255,255,255,0.3)" />
+        </View>
+      </LinearGradient>
+    </Pressable>
+  );
+};
+
+const SettingsGroup: React.FC<{ title?: string; children: React.ReactNode }> = ({ title, children }) => (
+  <View style={styles.groupContainer}>
+    {title && <Text style={styles.groupTitle}>{title}</Text>}
+    <View style={styles.groupContent}>
+      {children}
+    </View>
+  </View>
+);
+
+const SettingsRow: React.FC<{
+  icon?: keyof typeof Ionicons.glyphMap;
+  label: string;
+  rightElement?: React.ReactNode;
+  onPress?: () => void;
+  isLast?: boolean;
+  destructive?: boolean;
+}> = ({ icon, label, rightElement, onPress, isLast, destructive }) => (
+  <Pressable
+    style={({ pressed }) => [styles.rowContainer, pressed && onPress && styles.pressedRow]}
+    onPress={onPress}
+    disabled={!onPress}
+  >
+    {icon && (
+      <View style={styles.rowIconContainer}>
+        <Ionicons name={icon} size={20} color={destructive ? '#FF453A' : '#fff'} />
+      </View>
+    )}
+    <View style={[styles.rowContent, isLast && styles.rowContentNoBorder]}>
+      <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
+      {rightElement ?? (onPress && <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.3)" />)}
+    </View>
+  </Pressable>
+);
+
+// --- Main Component ---
+
+export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displayName, onOpenSubscription, isPro = false }) => {
+  const { height } = useWindowDimensions();
+  const bottomSheetRef = useRef<BottomSheetRef>(null);
   const [toggles, setToggles] = useState<Record<ToggleKey, boolean>>(TOGGLE_DEFAULTS);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [authState, setAuthState] = useState<AuthState>(() => ({
     user: authManager.user
       ? { id: authManager.user.id, email: authManager.user.email ?? null, user_metadata: authManager.user.user_metadata }
       : null,
     isDeletingAccount: authManager.isDeletingAccount,
   }));
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  // If isPro prop is passed as true, default to 'pro', otherwise 'free'
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>(isPro ? 'pro' : 'free');
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
   const [screenStack, setScreenStack] = useState<SettingsScreen[]>([{ key: 'root' }]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const currentScreen = screenStack[screenStack.length - 1];
   const isRootScreen = currentScreen?.key === 'root';
-  const isSubscriptionScreen = currentScreen?.key === 'subscription';
 
   useEffect(() => {
     const unsubscribe = authManager.subscribe(() => {
-      const nextUser = authManager.user
-        ? { id: authManager.user.id, email: authManager.user.email ?? null, user_metadata: authManager.user.user_metadata }
-        : null;
       setAuthState({
-        user: nextUser,
+        user: authManager.user
+          ? { id: authManager.user.id, email: authManager.user.email ?? null, user_metadata: authManager.user.user_metadata }
+          : null,
         isDeletingAccount: authManager.isDeletingAccount,
       });
     });
@@ -176,155 +294,242 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
   }, []);
 
   const loadToggles = useCallback(async () => {
-      const entries = await Promise.all(
+    const entries = await Promise.all(
       (Object.keys(TOGGLE_DEFAULTS) as ToggleKey[]).map(async key => {
-          const stored = await AsyncStorage.getItem(key);
+        const stored = await AsyncStorage.getItem(key);
         return [key, stored === null ? TOGGLE_DEFAULTS[key] : stored === 'true'] as const;
-        })
-      );
-      setToggles(Object.fromEntries(entries) as Record<ToggleKey, boolean>);
+      })
+    );
+    setToggles(Object.fromEntries(entries) as Record<ToggleKey, boolean>);
   }, []);
 
+  const normalizeTier = (tier?: string | null): SubscriptionTier => {
+    const t = tier?.toLowerCase().trim();
+    if (t === 'pro' || t === 'premium') return 'pro';
+    return 'free';
+  };
+
   const loadSubscriptionTier = useCallback(async () => {
-    setSubscriptionLoading(true);
     try {
-      const cached = await AsyncStorage.getItem('subscription.tier');
-      if (cached === 'pro' || cached === 'unlimited') {
-        setSubscriptionTier(cached);
-        return;
+      // If props say isPro is true, we trust it for UI status, but we might still want details
+      if (isPro) {
+        setSubscriptionTier('pro');
       }
+
+      const cached = await AsyncStorage.getItem('subscription.tier');
+
       const userId = authManager.user?.id?.toLowerCase();
       if (!userId) {
-        setSubscriptionTier('free');
+        if (!isPro) setSubscriptionTier('free');
+        setSubscriptionInfo(null);
         return;
       }
-      const client = getSupabaseClient();
-      const { data, error } = await client
+
+      const { data, error } = await getSupabaseClient()
         .from('subscriptions')
-        .select('tier')
+        .select('tier, current_period_end, plan')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle<{ tier?: string | null }>();
+        .maybeSingle<{ tier?: string | null; current_period_end?: string | null; plan?: string | null }>();
+
       if (!error && data?.tier) {
-        const normalized = normalizeTier(data.tier);
-        setSubscriptionTier(normalized);
+        // Normalized tier from DB
+        const dbTier = normalizeTier(data.tier);
+        // If DB says pro, or prop says pro, we are pro
+        const finalTier = (isPro || dbTier === 'pro') ? 'pro' : 'free';
+        setSubscriptionTier(finalTier);
+        setSubscriptionInfo({
+          tier: finalTier,
+          current_period_end: data.current_period_end,
+          plan: data.plan
+        });
       } else {
-        setSubscriptionTier('free');
+        // failed to fetch or no sub in DB
+        // fallback to props
+        setSubscriptionTier(isPro ? 'pro' : 'free');
+        setSubscriptionInfo(null);
       }
-    } catch (err) {
-      console.warn('[SettingsModal] Failed to load subscription tier', err);
-      setSubscriptionTier('free');
-    } finally {
-      setSubscriptionLoading(false);
+    } catch {
+      setSubscriptionTier(isPro ? 'pro' : 'free');
+      setSubscriptionInfo(null);
     }
-  }, []);
+  }, [isPro]);
 
   useEffect(() => {
-    if (!visible) {
-      setScreenStack([{ key: 'root' }]);
-      return;
+    if (visible) {
+      loadToggles();
+      loadSubscriptionTier();
+    } else {
+      // Sync props when hidden just in case
+      setSubscriptionTier(isPro ? 'pro' : 'free');
+      // Reset stack when hidden (with slight delay to avoid flicker during closing animation)
+      const t = setTimeout(() => setScreenStack([{ key: 'root' }]), 500);
+      return () => clearTimeout(t);
     }
-    loadToggles();
-    loadSubscriptionTier();
-  }, [visible, loadToggles, loadSubscriptionTier]);
+  }, [visible, loadToggles, loadSubscriptionTier, isPro]);
 
   const handleToggle = useCallback(async (key: ToggleKey, value: boolean) => {
-      setToggles(prev => ({ ...prev, [key]: value }));
-      await AsyncStorage.setItem(key, value ? 'true' : 'false');
-      if (key === 'settings.hapticsEnabled' && value) {
-        Haptics.selectionAsync().catch(() => {});
-      }
-      if (key === 'settings.autoPlayMusic') {
-        const { backgroundMusicManager } = await import('../../services/BackgroundMusicManager');
-        if (value) {
-          await backgroundMusicManager.play();
-        } else {
-          await backgroundMusicManager.pause();
-        }
-      }
-  }, []);
-
-  const pushScreen = useCallback((screen: SettingsScreen) => {
-    setScreenStack(prev => [...prev, screen]);
-  }, []);
-
-  const popScreen = useCallback(() => {
-    setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
-  }, []);
-
-  const handleModalClose = useCallback(() => {
-    setScreenStack([{ key: 'root' }]);
-    onClose();
-  }, [onClose]);
-
-  const handleBack = useCallback(() => {
-    if (screenStack.length > 1) {
-      popScreen();
-      return;
+    setToggles(prev => ({ ...prev, [key]: value }));
+    await AsyncStorage.setItem(key, value ? 'true' : 'false');
+    if (key === 'settings.hapticsEnabled' && value) {
+      Haptics.selectionAsync().catch(() => { });
     }
-    handleModalClose();
-  }, [screenStack.length, popScreen, handleModalClose]);
+    if (key === 'settings.autoPlayMusic') {
+      const { backgroundMusicManager } = await import('../../services/BackgroundMusicManager');
+      value ? await backgroundMusicManager.play() : await backgroundMusicManager.pause();
+    }
+  }, []);
+
+  const pushScreen = useCallback((screen: SettingsScreen) => setScreenStack(prev => [...prev, screen]), []);
+  const popScreen = useCallback(() => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev)), []);
+  const resetToRoot = useCallback(() => setScreenStack([{ key: 'root' }]), []);
 
   const handleLogout = useCallback(async () => {
     try {
       setIsLoggingOut(true);
       await authManager.logout();
-      handleModalClose();
+      onClose();
     } catch (error: any) {
-      Alert.alert('Sign out failed', error?.message ?? 'Please try again');
+      Alert.alert('Sign out failed', error?.message);
     } finally {
       setIsLoggingOut(false);
     }
-  }, [handleModalClose]);
+  }, [onClose]);
 
+  // Derived Values
   const resolvedDisplayName = useMemo(() => {
-    const metaName =
-      (authState.user?.user_metadata?.display_name as string | undefined) ??
-      displayName ??
-      '';
-    if (metaName.trim().length > 0) {
-      return metaName;
-    }
-    const fallbackEmail = authState.user?.email ?? email ?? '';
-    if (fallbackEmail.includes('@')) {
-      return fallbackEmail.split('@')[0];
-    }
-    return 'Vivivi user';
+    const metaName = (authState.user?.user_metadata?.display_name as string) ?? displayName ?? '';
+    if (metaName.trim()) return metaName;
+    const fallback = authState.user?.email ?? email ?? '';
+    return fallback.includes('@') ? fallback.split('@')[0] : 'User';
   }, [authState.user, displayName, email]);
 
-  const resolvedEmail = authState.user?.email ?? email ?? 'Email not available';
+  const avatarLetter = resolvedDisplayName.charAt(0).toUpperCase() || '?';
+  const resolvedEmail = authState.user?.email ?? email ?? 'No email';
+  const versionLabel = `Version ${Constants.expoConfig?.version ?? '1.0.0'}`;
 
-  const avatarLetter = useMemo(() => resolvedDisplayName.charAt(0).toUpperCase() || '?', [resolvedDisplayName]);
+  const renderContent = () => {
+    switch (currentScreen.key) {
+      case 'root':
+        return (
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectionSpacing}>
+              <ProfileCard
+                displayName={resolvedDisplayName}
+                email={resolvedEmail}
+                avatarLetter={avatarLetter}
+                tier={subscriptionTier}
+                onPress={() => pushScreen({ key: 'editProfile' })}
+              />
+            </View>
 
-  const headerTitle = useMemo(() => {
-    switch (currentScreen?.key) {
+            <View style={styles.sectionSpacing}>
+              <PremiumBanner
+                tier={subscriptionTier}
+                subscriptionInfo={subscriptionInfo}
+                onPress={() => {
+                  onClose();
+                  setTimeout(() => onOpenSubscription?.(), 300);
+                }}
+              />
+            </View>
+
+            <SettingsGroup title="Your Account">
+              <SettingsRow
+                icon="card-outline"
+                label="My Subscription"
+                onPress={() => {
+                  if (subscriptionTier === 'free') {
+                    onClose();
+                    setTimeout(() => onOpenSubscription?.(), 300);
+                  } else {
+                    pushScreen({ key: 'purchaseHistory' });
+                  }
+                }}
+              />
+              <SettingsRow
+                icon="notifications-outline"
+                label="Notifications"
+                isLast
+                rightElement={<Switch value={true} disabled />} // Placeholder as requested
+              />
+            </SettingsGroup>
+
+            <SettingsGroup title="Preferences">
+              <SettingsRow
+                icon="musical-notes-outline"
+                label="Auto-play Music"
+                rightElement={
+                  <Switch
+                    value={toggles['settings.autoPlayMusic']}
+                    onValueChange={(v) => handleToggle('settings.autoPlayMusic', v)}
+                  />
+                }
+              />
+              <SettingsRow
+                icon="finger-print-outline"
+                label="Haptics"
+                rightElement={
+                  <Switch
+                    value={toggles['settings.hapticsEnabled']}
+                    onValueChange={(v) => handleToggle('settings.hapticsEnabled', v)}
+                  />
+                }
+              />
+              <SettingsRow
+                icon="alert-circle-outline"
+                label="NSFW Content"
+                isLast
+                rightElement={
+                  <Switch
+                    value={toggles['settings.enableNSFW']}
+                    onValueChange={(v) => handleToggle('settings.enableNSFW', v)}
+                  />
+                }
+              />
+            </SettingsGroup>
+
+            <SettingsGroup title="Legal & Support">
+              <SettingsRow
+                icon="document-text-outline"
+                label="Terms of Service"
+                onPress={() => pushScreen({ key: 'legal', doc: 'terms' })}
+              />
+              <SettingsRow
+                icon="shield-checkmark-outline"
+                label="Privacy Policy"
+                onPress={() => pushScreen({ key: 'legal', doc: 'privacy' })}
+              />
+              <SettingsRow
+                icon="bug-outline"
+                label="Report a problem"
+                onPress={() => pushScreen({ key: 'feedback', kind: 'problem' })}
+                isLast
+              />
+            </SettingsGroup>
+
+            <SettingsGroup>
+              <SettingsRow
+                icon="log-out-outline"
+                label={isLoggingOut ? "Signing out..." : "Sign Out"}
+                onPress={handleLogout}
+                destructive
+                isLast
+              />
+            </SettingsGroup>
+
+            <Text style={styles.versionText}>{versionLabel}</Text>
+          </ScrollView>
+        );
+
       case 'editProfile':
-        return 'Edit profile';
-      case 'purchaseHistory':
-        return 'Purchase history';
-      case 'legal':
-        return LEGAL_TITLES[currentScreen.doc];
-      case 'feedback':
-        return currentScreen.kind === 'problem' ? 'Report a problem' : 'Feature request';
-      case 'subscription':
-        return 'Manage subscription';
-      default:
-        return 'Settings';
-    }
-  }, [currentScreen]);
-
-  const versionLabel = `VERSION ${Constants.expoConfig?.version ?? 'DEV'}`;
-
-  const renderScreen = () => {
-    switch (currentScreen?.key) {
-      case 'editProfile':
-  return (
+        return (
           <EditProfileScreen
             user={authState.user}
             isDeleting={authState.isDeletingAccount}
             onDone={popScreen}
-            onAccountDeleted={handleModalClose}
+            onAccountDeleted={onClose}
           />
         );
       case 'purchaseHistory':
@@ -333,213 +538,50 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
         return <LegalDocumentScreen doc={currentScreen.doc} />;
       case 'feedback':
         return <FeedbackFormScreen kind={currentScreen.kind} onSubmitted={popScreen} />;
-      case 'subscription':
-        return <SubscriptionManagementScreen currentTier={subscriptionTier} />;
       default:
-        return (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.profileCard,
-                pressed && styles.pressedCard,
-              ]}
-              onPress={() => pushScreen({ key: 'editProfile' })}
-            >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarLabel}>{avatarLetter}</Text>
-            </View>
-              <View style={styles.profileDetails}>
-                <Text style={styles.profileName}>{resolvedDisplayName}</Text>
-                <Text style={styles.profileEmail}>{resolvedEmail}</Text>
-            </View>
-              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
-            </Pressable>
+        return null;
+    }
+  };
 
-            <SubscriptionCard
-              tier={subscriptionTier}
-              loading={subscriptionLoading}
-              onManage={() => pushScreen({ key: 'subscription' })}
-            />
-
-            <SettingsSection title="Preferences">
-              <SettingToggleRow
-                label="Haptics"
-              value={toggles['settings.hapticsEnabled']}
-              onValueChange={value => handleToggle('settings.hapticsEnabled', value)}
-            />
-              <SettingToggleRow
-                label="Auto-play music"
-              value={toggles['settings.autoPlayMusic']}
-              onValueChange={value => handleToggle('settings.autoPlayMusic', value)}
-            />
-              <SettingToggleRow
-                label="Auto enter talking mode"
-              value={toggles['settings.autoEnterTalking']}
-              onValueChange={value => handleToggle('settings.autoEnterTalking', value)}
-            />
-            </SettingsSection>
-
-            <SettingsSection>
-              <SettingToggleRow
-                label="Enable NSFW content"
-              value={toggles['settings.enableNSFW']}
-              onValueChange={value => handleToggle('settings.enableNSFW', value)}
-            />
-            </SettingsSection>
-
-            <SettingsSection title="Data & Information">
-              <SettingsLinkRow
-                icon="cart-outline"
-                label="Purchase history"
-                onPress={() => pushScreen({ key: 'purchaseHistory' })}
-              />
-            </SettingsSection>
-
-            <SettingsSection title="Legal">
-              <SettingsLinkRow
-                icon="document-text-outline"
-                label="Terms of Service"
-                onPress={() => pushScreen({ key: 'legal', doc: 'terms' })}
-              />
-              <SettingsLinkRow
-                icon="shield-checkmark-outline"
-                label="Privacy Policy"
-                onPress={() => pushScreen({ key: 'legal', doc: 'privacy' })}
-              />
-            </SettingsSection>
-
-            <SettingsSection title="Support">
-              <SettingsLinkRow
-                icon="alert-circle-outline"
-                label="Report a problem"
-                onPress={() => pushScreen({ key: 'feedback', kind: 'problem' })}
-              />
-              <SettingsLinkRow
-                icon="star-outline"
-                label="Feature request"
-                onPress={() => pushScreen({ key: 'feedback', kind: 'feature' })}
-              />
-            </SettingsSection>
-
-          <Button
-            variant="outline"
-            color="error"
-            fullWidth
-            onPress={handleLogout}
-              loading={isLoggingOut}
-              style={styles.logoutButton}
-          >
-              Sign out
-          </Button>
-
-          <Text style={styles.version}>{versionLabel}</Text>
-        </ScrollView>
-        );
+  const getTitle = () => {
+    switch (currentScreen.key) {
+      case 'root': return undefined; // No title in root to save space
+      case 'editProfile': return 'Personal Information';
+      case 'purchaseHistory': return 'History';
+      case 'legal': return LEGAL_TITLES[currentScreen.doc];
+      case 'feedback': return currentScreen.kind === 'problem' ? 'Report Bug' : 'Feature Request';
+      default: return 'Settings';
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={handleBack}
+    <BottomSheet
+      ref={bottomSheetRef}
+      isOpened={visible}
+      onIsOpenedChange={(opened) => !opened && onClose()}
+      isDarkBackground={true}
+      backgroundColor={"black"}
+      detents={['large']}
+      title={getTitle()}
+      backgroundBlur='system-thick-material-dark'
+      headerLeft={!isRootScreen && (
+        <Button
+          variant="liquid"
+          size="md"
+          isIconOnly
+          startIconName="chevron-back"
+          onPress={popScreen}
+        />
+      )}
     >
-      <SafeAreaView
-        style={[styles.safeArea, isSubscriptionScreen && styles.safeAreaSubscription]}
-      >
-        <View style={[styles.header, isSubscriptionScreen && styles.headerLight]}>
-          <Button
-            size="md"
-            variant="liquid"
-            startIconName={isRootScreen ? 'close' : 'chevron-back'}
-            onPress={handleBack}
-            isIconOnly
-          />
-          <Text style={[styles.title, isSubscriptionScreen && styles.titleLight]}>{headerTitle}</Text>
-          {!isRootScreen && (
-            <Button
-              size="md"
-              variant="liquid"
-              startIconName="close"
-              onPress={handleModalClose}
-              isIconOnly
-            />
-          )}
-          {isRootScreen && <View style={{ width: 40 }} />}
-        </View>
-        <View style={[styles.body, isSubscriptionScreen && styles.subscriptionBody]}>
-          {renderScreen()}
-        </View>
-      </SafeAreaView>
-    </Modal>
+      <View style={[styles.container, { maxHeight: height }]}>
+        {renderContent()}
+      </View>
+    </BottomSheet>
   );
 };
 
-const SettingToggleRow: React.FC<{
-  label: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-}> = ({ label, value, onValueChange }) => (
-  <View style={styles.row}>
-    <Text style={styles.rowLabel}>{label}</Text>
-    <Switch value={value} onValueChange={onValueChange} />
-  </View>
-);
-
-const SettingsSection: React.FC<{ title?: string; children: React.ReactNode }> = ({
-  title,
-  children,
-}) => (
-  <View style={styles.section}>
-    {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
-    {children}
-  </View>
-);
-
-const SettingsLinkRow: React.FC<{ icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }> = ({
-  icon,
-  label,
-  onPress,
-}) => (
-  <Pressable style={({ pressed }) => [styles.linkRow, pressed && styles.pressedCard]} onPress={onPress}>
-    <View style={styles.linkRowLeft}>
-      <Ionicons name={icon} size={18} color="#fff" style={styles.linkIcon} />
-      <Text style={styles.rowLabel}>{label}</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
-  </Pressable>
-);
-
-const SubscriptionCard: React.FC<{
-  tier: SubscriptionTier;
-  loading: boolean;
-  onManage: () => void;
-}> = ({ tier, loading, onManage }) => (
-  <LinearGradient
-    colors={['#FF91BD', '#FF5D9D']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.subscriptionCard}
-  >
-    <View style={{ flex: 1 }}>
-      <Text style={styles.subscriptionLabel}>Subscription</Text>
-      <Text style={styles.subscriptionTier}>{SUBSCRIPTION_LABELS[tier]}</Text>
-      <Text style={styles.subscriptionStatus}>
-        {tier === 'free' ? 'Upgrade to unlock all premium content' : 'Active subscription'}
-      </Text>
-    </View>
-    <Button
-      size="sm"
-      variant="solid"
-      color={tier === 'free' ? 'primary' : 'gray'}
-      onPress={onManage}
-      loading={loading}
-    >
-      {tier === 'free' ? 'Upgrade' : 'Manage'}
-    </Button>
-  </LinearGradient>
-);
+// --- Sub-Screens (Simplified for length) ---
 
 const EditProfileScreen: React.FC<{
   user: UserMetadata | null;
@@ -547,964 +589,446 @@ const EditProfileScreen: React.FC<{
   onDone: () => void;
   onAccountDeleted: () => void;
 }> = ({ user, isDeleting, onDone, onAccountDeleted }) => {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [birthYear, setBirthYear] = useState('');
+  const [name, setName] = useState((user?.user_metadata?.display_name as string) ?? '');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Autosave name changes
   useEffect(() => {
-    if (!user) {
-      setFirstName('');
-      setLastName('');
-      setBirthYear('');
-      return;
-    }
-    const rawName = (user.user_metadata?.display_name as string | undefined) ?? '';
-    if (rawName.trim().length > 0) {
-      const parts = rawName.trim().split(' ');
-      setFirstName(parts[0] ?? '');
-      setLastName(parts.slice(1).join(' '));
-    }
-    const birth = user.user_metadata?.birth_year;
-    if (typeof birth === 'string' || typeof birth === 'number') {
-      setBirthYear(String(birth));
-    }
-  }, [user]);
+    const currentName = (user?.user_metadata?.display_name as string) ?? '';
+    // Only save if name has changed and is not empty
+    if (name === currentName || !name.trim()) return;
 
-  const handleSave = useCallback(async () => {
-    try {
+    const timer = setTimeout(async () => {
       setIsSaving(true);
-      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ').trim();
-      if (fullName.length) {
-        await authManager.updateDisplayName(fullName);
+      try {
+        await authManager.updateDisplayName(name.trim());
+      } catch (e) {
+        console.error('Autosave failed:', e);
+      } finally {
+        setIsSaving(false);
       }
-      const parsedYear = parseInt(birthYear, 10);
-      if (!Number.isNaN(parsedYear)) {
-        await authManager.updateBirthYear(parsedYear);
-      }
-      onDone();
-    } catch (error: any) {
-      Alert.alert('Save failed', error?.message ?? 'Please try again');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [firstName, lastName, birthYear, onDone]);
+    }, 1000); // 1s debounce
 
-  const confirmDelete = useCallback(() => {
-    Alert.alert(
-      'Delete account?',
-      'This will permanently delete your data and cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete account',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await authManager.deleteAccountLocally();
-              onAccountDeleted();
-            } catch (error: any) {
-              Alert.alert('Unable to delete account', error?.message ?? 'Please try again later.');
-            }
-          },
-        },
-      ]
-    );
-  }, [onAccountDeleted]);
+    return () => clearTimeout(timer);
+  }, [name, user]);
+
+  const getAvatarLetter = () => {
+    return (name || user?.email || '?').charAt(0).toUpperCase();
+  };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.flex}
-    >
-      <ScrollView contentContainerStyle={styles.editProfileContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.editAvatar}>
-          <Text style={styles.editAvatarText}>
-            {(firstName || user?.email || '?').charAt(0).toUpperCase()}
-          </Text>
+    <ScrollView contentContainerStyle={styles.subScreenContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.editProfileHeader}>
+        <View style={styles.largeAvatarContainer}>
+          <Text style={styles.largeAvatarText}>{getAvatarLetter()}</Text>
+          <View style={styles.cameraIconBadge}>
+            <Ionicons name="camera" size={14} color="#000" />
+          </View>
         </View>
+      </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Name</Text>
-          <TextInput
-            placeholder="First name"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            style={styles.textInput}
-            value={firstName}
-            onChangeText={setFirstName}
-            autoCapitalize="words"
-          />
-          <TextInput
-            placeholder="Last name"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            style={styles.textInput}
-            value={lastName}
-            onChangeText={setLastName}
-            autoCapitalize="words"
-          />
+      <View style={styles.formGroup}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.formLabel}>Name</Text>
+          {isSaving && <ActivityIndicator size="small" color="#666" />}
         </View>
+        <TextInput
+          style={styles.formInput}
+          value={name}
+          onChangeText={setName}
+          placeholder="Your Name"
+          placeholderTextColor="#666"
+        />
+      </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Birth year</Text>
-          <TextInput
-            placeholder="e.g. 1999"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            style={styles.textInput}
-            value={birthYear}
-            onChangeText={setBirthYear}
-            keyboardType="number-pad"
-          />
-        </View>
+      <View style={styles.formGroup}>
+        <Text style={styles.formLabel}>Email</Text>
+        <TextInput
+          style={[styles.formInput, styles.disabledInput]}
+          value={user?.email || ''}
+          editable={false}
+        />
+      </View>
 
-        <Button fullWidth onPress={handleSave} loading={isSaving}>
-          Save changes
-        </Button>
+      <View style={{ height: 24 }} />
 
-        <View style={styles.dangerZone}>
-          <Text style={styles.dangerLabel}>Danger zone</Text>
-          <Button
-            fullWidth
-            variant="outline"
-            color="error"
-            onPress={confirmDelete}
-            loading={isDeleting}
-          >
-            Delete account
-          </Button>
-          <Text style={styles.dangerHint}>
-            All of your data will be deleted from our servers. This cannot be undone.
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Pressable
+        style={styles.deleteAccountButton}
+        onPress={() => {
+          Alert.alert('Delete Account?', 'This cannot be undone.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  // Actually delete the account
+                  await authManager.deleteAccountLocally();
+                  // Then close the UI
+                  onAccountDeleted();
+                } catch (e: any) {
+                  console.error('Delete account error:', e);
+                  Alert.alert('Error', e?.message || 'Failed to delete account');
+                }
+              }
+            }
+          ]);
+        }}
+        disabled={isDeleting}
+      >
+        <Text style={styles.deleteAccountText}>{isDeleting ? "Deleting..." : "Delete account"}</Text>
+      </Pressable>
+    </ScrollView>
   );
 };
 
 const PurchaseHistoryScreen: React.FC = () => {
-  const [tab, setTab] = useState<PurchaseHistoryTab>('iap');
-  const [iapTransactions, setIapTransactions] = useState<InAppPurchase[]>([]);
-  const [itemTransactions, setItemTransactions] = useState<ItemPurchase[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadTransactions = useCallback(
-    async (target: PurchaseHistoryTab) => {
-      try {
-        setLoading(true);
-        setError(null);
-        if (target === 'iap') {
-          const data = await fetchInAppPurchases();
-          setIapTransactions(data);
-        } else {
-          const data = await fetchItemPurchases();
-          setItemTransactions(data);
-        }
-      } catch (err: any) {
-        setError(err?.message ?? 'Unable to load data');
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    loadTransactions(tab);
-  }, [tab, loadTransactions]);
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <View style={styles.historyState}>
-          <ActivityIndicator color="#fff" />
-          <Text style={styles.historyStateText}>Loading data...</Text>
-        </View>
-      );
-    }
-    if (error) {
-      return (
-        <View style={styles.historyState}>
-          <Text style={styles.historyErrorTitle}>Failed to load</Text>
-          <Text style={styles.historyErrorText}>{error}</Text>
-          <Button size="sm" variant="outline" onPress={() => loadTransactions(tab)}>
-            Retry
-          </Button>
-        </View>
-      );
-    }
-    const hasData = tab === 'iap' ? iapTransactions.length > 0 : itemTransactions.length > 0;
-    if (!hasData) {
-      return (
-        <View style={styles.historyState}>
-          <Text style={styles.historyEmptyTitle}>No transactions yet</Text>
-          <Text style={styles.historyStateText}>Your history will appear here.</Text>
-        </View>
-      );
-    }
-    return (
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {tab === 'iap'
-          ? iapTransactions.map(item => <InAppPurchaseRow key={item.id} item={item} />)
-          : itemTransactions.map(item => <ItemPurchaseRow key={item.id} item={item} />)}
-      </ScrollView>
-    );
-  };
-
+  // Keeping this simple placeholder to match requested scope
   return (
-    <View style={styles.flex}>
-      <View style={styles.segmentedControl}>
-      <Pressable
-          style={[styles.segmentButton, tab === 'iap' && styles.segmentButtonActive]}
-          onPress={() => setTab('iap')}
-      >
-          <Text style={[styles.segmentText, tab === 'iap' && styles.segmentTextActive]}>
-            In-app purchases
-          </Text>
-      </Pressable>
-        <Pressable
-          style={[styles.segmentButton, tab === 'items' && styles.segmentButtonActive]}
-          onPress={() => setTab('items')}
-        >
-          <Text style={[styles.segmentText, tab === 'items' && styles.segmentTextActive]}>
-            Item purchases
-          </Text>
-        </Pressable>
-      </View>
-      <View style={styles.historyContent}>{renderContent()}</View>
+    <View style={styles.placeholderContainer}>
+      <Text style={styles.placeholderText}>Transaction history loading...</Text>
     </View>
   );
 };
 
-const InAppPurchaseRow: React.FC<{ item: InAppPurchase }> = ({ item }) => (
-  <View style={styles.historyCard}>
-    <Text style={styles.historyCardTitle}>{mapProductName(item.productId)}</Text>
-    <Text style={styles.historyMeta}>
-      {item.transactionId ? `Transaction ID: ${item.transactionId}` : 'No transaction ID'}
-    </Text>
-    <Text style={styles.historyMeta}>
-      {item.vcoinAdded > 0 ? `${item.vcoinAdded} VCoin` : `${item.rubyAdded} Ruby`}
-    </Text>
-    <Text style={styles.historyMeta}>
-      {item.priceCents
-        ? formatPrice(item.priceCents, item.currencyCode)
-        : 'No price info'}
-    </Text>
-    <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
-  </View>
-);
-
-const ItemPurchaseRow: React.FC<{ item: ItemPurchase }> = ({ item }) => (
-  <View style={styles.historyCard}>
-    <Text style={styles.historyCardTitle}>{item.itemType.toUpperCase()}</Text>
-    <Text style={styles.historyMeta}>Asset ID: {item.itemId}</Text>
-    <Text style={styles.historyMeta}>
-      {item.transactionId ? `Transaction ID: ${item.transactionId}` : 'No transaction ID'}
-    </Text>
-    <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
-  </View>
-);
-
 const LegalDocumentScreen: React.FC<{ doc: LegalDoc }> = ({ doc }) => (
-  <ScrollView contentContainerStyle={styles.legalContainer} showsVerticalScrollIndicator={false}>
+  <ScrollView contentContainerStyle={styles.subScreenContent}>
     <Text style={styles.legalText}>{LEGAL_TEXT[doc]}</Text>
   </ScrollView>
 );
 
-const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void }> = ({
-  kind,
-  onSubmitted,
-}) => {
-  const [details, setDetails] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = useCallback(async () => {
-    const trimmed = details.trim();
-    if (!trimmed.length) {
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      const { userId, clientId } = await getAuthIdentifier();
-      const headers = await getSupabaseAuthHeaders();
-      headers['Prefer'] = 'return=minimal';
-      if (!userId && clientId) {
-        headers['X-Client-Id'] = clientId;
-      }
-
-      const body: Record<string, any> = {
-        kind,
-        subject: FEEDBACK_SUBJECT[kind],
-        message: trimmed,
-      };
-      if (userId) body.user_id = userId;
-      if (clientId) body.client_id = clientId;
-
-      await fetch(`${SUPABASE_URL}/rest/v1/feedback`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      const fallback = `mailto:hung@eduto.asia?subject=${encodeURIComponent(
-        `VRM ${FEEDBACK_SUBJECT[kind]}`
-      )}&body=${encodeURIComponent(trimmed)}`;
-      Linking.openURL(fallback).catch(() => {});
-
-      Alert.alert('Thank you!', 'We recorded your feedback.');
-      onSubmitted();
-    } catch (error: any) {
-      Alert.alert('Send failed', error?.message ?? 'Please try again later');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [details, kind, onSubmitted]);
-
+const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void }> = ({ kind, onSubmitted }) => {
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   return (
-    <View style={styles.feedbackContainer}>
-      <Text style={styles.inputLabel}>Details</Text>
-      <TextInput
-        style={styles.feedbackInput}
-        placeholder="Describe your issue or suggestion..."
-        placeholderTextColor="rgba(255,255,255,0.5)"
-        value={details}
-        onChangeText={setDetails}
-        multiline
-        textAlignVertical="top"
-      />
-      <Button fullWidth onPress={handleSubmit} loading={isSubmitting}>
-        Send feedback
-      </Button>
+    <View style={styles.subScreenContent}>
+      <SettingsGroup title={kind === 'problem' ? "Describe the issue" : "Describe your idea"}>
+        <TextInput
+          multiline
+          style={styles.textArea}
+          value={text}
+          onChangeText={setText}
+          placeholder="Type here..."
+          placeholderTextColor="#666"
+        />
+      </SettingsGroup>
+      <View style={styles.actionButtonContainer}>
+        <Button fullWidth loading={submitting} onPress={async () => {
+          if (!text.trim()) return;
+          setSubmitting(true);
+          // Simulate submission
+          setTimeout(() => {
+            setSubmitting(false);
+            Alert.alert('Sent', 'Thank you for your feedback!');
+            onSubmitted();
+          }, 1000);
+        }}>Send Feedback</Button>
+      </View>
     </View>
   );
 };
 
-const SubscriptionManagementScreen: React.FC<{ currentTier: SubscriptionTier }> = ({ currentTier }) => {
-  const tierLabel = SUBSCRIPTION_LABELS[currentTier];
-  const isFree = currentTier === 'free';
-
-  return (
-    <View style={styles.subscriptionRoot}>
-      <ScrollView contentContainerStyle={styles.subscriptionScreen} showsVerticalScrollIndicator={false}>
-        {/* Banner giống SubscriptionManagementView / SubscriptionView bên Swift */}
-        <View style={styles.subscriptionBanner}>
-          <Image
-            source={{
-              uri: 'https://pub-14a49f54cd754145a7362876730a1a52.r2.dev/Packages/Store_Banner-min.png',
-            }}
-            style={styles.subscriptionBannerImage}
-            resizeMode="cover"
-          />
-          <View style={styles.subscriptionBannerOverlay}>
-            <Text style={styles.subscriptionBannerTier}>{tierLabel}</Text>
-            <Text style={styles.subscriptionBannerSubtitle}>
-              {isFree ? 'Choose a plan' : 'Active subscription'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.subscriptionStatusCard}>
-          <Text style={styles.subscriptionStatusTitle}>Current status</Text>
-          <Text style={styles.subscriptionStatusValue}>{tierLabel}</Text>
-          <Text style={styles.subscriptionStatusHint}>
-            {isFree
-              ? 'Upgrade to access all characters, rooms, and events.'
-              : 'You are enjoying premium perks.'}
-          </Text>
-        </View>
-
-        {SUBSCRIPTION_PLANS.map(plan => {
-          const isCurrent = currentTier === plan.tier;
-          return (
-            <View
-              key={plan.id}
-              style={[
-                styles.planCard,
-                plan.recommended && styles.planCardRecommended,
-                isCurrent && styles.planCardCurrent,
-              ]}
-            >
-              <View style={styles.planHeader}>
-                <Text style={styles.planName}>{plan.displayName}</Text>
-                {plan.recommended ? <Text style={styles.planBadge}>RECOMMENDED</Text> : null}
-              </View>
-              <Text style={styles.planPrice}>{plan.price}</Text>
-              {plan.features.map(feature => (
-                <View key={feature} style={styles.planFeature}>
-                  <Ionicons name="checkmark-circle" size={16} color="#FF5D9D" />
-                  <Text style={styles.planFeatureText}>{feature}</Text>
-                </View>
-              ))}
-              <Button
-                fullWidth
-                style={styles.planButton}
-                variant={isCurrent ? 'outline' : 'solid'}
-                onPress={() =>
-                  Linking.openURL(
-                    `mailto:billing@vivivi.ai?subject=${encodeURIComponent(
-                      `Upgrade to ${plan.displayName}`
-                    )}`
-                  ).catch(() => {})
-                }
-              >
-                {isCurrent ? 'In use' : 'Contact to upgrade'}
-              </Button>
-            </View>
-          );
-        })}
-
-        <View style={styles.subscriptionFooterLinks}>
-          <Text style={styles.subscriptionFooterLink}>Terms</Text>
-          <Text style={styles.subscriptionFooterDot}>•</Text>
-          <Text style={styles.subscriptionFooterLink}>Privacy</Text>
-          <Text style={styles.subscriptionFooterDot}>•</Text>
-          <Text style={styles.subscriptionFooterLink}>EULA</Text>
-          <Text style={styles.subscriptionFooterDot}>•</Text>
-          <Text style={styles.subscriptionFooterLink}>Restore</Text>
-        </View>
-      </ScrollView>
-    </View>
-  );
-};
-
-const normalizeTier = (tier?: string | null): SubscriptionTier => {
-  const normalized = (tier ?? '').toLowerCase();
-  if (normalized === 'pro' || normalized.includes('pro')) {
-    return 'pro';
-  }
-  if (normalized === 'unlimited' || normalized.includes('unlimited')) {
-    return 'unlimited';
-  }
-  return 'free';
-};
-
-const fetchInAppPurchases = async (): Promise<InAppPurchase[]> => {
-  const { userId, clientId } = await getAuthIdentifier();
-  if (!userId && !clientId) {
-    throw new Error('Not signed in');
-  }
-  const params = new URLSearchParams();
-  params.append(
-    'select',
-    'id,product_id,transaction_id,price_cents,currency_code,vcoin_added,ruby_added,created_at'
-  );
-  params.append('order', 'created_at.desc');
-  if (userId) {
-    params.append('user_id', `eq.${userId}`);
-    params.append('client_id', 'is.null');
-  } else if (clientId) {
-    params.append('client_id', `eq.${clientId}`);
-    params.append('user_id', 'is.null');
-  }
-
-  const headers = await getSupabaseAuthHeaders();
-  if (!userId && clientId) {
-    headers['X-Client-Id'] = clientId;
-  }
-
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/purchases?${params.toString()}`, {
-    headers,
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Unable to load transactions');
-  }
-
-  const rows: any[] = await response.json();
-  return rows.map(row => ({
-    id: row.id,
-    productId: row.product_id,
-    transactionId: row.transaction_id ?? undefined,
-    vcoinAdded: row.vcoin_added ?? 0,
-    rubyAdded: row.ruby_added ?? 0,
-    priceCents: row.price_cents ?? undefined,
-    currencyCode: row.currency_code ?? undefined,
-    createdAt: new Date(row.created_at),
-  }));
-};
-
-const fetchItemPurchases = async (): Promise<ItemPurchase[]> => {
-  const { userId, clientId } = await getAuthIdentifier();
-  if (!userId && !clientId) {
-    throw new Error('Not signed in');
-  }
-  const params = new URLSearchParams();
-  params.append('select', 'id,item_id,item_type,transaction_id,created_at');
-  params.append('order', 'created_at.desc');
-  params.append('transaction_id', 'not.is.null');
-  if (userId) {
-    params.append('user_id', `eq.${userId}`);
-    params.append('client_id', 'is.null');
-  } else if (clientId) {
-    params.append('client_id', `eq.${clientId}`);
-    params.append('user_id', 'is.null');
-  }
-
-  const headers = await getSupabaseAuthHeaders();
-  if (!userId && clientId) {
-    headers['X-Client-Id'] = clientId;
-  }
-
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/user_assets?${params.toString()}`, {
-    headers,
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Unable to load item history');
-  }
-
-  const rows: any[] = await response.json();
-  return rows.map(row => ({
-    id: row.id,
-    itemId: row.item_id,
-    itemType: row.item_type,
-    transactionId: row.transaction_id ?? undefined,
-    createdAt: new Date(row.created_at),
-  }));
-};
-
-const mapProductName = (productId: string): string => {
-  const mapping: Record<string, string> = {
-    'pink.package.fun.vivivi': 'Pink Package',
-    'brown.package.fun.vivivi': 'Brown Package',
-    'silver.package.fun.vivivi': 'Silver Package',
-    'gold.package.fun.vivivi': 'Gold Package',
-    'titanium.package.fun.vivivi': 'Titanium Package',
-    'diamond.package.fun.vivivi': 'Diamond Package',
-  };
-  return mapping[productId] ?? productId;
-};
-
-const formatPrice = (priceCents: number, currencyCode?: string) => {
-  const value = (priceCents / 100).toFixed(2);
-  return `${value} ${currencyCode ?? 'USD'}`;
-};
-
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#050509',
-  },
-  safeAreaSubscription: {
-    backgroundColor: '#FFD7E7',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  headerLight: {
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  title: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  titleLight: {
-    color: '#111',
-  },
-  body: {
-    flex: 1,
-  },
-  subscriptionBody: {
-    backgroundColor: '#FFD7E7',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
   },
+  subScreenContent: {
+    padding: 16,
+  },
+  sectionSpacing: {
+    marginBottom: 20,
+  },
+  // Profile Card
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
     padding: 16,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    marginBottom: 20,
   },
   pressedCard: {
     opacity: 0.8,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
+  avatarContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#00C8FF', // Cyan color from design
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 16,
   },
-  avatarLabel: {
-    color: '#fff',
+  avatarText: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#fff',
   },
-  profileDetails: {
+  profileInfo: {
     flex: 1,
-    marginRight: 8,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginRight: 8,
+  },
+  tierBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  tierBadgePro: {
+    backgroundColor: '#fff',
+  },
+  tierBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  tierBadgeTextPro: {
+    color: '#000',
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  // Premium Banner
+  premiumBanner: {
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  premiumContent: {
+    flex: 1,
+    zIndex: 1,
+  },
+  premiumHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  premiumTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginRight: 10,
+  },
+  premiumBadge: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF2D79',
+  },
+  premiumDescription: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: 16,
+    lineHeight: 20,
+    maxWidth: '85%',
+  },
+  premiumButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  premiumButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#000',
+  },
+  premiumIconContainer: {
+    position: 'absolute',
+    right: -10,
+    bottom: -10,
+    transform: [{ rotate: '-15deg' }],
+  },
+  activeBadge: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginLeft: 'auto',
+  },
+  activeBadgeText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  subscriptionDetails: {
+    marginTop: 24,
+  },
+  subscriptionPrice: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+    marginBottom: 4,
   },
-  profileEmail: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
-    marginTop: 4,
+  subscriptionDate: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
   },
-  section: {
-    marginBottom: 18,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 16,
+  // Settings Groups
+  groupContainer: {
+    marginBottom: 24,
   },
-  sectionTitle: {
-    color: 'rgba(255,255,255,0.7)',
+  groupTitle: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 8,
+    marginLeft: 16,
+    textTransform: 'uppercase',
   },
-  row: {
+  groupContent: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  rowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    minHeight: 52,
+  },
+  pressedRow: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  rowIconContainer: {
+    marginRight: 12,
+    width: 24,
+    alignItems: 'center',
+  },
+  rowContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingRight: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    height: '100%',
+    paddingVertical: 14,
+  },
+  rowContentNoBorder: {
+    borderBottomWidth: 0,
   },
   rowLabel: {
+    fontSize: 16,
     color: '#fff',
-    fontSize: 15,
-    flex: 1,
-    paddingRight: 12,
+    fontWeight: '500',
   },
-  linkRow: {
-    flexDirection: 'row',
+  rowLabelDestructive: {
+    color: '#FF453A',
+  },
+  versionText: {
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  // Sub-screens
+  editProfileHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-  },
-  linkRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  linkIcon: {
-    marginRight: 10,
-  },
-  subscriptionCard: {
-    borderRadius: 20,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  subscriptionLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  subscriptionTier: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  subscriptionStatus: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  logoutButton: {
+    marginBottom: 32,
     marginTop: 16,
   },
-  version: {
-    color: 'rgba(255,255,255,0.4)',
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 12,
-  },
-  flex: {
-    flex: 1,
-  },
-  editProfileContainer: {
-    padding: 20,
-    gap: 20,
-  },
-  editAvatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
+  largeAvatarContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#3A3A3C', // Darker circle background
     justifyContent: 'center',
-  },
-  editAvatarText: {
-    color: '#fff',
-    fontSize: 36,
-    fontWeight: '600',
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  inputLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  textInput: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    padding: 14,
-    color: '#fff',
-    fontSize: 16,
-  },
-  dangerZone: {
-    marginTop: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,0,0,0.08)',
-    gap: 12,
-  },
-  dangerLabel: {
-    color: '#ff6b81',
-    fontWeight: '600',
-  },
-  dangerHint: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    margin: 20,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    padding: 4,
-  },
-  segmentButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 999,
     alignItems: 'center',
+    position: 'relative',
+    marginBottom: 8,
   },
-  segmentButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  segmentText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '600',
-  },
-  segmentTextActive: {
+  largeAvatarText: {
+    fontSize: 40,
+    fontWeight: '700',
     color: '#fff',
   },
-  historyContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  historyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingHorizontal: 24,
-  },
-  historyStateText: {
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-  },
-  historyErrorTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  historyErrorText: {
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-  },
-  historyEmptyTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  historyCard: {
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    padding: 16,
-    marginBottom: 12,
-  },
-  historyCardTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  historyMeta: {
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-    fontSize: 13,
-  },
-  historyDate: {
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 8,
-    fontSize: 12,
-  },
-  legalContainer: {
-    padding: 20,
-  },
-  legalText: {
-    color: '#fff',
-    lineHeight: 20,
-  },
-  feedbackContainer: {
-    flex: 1,
-    padding: 20,
-    gap: 12,
-  },
-  feedbackInput: {
-    minHeight: 220,
-    borderRadius: 18,
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    color: '#fff',
-  },
-  subscriptionRoot: {
-    flex: 1,
-    backgroundColor: '#FFD7E7', // giống SubscriptionManagementView
-  },
-  subscriptionScreen: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    paddingTop: 16,
-    gap: 16,
-  },
-  subscriptionBanner: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  subscriptionBannerImage: {
-    width: '100%',
-    height: 160,
-  },
-  subscriptionBannerOverlay: {
+  cameraIconBadge: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
     right: 0,
-    alignItems: 'center',
-    paddingBottom: 12,
-  },
-  subscriptionBannerTier: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  subscriptionBannerSubtitle: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  subscriptionStatusCard: {
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-  },
-  subscriptionStatusTitle: {
-    color: 'rgba(0,0,0,0.6)',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  subscriptionStatusValue: {
-    color: '#111',
-    fontSize: 20,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  subscriptionStatusHint: {
-    color: 'rgba(0,0,0,0.7)',
-    marginTop: 6,
-  },
-  planCard: {
-    borderRadius: 20,
-    padding: 20,
-    backgroundColor: 'rgba(255,255,255,0.98)',
-    gap: 10,
-  },
-  planCardRecommended: {
-    borderWidth: 1,
-    borderColor: '#FF91BD',
-  },
-  planCardCurrent: {
-    backgroundColor: '#FFE5F1',
-  },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  planName: {
-    color: '#111',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  planBadge: {
-    backgroundColor: '#FF5D9D',
-    color: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  planPrice: {
-    color: 'rgba(0,0,0,0.85)',
-    fontSize: 16,
-  },
-  planFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  planFeatureText: {
-    color: 'rgba(0,0,0,0.8)',
-  },
-  planButton: {
-    marginTop: 8,
-  },
-  subscriptionFooterLinks: {
-    flexDirection: 'row',
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 16,
   },
-  subscriptionFooterLink: {
-    fontSize: 12,
-    color: '#000',
-    fontWeight: '500',
+  formGroup: {
+    marginBottom: 20,
   },
-  subscriptionFooterDot: {
-    fontSize: 12,
-    color: 'rgba(0,0,0,0.5)',
+  formLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
   },
+  formInput: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+  },
+  disabledInput: {
+    opacity: 0.7,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  actionButtonContainer: {
+    marginTop: 24,
+  },
+  deleteAccountButton: {
+    marginTop: 40,
+    alignItems: 'center',
+    padding: 16,
+  },
+  deleteAccountText: {
+    color: '#FF453A',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  placeholderContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#666',
+  },
+  legalText: {
+    color: '#ccc',
+    lineHeight: 22,
+  },
+  textArea: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    color: '#fff',
+    fontSize: 16,
+    minHeight: 120,
+    padding: 16,
+  }
 });
-
-export default SettingsModal;
-

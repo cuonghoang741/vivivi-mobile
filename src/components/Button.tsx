@@ -16,7 +16,7 @@ import HapticPressable from './ui/HapticPressable';
 import { buttonColors, type ButtonColorKey } from '../styles/color';
 import { glassButtonStyle } from '../styles/glass';
 
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 export type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'link' | 'liquid';
 
 export interface ButtonProps {
@@ -30,6 +30,7 @@ export interface ButtonProps {
   isIconOnly?: boolean;
   startIconName?: keyof typeof Ionicons.glyphMap;
   endIconName?: keyof typeof Ionicons.glyphMap;
+  iconColor?: ColorValue;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -45,6 +46,7 @@ export const Button: React.FC<ButtonProps> = ({
   isIconOnly,
   startIconName,
   endIconName,
+  iconColor,
   onPress,
   style,
 }) => {
@@ -77,7 +79,7 @@ export const Button: React.FC<ButtonProps> = ({
           <Ionicons
             name={startIconName}
             size={iconSize}
-            color={textStyle.color as string}
+            color={(iconColor ?? textStyle.color) as string}
             style={styles.icon}
           />
         ) : null}
@@ -88,7 +90,7 @@ export const Button: React.FC<ButtonProps> = ({
           <Ionicons
             name={endIconName}
             size={iconSize}
-            color={textStyle.color as string}
+            color={(iconColor ?? textStyle.color) as string}
             style={styles.icon}
           />
         ) : null}
@@ -260,29 +262,36 @@ const getStyles = ({
 };
 
 const SIZE_CONFIG: Record<ButtonSize, { horizontal: number; vertical: number; fontSize: number; iconSize: number; iconPadding: number }> =
-  {
-    sm: {
-      horizontal: 10,
-      vertical: 6,
-      fontSize: 13,
-      iconSize: 16,
-      iconPadding: 8,
-    },
-    md: {
-      horizontal: 14,
-      vertical: 8,
-      fontSize: 15,
-      iconSize: 18,
-      iconPadding: 10,
-    },
-    lg: {
-      horizontal: 18,
-      vertical: 10,
-      fontSize: 17,
-      iconSize: 20,
-      iconPadding: 12,
-    },
-  };
+{
+  sm: {
+    horizontal: 10,
+    vertical: 6,
+    fontSize: 13,
+    iconSize: 16,
+    iconPadding: 8,
+  },
+  md: {
+    horizontal: 14,
+    vertical: 8,
+    fontSize: 15,
+    iconSize: 18,
+    iconPadding: 10,
+  },
+  lg: {
+    horizontal: 18,
+    vertical: 10,
+    fontSize: 17,
+    iconSize: 20,
+    iconPadding: 12,
+  },
+  xl: {
+    horizontal: 24,
+    vertical: 14,
+    fontSize: 19,
+    iconSize: 24,
+    iconPadding: 16,
+  },
+};
 
 const styles = StyleSheet.create({
   content: {

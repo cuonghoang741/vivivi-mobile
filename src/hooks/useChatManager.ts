@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatService } from '../services/ChatService';
 import { streakService } from '../services/StreakService';
+import { actionDetectionService, DetectedAction } from '../services/ActionDetectionService';
 import { ChatMessage, ChatViewState } from '../types/chat';
 import { QuestProgressTracker } from '../utils/QuestProgressTracker';
 
@@ -15,18 +16,23 @@ const DEFAULT_STATE: ChatViewState = {
   streakDays: 0,
   hasUnclaimed: false,
   showStreakConfetti: false,
+  canCheckIn: false,
 };
 
 type UseChatOptions = {
   onAgentReply?: (text: string) => void;
+  onActionDetected?: (action: DetectedAction, userMessage: string) => void;
 };
 
 const OVERLAY_LIMIT = 3;
+// Minimum confidence threshold to trigger an action
+const ACTION_CONFIDENCE_THRESHOLD = 0.7;
 
 export const useChatManager = (characterId?: string, options?: UseChatOptions) => {
   const [state, setState] = useState<ChatViewState>(DEFAULT_STATE);
   const messagesRef = useRef<ChatMessage[]>(state.messages);
   const agentReplyCallback = options?.onAgentReply;
+  const actionCallback = options?.onActionDetected;
 
   useEffect(() => {
     messagesRef.current = state.messages;
@@ -52,14 +58,15 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         return;
       }
       try {
-        const previousStreak = state.streakDays;
-        const days = await streakService.fetchStreakDays(newCharacterId);
-        const newVal = Math.max(0, days);
+        const previousStreak = state.streakDays || 0;
+        const status = await streakService.getStreakStatus(newCharacterId);
+        const newVal = Math.max(0, status.streakDays);
         const increased = newVal > previousStreak;
 
         setState(prev => ({
           ...prev,
           streakDays: newVal,
+          canCheckIn: status.canCheckIn,
           showStreakConfetti: animateOnIncrease && increased,
         }));
 
@@ -74,6 +81,34 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
       }
     },
     [state.streakDays]
+  );
+
+  const performCheckIn = useCallback(
+    async (characterIdToCheck: string) => {
+      if (!characterIdToCheck) return null;
+      try {
+        const result = await streakService.checkIn(characterIdToCheck);
+
+        // Update local state
+        setState(prev => ({
+          ...prev,
+          streakDays: result.streakDays,
+          canCheckIn: false, // Just checked in
+          showStreakConfetti: true // Determine if we want to show confetti always on checkin
+        }));
+
+        // Hide confetti after animation
+        setTimeout(() => {
+          setState(prev => ({ ...prev, showStreakConfetti: false }));
+        }, 3000);
+
+        return result;
+      } catch (error) {
+        console.warn('[useChatManager] Failed to check in:', error);
+        throw error;
+      }
+    },
+    []
   );
 
   // Reset messages and refresh streak when characterId changes
@@ -155,12 +190,24 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
 
       try {
         const history = buildHistory(messagesRef.current);
-        const responseText = await chatService.sendMessageToGemini({
-          text: trimmed,
-          characterId,
-          history,
-        });
 
+        // Run action detection and Gemini chat in PARALLEL for faster response
+        const [detectedAction, responseText] = await Promise.all([
+          actionDetectionService.detectAction(trimmed),
+          chatService.sendMessageToGemini({
+            text: trimmed,
+            characterId,
+            history,
+          }),
+        ]);
+
+        // Handle action if detected with high confidence
+        if (detectedAction.action !== 'none' && detectedAction.confidence >= ACTION_CONFIDENCE_THRESHOLD) {
+          console.log('[useChatManager] Action detected:', detectedAction);
+          actionCallback?.(detectedAction, trimmed);
+        }
+
+        // Handle chat response
         addAgentMessage(responseText, { persist: true });
         setState(prev => ({ ...prev, isTyping: false }));
         agentReplyCallback?.(responseText);
@@ -168,13 +215,13 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         console.warn('[useChatManager] sendText failed', error);
         setState(prev => ({ ...prev, isTyping: false }));
         const errorMessage = createLocalMessage(
-          'Sorry, I could not reach Vivivi right now. Please try again in a moment.',
+          'Sorry, I could not reach Roxie right now. Please try again in a moment.',
           true
         );
         appendMessage(errorMessage);
       }
     },
-    [appendMessage, characterId, agentReplyCallback]
+    [appendMessage, characterId, agentReplyCallback, actionCallback, addUserMessage, addAgentMessage]
   );
 
   const toggleChatList = useCallback(() => {
@@ -263,6 +310,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     addAgentMessage,
     addUserMessage,
     refreshStreak,
+    performCheckIn,
   };
 };
 

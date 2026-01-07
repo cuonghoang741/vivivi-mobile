@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "878321311166",
+    "project_id": "roxie-1d2a0",
+    "storage_bucket": "roxie-1d2a0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:878321311166:android:bc6201a1dd0ab67f9fedef",
+        "android_client_info": {
+          "package_name": "com.eduto.roxie"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGTxfY5XRw7mYfTf7xQhEGJ2LU7PtmP9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

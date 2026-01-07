@@ -121,7 +121,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
           text: 'Refresh',
           style: 'default',
           onPress: () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
             onRefreshDaily().catch((error) => {
               const message =
                 error instanceof Error ? error.message : 'Failed to refresh quests';
@@ -186,8 +186,6 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.dailyTabContent}>
-          {/* Weekly Checkin Section (cloned from swift-version) */}
-          <WeeklyCheckinSection onRefreshLoginRewards={onRefreshLoginRewards} />
 
           {/* Daily Tasks Section */}
           <View style={styles.dailyTasksSection}>
@@ -288,7 +286,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
         <View style={styles.levelTabContent}>
           {/* Current Level Section */}
           <CurrentLevelSection level={level} xp={xp} nextLevelXp={nextLevelXp} />
-          
+
           {groupedLevelQuests.map(([levelNum, quests]) => {
             const visible = quests.filter((quest) => !(quest.completed && quest.claimed));
             if (!visible.length) {

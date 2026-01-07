@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -8,31 +8,50 @@ import {
   Image,
   useWindowDimensions,
   FlatList,
-  Modal,
 } from 'react-native';
 import { BackgroundRepository, BackgroundItem } from '../../repositories/BackgroundRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import Button from '../Button';
+import { GoProButton } from '../GoProButton';
 import { useSceneActions } from '../../context/SceneActionsContext';
-import { ConfirmPurchasePortal } from '../../context/PurchaseContext';
+import { DiamondBadge } from '../DiamondBadge';
+import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 
 interface BackgroundSheetProps {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
+  onOpenSubscription?: () => void;
+  isDarkBackground?: boolean;
+  isPro?: boolean;
 }
 
-export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
+export type BackgroundSheetRef = BottomSheetRef;
+
+export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetProps>(({
   isOpened,
   onIsOpenedChange,
-}) => {
+  onOpenSubscription,
+  isDarkBackground = true,
+  isPro = false,
+}, ref) => {
+  const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<BackgroundItem[]>([]);
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { selectBackground } = useSceneActions();
+
+  // Dynamic colors
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+
+  // Expose present/dismiss via ref
+  useImperativeHandle(ref, () => ({
+    present: (index?: number) => sheetRef.current?.present(index),
+    dismiss: () => sheetRef.current?.dismiss(),
+  }));
 
   const load = useCallback(async () => {
     if (isLoading) return;
@@ -44,43 +63,26 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
       const backgroundRepository = new BackgroundRepository();
       const assetRepository = new AssetRepository();
 
-      // Fetch backgrounds and owned IDs in parallel
       const [backgrounds, ownedIds] = await Promise.all([
         backgroundRepository.fetchAllBackgrounds(),
         assetRepository.fetchOwnedAssets('background'),
       ]);
 
-      console.log('📋 [BackgroundSheet] Fetched backgrounds:', backgrounds.length);
-      console.log('✅ [BackgroundSheet] Owned background IDs:', Array.from(ownedIds));
-
-      // Filter available
       const availableBackgrounds = backgrounds.filter((b) => b.available);
-      console.log('📋 [BackgroundSheet] Available backgrounds:', availableBackgrounds.length);
-
-      // Create a Set for easier lookup
       const ownedSet = new Set(ownedIds);
       setOwnedBackgroundIds(ownedSet);
 
-      // Sort: Owned first, then by price
+      // Sort: Owned first, then others
       const sorted = availableBackgrounds.sort((a, b) => {
         const isOwned1 = ownedSet.has(a.id);
         const isOwned2 = ownedSet.has(b.id);
-
-        if (isOwned1 !== isOwned2) {
-          return isOwned1 ? -1 : 1;
-        }
-
-        const price1 = (a.price_vcoin ?? 0) + (a.price_ruby ?? 0);
-        const price2 = (b.price_vcoin ?? 0) + (b.price_ruby ?? 0);
-        return price1 - price2;
+        if (isOwned1 !== isOwned2) return isOwned1 ? -1 : 1;
+        return 0;
       });
-
-      const ownedCount = sorted.filter(b => ownedSet.has(b.id)).length;
-      console.log(`📊 [BackgroundSheet] Sorted: ${ownedCount} owned, ${sorted.length - ownedCount} unowned`);
 
       setItems(sorted);
     } catch (error: any) {
-      console.error('❌ [BackgroundSheet] Failed to load backgrounds:', error);
+      console.error('❌ [BackgroundSheet] Failed to load:', error);
       setErrorMessage(error.message || 'Failed to load');
     } finally {
       setIsLoading(false);
@@ -102,181 +104,159 @@ export const BackgroundSheet: React.FC<BackgroundSheetProps> = ({
       if (items.length === 0) {
         load();
       } else {
-        // Refresh owned status if already loaded
         fetchOwnedBackgrounds();
       }
     }
   }, [isOpened, items.length, load, fetchOwnedBackgrounds]);
 
-  const handleSelect = (item: BackgroundItem) => {
+  const handleSelect = useCallback(async (item: BackgroundItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    void selectBackground(item);
-  };
+
+    const isOwned = ownedBackgroundIds.has(item.id);
+
+    // If PRO or already owned, can select directly
+    if (isPro || isOwned) {
+      // If PRO but not owned, auto-add to owned assets
+      if (isPro && !isOwned) {
+        try {
+          const assetRepository = new AssetRepository();
+          await assetRepository.createAsset(item.id, 'background');
+          setOwnedBackgroundIds(prev => new Set([...prev, item.id]));
+        } catch (error) {
+          console.error('Failed to add background to owned:', error);
+        }
+      }
+      void selectBackground(item);
+    } else {
+      // Not PRO and not owned - open subscription
+      sheetRef.current?.dismiss();
+      setTimeout(() => onOpenSubscription?.(), 300);
+    }
+  }, [isPro, ownedBackgroundIds, selectBackground, onOpenSubscription]);
 
   const renderItem = ({ item }: { item: BackgroundItem }) => {
     const isOwned = ownedBackgroundIds.has(item.id);
-    const itemWidth = (width - 32 - 28) / 3; // 32 padding horizontal, 28 gap (14 * 2)
+    const isLocked = !isPro && !isOwned;
+    const itemWidth = (width - 40 - 24) / 3;
 
     return (
       <Pressable
         onPress={() => handleSelect(item)}
-        style={[
+        style={({ pressed }) => [
           styles.itemContainer,
           { width: itemWidth },
+          pressed && styles.pressed,
         ]}
       >
         <View style={[styles.imageContainer, { width: itemWidth, height: itemWidth }]}>
           <View style={[styles.placeholder, { width: itemWidth, height: itemWidth }]} />
-          {item.thumbnail ? (
+          {(item.thumbnail || item.image) ? (
             <Image
-              source={{ uri: item.thumbnail }}
+              source={{ uri: item.thumbnail || item.image }}
               style={[styles.image, { width: itemWidth, height: itemWidth }]}
               resizeMode="cover"
             />
           ) : null}
-          
-          {/* Dark overlay for unowned items (simulates brightness(-0.2)) */}
-          {!isOwned && (
+
+          {item.video_url && (
+            <View style={styles.videoIconContainer}>
+              <Ionicons name="videocam" size={14} color="rgba(255,255,255,0.9)" />
+            </View>
+          )}
+
+          {isLocked && (
             <View style={[styles.darkenOverlay, { width: itemWidth, height: itemWidth }]} />
           )}
-          
-          {/* Pro Badge */}
-          <View style={styles.proBadgeContainer}>
-            <ProBadge tier={item.tier} />
-          </View>
 
-          {/* Price Badges (Top-Left) */}
-          {!isOwned && (item.price_vcoin || item.price_ruby) ? (
-            <View style={styles.priceBadgesContainer}>
-              <PriceBadgesView vcoin={item.price_vcoin} ruby={item.price_ruby} />
-            </View>
-          ) : null}
+          {isLocked && (
+            <DiamondBadge size="sm" style={styles.diamondBadgeContainer} />
+          )}
 
-          {/* Lock Icon (Center) */}
-          {!isOwned ? (
+          {isLocked ? (
             <View style={styles.lockIconContainer}>
-              <LockIcon />
+              <View style={styles.lockIconCircle}>
+                <Ionicons name="lock-closed" size={16} color="#fff" />
+              </View>
             </View>
           ) : null}
         </View>
-        
-        <Text style={styles.itemName} numberOfLines={1}>
+
+        <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
           {item.name}
         </Text>
       </Pressable>
     );
   };
 
-  return (
-    <Modal
-      visible={isOpened}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => onIsOpenedChange(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.header}>
-          <View style={{ width: 40 }} />
-          <Text style={styles.headerTitle}>Change Background</Text>
-          <Button
-            size="md"
-            variant="liquid"
-            onPress={() => onIsOpenedChange(false)}
-            startIconName="close"
-            isIconOnly
-          />
+  const renderContent = () => {
+    if (isLoading && items.length === 0) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={textColor} />
         </View>
-        {isLoading && items.length === 0 ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#fff" />
-          </View>
-        ) : errorMessage ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>Failed to load</Text>
-            <Text style={styles.errorDetailText}>{errorMessage}</Text>
-            <Pressable onPress={load} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : items.length === 0 ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No backgrounds</Text>
-            <Pressable onPress={load} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Reload</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <FlatList
-            data={items}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
-            columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+      );
+    }
+
+    if (errorMessage) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.errorText, { color: textColor }]}>Failed to load</Text>
+          <Text style={[styles.errorDetailText, { color: secondaryTextColor }]}>{errorMessage}</Text>
+          <Pressable onPress={load} style={styles.retryButton}>
+            <Text style={[styles.retryButtonText, { color: textColor }]}>Retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    if (items.length === 0) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No backgrounds</Text>
+          <Pressable onPress={load} style={styles.retryButton}>
+            <Text style={[styles.retryButtonText, { color: textColor }]}>Reload</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+        <FlatList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
-      <ConfirmPurchasePortal hostId="background-sheet" active={isOpened} />
-    </Modal>
-  );
-};
+    );
+  };
 
-const ProBadge = ({ tier }: { tier?: string }) => {
-  if (!tier || tier === 'free') return null;
-  
   return (
-    <View style={styles.proBadge}>
-      <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
-    </View>
+    <BottomSheet
+      ref={sheetRef}
+      isOpened={isOpened}
+      onIsOpenedChange={onIsOpenedChange}
+      title="Backgrounds"
+      isDarkBackground={isDarkBackground}
+      headerRight={
+        !isPro ? (
+          <GoProButton onPress={() => {
+            sheetRef.current?.dismiss();
+            setTimeout(() => onOpenSubscription?.(), 300);
+          }} />
+        ) : undefined
+      }
+    >
+      {renderContent()}
+    </BottomSheet>
   );
-};
-
-const PriceBadgesView = ({ vcoin, ruby }: { vcoin?: number; ruby?: number }) => {
-  return (
-    <View style={styles.priceBadges}>
-      {vcoin ? (
-        <View style={styles.priceBadge}>
-          <Text style={styles.priceBadgeText}>V {vcoin}</Text>
-        </View>
-      ) : null}
-      {ruby ? (
-        <View style={[styles.priceBadge, styles.rubyBadge]}>
-          <Text style={styles.priceBadgeText}>R {ruby}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-};
-
-const LockIcon = () => (
-  <View style={styles.lockIconCircle}>
-    <Ionicons name="lock-closed" size={20} color="#fff" />
-  </View>
-);
+});
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#1c1c1e',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  contentContainer: {
-    flex: 1,
-  },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
@@ -284,55 +264,55 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 24,
   },
   columnWrapper: {
-    gap: 14,
-    marginBottom: 14,
+    gap: 12,
+    marginBottom: 16,
   },
   itemContainer: {
     alignItems: 'center',
     gap: 8,
   },
   imageContainer: {
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   placeholder: {
     position: 'absolute',
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   image: {
-    borderRadius: 14,
+    borderRadius: 16,
   },
   darkenOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Simulates brightness(-0.2) + opacity(0.5)
-    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 16,
   },
   itemName: {
-    fontSize: 12,
-    color: '#fff',
+    fontSize: 13,
     textAlign: 'center',
+    fontWeight: '500',
   },
   errorText: {
-    color: '#fff',
     fontSize: 16,
     marginBottom: 4,
   },
   errorDetailText: {
-    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 12,
     marginBottom: 12,
+    textAlign: 'center',
   },
   emptyText: {
-    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 16,
     marginBottom: 12,
   },
@@ -343,46 +323,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#fff',
     fontSize: 14,
   },
-  proBadgeContainer: {
+  diamondBadgeContainer: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  proBadge: {
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  proBadgeText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  priceBadgesContainer: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-  },
-  priceBadges: {
-    gap: 4,
-  },
-  priceBadge: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  rubyBadge: {
-    backgroundColor: 'rgba(220, 20, 60, 0.8)',
-  },
-  priceBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+    top: 6,
+    right: 6,
+    zIndex: 10,
   },
   lockIconContainer: {
     position: 'absolute',
@@ -397,7 +344,22 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  videoIconContainer: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 6,
+    padding: 3,
+    zIndex: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -13,14 +13,9 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PersistKeys } from '../config/supabase';
-import { VRMWebView } from '../components/VRMWebView';
-
-// Default VRM model - using a model from the app's CDN
-const DEFAULT_VRM_URL = 'https://n6n.top/Model/0001_01%202.vrm';
-const DEFAULT_VRM_NAME = '0001_01 2.vrm';
+import { Video, ResizeMode } from 'expo-av';
 
 // Icons (imported as React components via react-native-svg-transformer)
 import AppleIcon from '../assets/icons/apple.svg';
@@ -55,7 +50,7 @@ export const SignInScreen: React.FC<Props> = ({
   const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
 
-  const webViewRef = useRef<WebView>(null);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -151,36 +146,7 @@ export const SignInScreen: React.FC<Props> = ({
     triggerProvider('google');
   }, [triggerProvider]);
 
-  // Prevent duplicate model loading
-  const hasLoadedModelRef = useRef(false);
 
-  const handleVRMMessage = useCallback((message: string) => {
-    console.log('[SignInScreen] Received VRM message:', message);
-    if (message === 'initialReady' && !hasLoadedModelRef.current) {
-      hasLoadedModelRef.current = true;
-
-      const escapedURL = DEFAULT_VRM_URL.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const escapedName = DEFAULT_VRM_NAME.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use the updated default background
-      const backgroundURL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/JAZHAJFvr2Lj8gtKb7cBPSnpPiQBPcNoG7tlEihj.jpg';
-
-      const js = `
-        // Set background image
-        if (typeof window.setBackgroundImage === 'function') {
-           window.setBackgroundImage("${backgroundURL}");
-        } else {
-           document.body.style.backgroundImage = 'url("${backgroundURL}")';
-        }
-        // Load VRM model
-        if (typeof window.loadModelByURL === 'function') {
-           window.loadModelByURL("${escapedURL}", "${escapedName}");
-        }
-        true;
-      `;
-
-      webViewRef.current?.injectJavaScript(js);
-    }
-  }, []);
 
   const pendingProviderLabel = pendingProvider === 'google' ? 'Google' : 'Apple';
   const showAppleSpinner = isLoading && (pendingProvider ?? 'apple') === 'apple';
@@ -191,12 +157,15 @@ export const SignInScreen: React.FC<Props> = ({
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* VRM WebView - 80% height */}
-      <View style={styles.webViewSection}>
-        <VRMWebView
-          ref={webViewRef}
-          onMessage={handleVRMMessage}
-          enableDebug={false}
+      {/* Background Video */}
+      <View style={styles.videoSection}>
+        <Video
+          source={{ uri: 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4' }}
+          style={StyleSheet.absoluteFill}
+          resizeMode={ResizeMode.COVER}
+          isLooping
+          shouldPlay
+          isMuted={true}
         />
       </View>
 
@@ -311,8 +280,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  webViewSection: {
+  videoSection: {
     height: '75%',
+    width: '100%',
   },
   contentOverlay: {
     position: 'absolute',

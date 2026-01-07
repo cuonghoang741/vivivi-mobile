@@ -13,7 +13,7 @@ export class WebSceneBridge {
   update(webViewRef: RefObject<WebView> | null) {
     this.webViewRef = webViewRef;
   }
-  
+
   getWebViewRef(): RefObject<WebView> | null {
     return this.webViewRef;
   }
@@ -35,6 +35,12 @@ export class WebSceneBridge {
 
   triggerDance() {
     const js = 'window.triggerDance && window.triggerDance();';
+    this.evaluate(js);
+  }
+
+  loadAnimationByName(animName: string) {
+    const safeName = animName.replace(/'/g, "\\'");
+    const js = `window.loadAnimationByName && window.loadAnimationByName('${safeName}');`;
     this.evaluate(js);
   }
 

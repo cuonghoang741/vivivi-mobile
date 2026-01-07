@@ -5,12 +5,14 @@ export interface BackgroundItem {
   name: string;
   thumbnail?: string;
   image?: string;
+  video_url?: string;
   created_at?: string;
   public?: boolean;
   tier?: string;
   available?: boolean;
   price_vcoin?: number;
   price_ruby?: number;
+  is_dark?: boolean;
 }
 
 export class BackgroundRepository extends BaseRepository {
@@ -20,7 +22,7 @@ export class BackgroundRepository extends BaseRepository {
   async fetchAllBackgrounds(): Promise<BackgroundItem[]> {
     const { data, error } = await this.client
       .from('backgrounds')
-      .select('id,name,thumbnail,image,created_at,public,tier,available,price_vcoin,price_ruby')
+      .select('id,name,thumbnail,image,video_url,created_at,public,tier,available,price_vcoin,price_ruby,is_dark')
       .eq('public', true)
       .eq('available', true)
       .order('created_at', { ascending: true });
@@ -38,7 +40,7 @@ export class BackgroundRepository extends BaseRepository {
   async fetchBackground(id: string): Promise<BackgroundItem | null> {
     const { data, error } = await this.client
       .from('backgrounds')
-      .select('id,name,thumbnail,image,created_at,public,tier,available,price_vcoin,price_ruby')
+      .select('id,name,thumbnail,image,video_url,created_at,public,tier,available,price_vcoin,price_ruby,is_dark')
       .eq('id', id)
       .eq('available', true)
       .single();

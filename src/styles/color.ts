@@ -33,3 +33,7 @@ export const buttonColors: Record<ButtonColorKey, ButtonColorToken> = {
 };
 
 
+export const sheetColors = {
+  light: "rgba(255,255,255,0.85)",
+  dark: "rgba(39, 39, 39, 0.7)",
+}

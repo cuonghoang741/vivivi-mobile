@@ -1,60 +1,62 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   FlatList,
-  Modal,
   useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import * as Haptics from 'expo-haptics';
-import Button from '../Button';
-import { CharacterCard } from '../characters/CharacterCard';
+import { useNavigation } from '@react-navigation/native';
 import { useSceneActions } from '../../context/SceneActionsContext';
-import { ConfirmPurchasePortal } from '../../context/PurchaseContext';
+import { GoProButton } from '../GoProButton';
+import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+
+import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
+import { DiamondBadge } from '../DiamondBadge';
 
 interface CharacterSheetProps {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
+  onOpenSubscription?: () => void;
+  isDarkBackground?: boolean;
+  isPro?: boolean;
 }
 
-const STORAGE_KEY_USE_GRID = 'characterSheetUseGrid';
+export type CharacterSheetRef = BottomSheetRef;
 
-export const CharacterSheet: React.FC<CharacterSheetProps> = ({
+export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>(({
   isOpened,
   onIsOpenedChange,
-}) => {
+  onOpenSubscription,
+  isDarkBackground = true,
+  isPro = false,
+}, ref) => {
+  const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
-  const [useGrid, setUseGrid] = useState(true);
-  const { width } = useWindowDimensions();
+
+  const { width, height } = useWindowDimensions();
   const { selectCharacter } = useSceneActions();
+  const navigation = useNavigation<any>();
 
-  const loadGridPreference = useCallback(async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY_USE_GRID);
-      if (stored !== null) {
-        setUseGrid(stored === 'true');
-      }
-    } catch (error) {
-      console.warn('Failed to load grid preference:', error);
-    }
-  }, []);
+  // Dynamic colors
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
-  const saveGridPreference = useCallback(async (value: boolean) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY_USE_GRID, String(value));
-    } catch (error) {
-      console.warn('Failed to save grid preference:', error);
-    }
-  }, []);
+  // Expose present/dismiss via ref
+  useImperativeHandle(ref, () => ({
+    present: (index?: number) => sheetRef.current?.present(index),
+    dismiss: () => sheetRef.current?.dismiss(),
+  }));
 
   const fetchOwnedCharacterIds = useCallback(async (completion?: () => void) => {
     try {
@@ -78,21 +80,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
       const characterRepository = new CharacterRepository();
       let loadedItems = await characterRepository.fetchAllCharacters();
 
-      // Filter by available
       loadedItems = loadedItems.filter((item) => item.available !== false);
 
-      // Sort: Owned first, then by price
       const sortedItems = loadedItems.sort((char1, char2) => {
         const isOwned1 = ownedCharacterIds.has(char1.id);
         const isOwned2 = ownedCharacterIds.has(char2.id);
-
-        if (isOwned1 !== isOwned2) {
-          return isOwned1 ? -1 : 1;
-        }
-
-        const price1 = (char1.price_vcoin ?? 0) + (char1.price_ruby ?? 0);
-        const price2 = (char2.price_vcoin ?? 0) + (char2.price_ruby ?? 0);
-        return price1 - price2;
+        if (isOwned1 !== isOwned2) return isOwned1 ? -1 : 1;
+        return 0;
       });
 
       setItems(sortedItems);
@@ -105,199 +99,180 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   }, [isLoading, ownedCharacterIds]);
 
   useEffect(() => {
-    loadGridPreference();
-  }, [loadGridPreference]);
-
-  useEffect(() => {
     if (isOpened) {
       if (items.length === 0) {
-        fetchOwnedCharacterIds(() => {
-          load();
-        });
+        fetchOwnedCharacterIds(() => load());
       } else {
         fetchOwnedCharacterIds();
       }
     }
   }, [isOpened, items.length, fetchOwnedCharacterIds, load]);
 
+  const filteredItems = useMemo(() => items, [items]);
+
   const handleSelect = (item: CharacterItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    void selectCharacter(item);
+    const index = items.findIndex(c => c.id === item.id);
+
+    onIsOpenedChange(false);
+    sheetRef.current?.dismiss();
+
+    setTimeout(() => {
+      navigation.navigate('CharacterPreview', {
+        characters: items,
+        initialIndex: index !== -1 ? index : 0,
+        isViewMode: false,
+        ownedCharacterIds: Array.from(ownedCharacterIds),
+        isPro: isPro,
+      });
+    }, 300);
   };
 
-  const handleToggleView = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newValue = !useGrid;
-    setUseGrid(newValue);
-    saveGridPreference(newValue);
-  };
-
-  const renderGridItem = ({ item }: { item: CharacterItem }) => {
+  const renderItem = ({ item }: { item: CharacterItem }) => {
     const isOwned = ownedCharacterIds.has(item.id);
-    const itemWidth = (width - 32 - 14) / 2; // 32 padding, 14 gap
+    const itemWidth = (width - 40 - 12) / 2;
 
     return (
       <Pressable
         onPress={() => handleSelect(item)}
         style={({ pressed }) => [
-          styles.gridItemContainer,
+          styles.cardContainer,
           { width: itemWidth },
           pressed && styles.pressed,
         ]}
       >
-        <CharacterCard item={item} isOwned={isOwned} />
-      </Pressable>
-    );
-  };
+        <View style={styles.imageBackground}>
+          {item.default_background?.image && (
+            <Image
+              source={{ uri: item.default_background.image }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={200}
+            />
+          )}
 
-  const renderListItem = ({ item }: { item: CharacterItem }) => {
-    const isOwned = ownedCharacterIds.has(item.id);
+          {item.thumbnail_url || item.avatar ? (
+            <Image
+              source={{ uri: item.thumbnail_url || item.avatar }}
+              style={styles.cardImage}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (
+            <View style={styles.cardImagePlaceholder} />
+          )}
 
-    return (
-      <Pressable
-        onPress={() => handleSelect(item)}
-        style={({ pressed }) => [
-          styles.listItemContainer,
-          !isOwned && styles.listItemDimmed,
-          pressed && styles.pressed,
-        ]}
-      >
-        <View style={styles.listItemContent}>
-          <View style={styles.listItemAvatar}>
-            {item.avatar || item.thumbnail_url ? (
-              <Image
-                source={{ uri: item.avatar || item.thumbnail_url }}
-                style={styles.listItemAvatarImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.listItemAvatarPlaceholder} />
-            )}
-          </View>
-          <View style={styles.listItemText}>
-            <View style={styles.listItemNameRow}>
-              <Text style={styles.listItemName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              {item.tier && item.tier !== 'free' && (
-                <View style={styles.listItemProBadge}>
-                  <Text style={styles.listItemProBadgeText}>{item.tier.toUpperCase()}</Text>
-                </View>
+          {!isOwned && (
+            <DiamondBadge size="md" style={styles.diamondBadgeContainer} />
+          )}
+
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)']}
+            style={styles.cardContentOverlay}
+            locations={[0, 0.5, 1]}
+          >
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+              {item?.data?.characteristics && (
+                <Text style={styles.cardDescription} numberOfLines={1}>
+                  {item?.data?.characteristics}
+                </Text>
               )}
             </View>
-            {item.description ? (
-              <Text style={styles.listItemDescription} numberOfLines={2}>
-                {item.description}
-              </Text>
-            ) : null}
-          </View>
+
+            {isOwned && (
+              <View style={styles.actionButtonsRow}>
+                <View style={styles.actionButtonCircle}>
+                  <Ionicons name="chatbubble" size={18} color="rgba(255,255,255,0.8)" />
+                </View>
+                <View style={styles.actionButtonPill}>
+                  <VolumeMixedIcon width={20} height={20} />
+                </View>
+              </View>
+            )}
+          </LinearGradient>
         </View>
       </Pressable>
     );
   };
 
   const renderSkeleton = () => {
-    if (useGrid) {
-      const itemWidth = (width - 32 - 14) / 2;
+    const itemWidth = (width - 40 - 12) / 2;
+    return (
+      <View style={styles.skeletonGrid}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <View key={i} style={[styles.skeletonCard, { width: itemWidth }]} />
+        ))}
+      </View>
+    );
+  };
+
+  const renderContent = () => {
+    if (isLoading && items.length === 0) {
+      return <View style={styles.centerContainer}>{renderSkeleton()}</View>;
+    }
+
+    if (errorMessage) {
       return (
-        <View style={styles.skeletonGrid}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View key={i} style={[styles.skeletonCard, { width: itemWidth }]} />
-          ))}
-        </View>
-      );
-    } else {
-      return (
-        <View style={styles.skeletonList}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <View key={i} style={styles.skeletonListItem} />
-          ))}
+        <View style={styles.centerContainer}>
+          <Text style={[styles.errorText, { color: textColor }]}>Failed to load</Text>
+          <Text style={[styles.errorDetailText, { color: secondaryTextColor }]}>{errorMessage}</Text>
+          <Pressable onPress={load} style={styles.retryButton}>
+            <Text style={[styles.retryButtonText, { color: textColor }]}>Retry</Text>
+          </Pressable>
         </View>
       );
     }
+
+    if (filteredItems.length === 0) {
+      return (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No characters available</Text>
+          <Pressable onPress={load} style={styles.retryButton}>
+            <Text style={[styles.retryButtonText, { color: textColor }]}>Reload</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+        <FlatList
+          data={filteredItems}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    );
   };
 
   return (
-    <Modal
-      visible={isOpened}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => onIsOpenedChange(false)}
+    <BottomSheet
+      ref={sheetRef}
+      isOpened={isOpened}
+      onIsOpenedChange={onIsOpenedChange}
+      title="Characters"
+      isDarkBackground={isDarkBackground}
+      detents={[0.7, 0.95]}
+      headerRight={
+        !isPro ? (
+          <GoProButton onPress={() => {
+            sheetRef.current?.dismiss();
+            setTimeout(() => onOpenSubscription?.(), 300);
+          }} />
+        ) : undefined
+      }
     >
-      <View style={styles.modalContainer}>
-        <View style={styles.header}>
-          <Button
-            size="md"
-            variant="liquid"
-            onPress={handleToggleView}
-            startIconName={useGrid ? 'list-outline' : 'grid-outline'}
-            isIconOnly
-          />
-          <Text style={styles.headerTitle}>Girl friends</Text>
-          <Button
-            size="md"
-            variant="liquid"
-            onPress={() => onIsOpenedChange(false)}
-            startIconName="close"
-            isIconOnly
-          />
-        </View>
-
-        {isLoading && items.length === 0 ? (
-          <View style={styles.centerContainer}>{renderSkeleton()}</View>
-        ) : errorMessage ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>Failed to load</Text>
-            <Text style={styles.errorDetailText}>{errorMessage}</Text>
-            <Pressable onPress={load} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : items.length === 0 ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No characters available</Text>
-            <Pressable onPress={load} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Reload</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <FlatList
-            data={items}
-            renderItem={useGrid ? renderGridItem : renderListItem}
-            keyExtractor={item => item.id}
-            extraData={useGrid}
-            numColumns={useGrid ? 2 : 1}
-            columnWrapperStyle={useGrid ? styles.columnWrapper : undefined}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            key={`character-sheet-${useGrid ? 'grid' : 'list'}`}
-          />
-        )}
-      </View>
-      <ConfirmPurchasePortal hostId="character-sheet" active={isOpened} />
-    </Modal>
+      {renderContent()}
+    </BottomSheet>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
   centerContainer: {
     flex: 1,
     alignItems: 'center',
@@ -305,19 +280,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
   },
   errorDetailText: {
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',
   },
   emptyText: {
-    color: 'rgba(255,255,255,0.8)',
     fontSize: 16,
     marginBottom: 16,
   },
@@ -328,110 +300,107 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   retryButtonText: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   columnWrapper: {
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  gridItemContainer: {
-    marginBottom: 14,
-  },
-  listItemContainer: {
-    marginBottom: 12,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  listItemDimmed: {
-    opacity: 0.5,
-  },
-  listItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
     gap: 12,
+    marginBottom: 12,
   },
-  listItemAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  cardContainer: {
+    aspectRatio: 0.6,
+    borderRadius: 24,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
   },
-  listItemAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  listItemAvatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  listItemText: {
+  imageBackground: {
     flex: 1,
   },
-  listItemNameRow: {
-    flexDirection: 'row',
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  cardContentOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    paddingTop: 40,
+    justifyContent: 'flex-end',
+  },
+  cardInfo: {
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  listItemName: {
-    flex: 1,
+  cardName: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  listItemProBadge: {
-    backgroundColor: 'rgba(160,104,255,0.9)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  listItemProBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  listItemDescription: {
-    color: 'rgba(255,255,255,0.8)',
+  cardDescription: {
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
-    lineHeight: 18,
+    textAlign: 'center',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  actionButtonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(55, 53, 53, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionButtonPill: {
+    width: '60%',
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  diamondBadgeContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
   },
   pressed: {
-    opacity: 0.85,
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
   skeletonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
-    paddingHorizontal: 16,
+    gap: 12,
+    paddingHorizontal: 20,
   },
   skeletonCard: {
-    aspectRatio: 1,
-    borderRadius: 20,
+    aspectRatio: 0.6,
+    borderRadius: 24,
     backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  skeletonList: {
-    width: '100%',
-    paddingHorizontal: 16,
-  },
-  skeletonListItem: {
-    height: 80,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginBottom: 12,
   },
 });
-

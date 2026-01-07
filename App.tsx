@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
 import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid } from 'react-native';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -14,23 +14,28 @@ import { useUserStats } from './src/hooks/useUserStats';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { ImageOnboardingScreen } from './src/screens/ImageOnboardingScreen';
 import { NewUserGiftScreen } from './src/screens/NewUserGiftScreen';
+import { OnboardingV2Screen } from './src/screens/OnboardingV2Screen';
+import { CharacterPreviewScreen } from './src/screens/CharacterPreviewScreen';
+import { SubscriptionScreen } from './src/screens/SubscriptionScreen';
 import { authManager } from './src/services/AuthManager';
 import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { useChatManager } from './src/hooks/useChatManager';
-import { useVoiceConversation } from './src/hooks/useVoiceConversation';
+import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
 import { useVoiceCall } from './src/hooks/useVoiceCall';
+import { DetectedAction } from './src/services/ActionDetectionService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
 import { UserCharacterPreferenceService } from './src/services/UserCharacterPreferenceService';
 import { VRMProvider, useVRMContext } from './src/context/VRMContext';
 import { AppSheets } from './src/components/AppSheets';
+import { StreakSheet, type StreakSheetRef } from './src/components/sheets/StreakSheet';
 import { CharacterQuickSwitcher } from './src/components/CharacterQuickSwitcher';
 import { BackgroundItem, BackgroundRepository } from './src/repositories/BackgroundRepository';
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
-import { CharacterHeaderCard, HeaderIconButton } from './src/components/header/SceneHeaderComponents';
+import { SceneHeader } from './src/components/header/SceneHeaderComponents';
 import { useLoginRewards } from './src/hooks/useLoginRewards';
 import { useQuests } from './src/hooks/useQuests';
 import { SceneActionsProvider } from './src/context/SceneActionsContext';
@@ -44,9 +49,14 @@ import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
 import { ToastStackView } from './src/components/toast/ToastStackView';
 import { RewardClaimOverlay, RewardClaimOverlayHelpers, type RewardItem } from './src/components/toast/RewardClaimOverlay';
 import { Persistence } from './src/utils/persistence';
+import { oneSignalService } from './src/services/OneSignalService';
+import { analyticsService } from './src/services/AnalyticsService';
 
 type RootStackParamList = {
-  Experience: undefined;
+  Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
+  CharacterPreview: { characters: CharacterItem[]; initialIndex?: number; ownedCharacterIds?: string[] };
+  OnboardingV2: { selectedCharacterId: string };
+  Subscription: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -56,6 +66,11 @@ type ExperienceNavigationProp = NativeStackNavigationProp<RootStackParamList, 'E
 import { LEGAL_URLS } from './src/constants/appConstants';
 
 const AppContent = () => {
+  // Debug: track re-renders
+  const renderCountRef = React.useRef(0);
+  renderCountRef.current += 1;
+  console.log('[AppContent] Render #', renderCountRef.current);
+
   const {
     authState,
     initialData,
@@ -70,14 +85,13 @@ const AppContent = () => {
   const userId = session?.user?.id ?? null;
 
   const navigation = useNavigation<ExperienceNavigationProp>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Experience'>>();
   const webViewRef = useRef<any>(null);
   const snapshotViewRef = useRef<View | null>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
-  const agentIdCacheRef = useRef<Map<string, string>>(new Map());
   const characterRepoRef = useRef<CharacterRepository | null>(null);
   const lastBgmBeforeVoiceRef = useRef(false);
   const chatListWasVisibleBeforeCameraRef = useRef(false);
-  const lastCallWasVideoRef = useRef(false);
   const [showSwiftUIDemo, setShowSwiftUIDemo] = useState(false);
   const [overlayFlags, setOverlayFlags] = useState({
     hasIncompleteQuests: true,
@@ -89,16 +103,17 @@ const AppContent = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
   const [showNewUserGift, setShowNewUserGift] = useState(false);
+  const [showOnboardingV2, setShowOnboardingV2] = useState(false);
   const [showQuestSheet, setShowQuestSheet] = useState(false);
   const [questSheetTabRequest, setQuestSheetTabRequest] = useState<{ tab: 'daily' | 'level'; token: number } | null>(null);
   const [showEnergySheet, setShowEnergySheet] = useState(false);
   const [showLevelSheet, setShowLevelSheet] = useState(false);
-  const [showCameraPreview, setShowCameraPreview] = useState(false);
+  const streakSheetRef = useRef<StreakSheetRef>(null);
   const [showCharacterDetailSheet, setShowCharacterDetailSheet] = useState(false);
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats, consumeEnergy, refillEnergy } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isPro, setIsPro] = useState(false);
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
@@ -129,12 +144,53 @@ const AppContent = () => {
     setShowCharacterSheet,
     showCostumeSheet,
     setShowCostumeSheet,
+    setShowPurchaseSheet,
   } = usePurchaseContext();
+
+  // Handle character selection from CharacterPreviewScreen
+  useEffect(() => {
+    if (route.params?.selectedCharacterId) {
+      const selectedId = route.params.selectedCharacterId;
+      console.log('🔄 [App] Selected character from preview:', selectedId);
+
+      const updateCharacter = async () => {
+        try {
+          // 1. Try to find in loaded owned characters
+          let character = allCharacters.find(c => c.id === selectedId);
+
+          // 2. If not found (e.g. PRO character not owned), fetch it
+          if (!character) {
+            const characterRepo = new CharacterRepository();
+            const fetched = await characterRepo.fetchCharacter(selectedId);
+            if (fetched) {
+              character = fetched;
+            }
+          }
+
+          if (character) {
+            // Update state
+            setCurrentCharacterState(character);
+
+            // Save preference
+            await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {});
+
+            // Clear params to avoid re-triggering
+            navigation.setParams({ selectedCharacterId: undefined });
+
+            console.log('✅ [App] Updated current character to:', character.name);
+          }
+        } catch (error) {
+          console.error('❌ [App] Failed to update character from preview:', error);
+        }
+      };
+
+      updateCharacter();
+    }
+  }, [route.params?.selectedCharacterId, allCharacters, setCurrentCharacterState, navigation]);
   const [isBgmOn, setIsBgmOn] = useState(false);
   const isBgmOnRef = useRef(false);
-  const [isCameraModeOn, setIsCameraModeOn] = useState(false);
   const [autoPlayMusic, setAutoPlayMusic] = useState(false);
-  const { state: loginRewardState, load: loadLoginRewards } = useLoginRewards();
+  const { state: loginRewardState, load: loadLoginRewards, claimToday } = useLoginRewards();
   const quests = useQuests(hasRestoredSession && !!session);
 
   // Helper to generate unique ID
@@ -254,7 +310,7 @@ const AppContent = () => {
     await refreshStats();
   }, [consumeEnergy, quests, refreshStats]);
 
-  const activeCharacterId = currentCharacter?.id ?? initialData?.character.id;
+  const activeCharacterId = currentCharacter?.id ?? initialData?.character.id ?? null;
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -288,17 +344,17 @@ const AppContent = () => {
   // Load all characters and owned characters
   useEffect(() => {
     if (!session) return;
-    
+
     const loadCharacters = async () => {
       try {
         const characterRepo = new CharacterRepository();
         const assetRepo = new AssetRepository();
-        
+
         const [characters, owned] = await Promise.all([
           characterRepo.fetchAllCharacters(),
           assetRepo.fetchOwnedAssets('character'),
         ]);
-        
+
         // Filter to only owned characters
         const ownedCharacters = characters.filter(c => owned.has(c.id));
         setAllCharacters(ownedCharacters);
@@ -307,7 +363,7 @@ const AppContent = () => {
         console.warn('[App] Failed to load characters for quick switcher:', error);
       }
     };
-    
+
     loadCharacters();
   }, [session, activeCharacterId]);
 
@@ -318,7 +374,7 @@ const AppContent = () => {
       }
     };
   }, []);
-  
+
   // Mute BGM if needed (when agent speaks) - must be defined before handleAgentReply
   const muteBgmIfNeeded = useCallback(async () => {
     if (autoPlayMusic) {
@@ -348,6 +404,56 @@ const AppContent = () => {
     await muteBgmIfNeeded();
     webBridgeRef.current?.playSpeech(text);
   }, [muteBgmIfNeeded]);
+
+  // State to store pending voice action (since handleActionDetected is called before voice functions are available)
+  const [pendingVoiceAction, setPendingVoiceAction] = useState<'voice' | 'video' | null>(null);
+
+  // Initial action handler that stores action for later execution
+  const handleActionDetected = useCallback((action: DetectedAction, userMessage: string) => {
+    console.log('[App] Action detected:', action.action, 'from message:', userMessage);
+
+    // Non-voice actions can be handled immediately
+    switch (action.action) {
+      case 'change_background':
+        setShowBackgroundSheet(true);
+        break;
+
+      case 'change_costume':
+        setShowCostumeSheet(true);
+        break;
+
+      case 'change_character':
+        setShowCharacterSheet(true);
+        break;
+
+      case 'play_animation':
+        // Play specific animation if name is provided, otherwise random
+        if (action.parameters?.animationName) {
+          console.log('[App] Playing animation:', action.parameters.animationName);
+          webBridgeRef.current?.loadAnimationByName(action.parameters.animationName);
+        } else {
+          webBridgeRef.current?.triggerDance();
+        }
+        break;
+
+      case 'open_subscription':
+        navigation.navigate('Subscription');
+        break;
+
+      case 'start_voice_call':
+        // Store for later execution after useAppVoiceCall is initialized
+        setPendingVoiceAction('voice');
+        break;
+
+      case 'start_video_call':
+        setPendingVoiceAction('video');
+        break;
+
+      default:
+        break;
+    }
+  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation]);
+
   const {
     state: chatState,
     toggleChatList: toggleChatListInternal,
@@ -359,7 +465,11 @@ const AppContent = () => {
     addAgentMessage,
     addUserMessage,
     refreshStreak,
-  } = useChatManager(activeCharacterId, { onAgentReply: handleAgentReply });
+    performCheckIn,
+  } = useChatManager(activeCharacterId ?? undefined, {
+    onAgentReply: handleAgentReply,
+    onActionDetected: handleActionDetected,
+  });
 
   // Memoize voice conversation callbacks to prevent recreation (like swift-version)
   const voiceCallbacks = useMemo(
@@ -392,11 +502,40 @@ const AppContent = () => {
   );
 
   const {
-    state: voiceState,
-    startCall,
+    voiceState,
+    isVoiceMode,
+    isCameraMode,
+    showCameraPreview,
+    cameraStream,
+    handleToggleCameraMode,
+    handleToggleMic,
+    handleCameraOverlayClose,
+    sendVoiceText,
     endCall,
-    sendText: sendVoiceText,
-  } = useVoiceConversation(voiceCallbacks);
+    agentIdCacheRef,
+    ensureCameraPermission,
+    ensureMicrophonePermission,
+    stopCameraPreview
+  } = useAppVoiceCall({
+    activeCharacterId: activeCharacterId ?? undefined,
+    userId: session?.user?.id ?? null,
+    voiceCallbacks,
+    webBridgeRef,
+  });
+
+  // Process pending voice/video call actions
+  useEffect(() => {
+    if (pendingVoiceAction) {
+      if (pendingVoiceAction === 'voice') {
+        console.log('[App] Executing pending voice call action');
+        handleToggleMic();
+      } else if (pendingVoiceAction === 'video') {
+        console.log('[App] Executing pending video call action');
+        handleToggleCameraMode();
+      }
+      setPendingVoiceAction(null);
+    }
+  }, [pendingVoiceAction, handleToggleMic, handleToggleCameraMode]);
 
   // Voice call metering (like swift-version)
   const currentAgentIdRef = useRef<string | null>(null);
@@ -413,16 +552,18 @@ const AppContent = () => {
       Alert.alert(
         'Out of Funds',
         'You don\'t have enough VCoin to continue the call. The call will end.',
-        [{ text: 'OK', onPress: async () => {
-          await endCall();
-          setShowPurchaseSheet(true);
-        }}]
+        [{
+          text: 'OK', onPress: async () => {
+            await endCall();
+            setShowPurchaseSheet(true);
+          }
+        }]
       );
     },
-    onQuestUpdate: async (questType: string, seconds: number, minutes: number) => {
-      await QuestProgressTracker.track(questType, minutes);
+    onQuestUpdate: async (questType: string, _seconds: number, minutes: number) => {
+      await QuestProgressTracker.track(questType as import('./src/utils/QuestProgressTracker').QuestAction, minutes);
     },
-    questTypeResolver: () => (lastCallWasVideoRef.current ? 'video_call' : 'voice_call'),
+    questTypeResolver: () => (isCameraMode ? 'video_call' : 'voice_call'),
   });
 
   useEffect(() => {
@@ -436,8 +577,13 @@ const AppContent = () => {
   useEffect(() => {
     if (initialData?.preference?.backgroundId) {
       setCurrentBackgroundId(initialData.preference.backgroundId);
+    } else if (initialData?.ownedBackgroundIds && initialData.ownedBackgroundIds.length > 0) {
+      // Fallback: if no cached preference, select first owned background as default
+      const firstOwnedBgId = initialData.ownedBackgroundIds[0];
+      setCurrentBackgroundId(firstOwnedBgId);
+      console.log('[App] No background preference, using first owned:', firstOwnedBgId);
     }
-  }, [initialData?.preference?.backgroundId]);
+  }, [initialData?.preference?.backgroundId, initialData?.ownedBackgroundIds]);
 
   // Sync ownedBackgroundIds from initialData
   useEffect(() => {
@@ -451,10 +597,10 @@ const AppContent = () => {
 
   const handleCurrencyPurchaseComplete = useCallback(async (payload: { vcoinAdded: number; rubyAdded: number }) => {
     await refreshCurrency();
-    
+
     // Track quest progress for payment
     await QuestProgressTracker.track('make_payment');
-    
+
     // Resume pending purchase after currency refresh (like Swift version with 0.2s delay)
     setTimeout(async () => {
       const result = await resumePendingPurchase();
@@ -464,7 +610,7 @@ const AppContent = () => {
           const assetRepo = new AssetRepository();
           const costumeRepo = new CostumeRepository();
           const costume = await costumeRepo.fetchCostumeById(result.itemId);
-          
+
           if (costume && currentCharacter) {
             await UserCharacterPreferenceService.applyCostumeById(
               costume.id,
@@ -486,21 +632,16 @@ const AppContent = () => {
 
   const handleCalendarPress = useCallback(() => {
     if (!session) {
-      Alert.alert('Sign in required', 'Please sign in to view check-ins.');
+      Alert.alert('Sign in required', 'Please sign in to view your streak.');
       return;
     }
-    setQuestSheetTabRequest({
-      tab: 'daily',
-      token: Date.now(),
-    });
-    setShowQuestSheet(true);
-    if (!loginRewardState.loaded && !loginRewardState.isLoading) {
-      loadLoginRewards();
-    }
-  }, [session, loginRewardState.loaded, loginRewardState.isLoading, loadLoginRewards]);
+    streakSheetRef.current?.present();
+    analyticsService.logSheetOpen('streak');
+  }, [session]);
 
   const handleOpenSettings = useCallback(() => {
     setShowSettings(true);
+    analyticsService.logSettingsOpen();
   }, []);
 
 
@@ -508,65 +649,10 @@ const AppContent = () => {
   const handleCharacterCardPress = useCallback(() => {
     // Giống swift-version: nhấn vào card thông tin nhân vật sẽ mở Character Detail sheet
     setShowCharacterDetailSheet(true);
+    analyticsService.logCharacterDetailView(activeCharacterId || '');
   }, [setShowCharacterDetailSheet]);
 
-  const resolveAgentId = useCallback(async (): Promise<string | null> => {
-    if (!activeCharacterId) {
-      return null;
-    }
-    const cached = agentIdCacheRef.current.get(activeCharacterId);
-    if (cached) {
-      return cached;
-    }
-    try {
-      if (!characterRepoRef.current) {
-        characterRepoRef.current = new CharacterRepository();
-      }
-      const character = await characterRepoRef.current.fetchCharacter(activeCharacterId);
-      const agentId = character?.agent_elevenlabs_id ?? null;
-      if (agentId) {
-        agentIdCacheRef.current.set(activeCharacterId, agentId);
-      }
-      return agentId;
-    } catch (error) {
-      console.warn('[App] Failed to resolve ElevenLabs agent id:', error);
-      return null;
-    }
-  }, [activeCharacterId]);
 
-  const handleToggleMic = useCallback(async () => {
-    // Prevent multiple simultaneous calls (like swift-version)
-    if (voiceState.isBooting || voiceState.status === 'connecting') {
-      return;
-    }
-    
-    if (voiceState.isConnected) {
-      // End call if already connected (like swift-version)
-      await endCall();
-      return;
-    }
-    
-    // Start call (like swift-version)
-    if (!activeCharacterId) {
-      Alert.alert('Voice unavailable', 'Please select a character before starting a call.');
-      return;
-    }
-    
-    const agentId = await resolveAgentId();
-    if (!agentId) {
-      Alert.alert('Voice unavailable', 'This character does not have a voice agent available yet.');
-      return;
-    }
-    
-    try {
-      await startCall({
-        agentId,
-        userId: session?.user?.id,
-      });
-    } catch {
-      // Error is handled inside useVoiceConversation
-    }
-  }, [voiceState.isBooting, voiceState.status, voiceState.isConnected, activeCharacterId, endCall, resolveAgentId, startCall, session?.user?.id]);
 
   const handleQuestPress = useCallback(() => {
     if (!session) {
@@ -575,6 +661,7 @@ const AppContent = () => {
     }
     setQuestSheetTabRequest(null);
     setShowQuestSheet(true);
+    analyticsService.logQuestView('daily');
   }, [session]);
 
   const handleSendChatText = useCallback(
@@ -594,7 +681,33 @@ const AppContent = () => {
     if (current.granted) {
       return true;
     }
+
+    // If can't ask again, prompt to go to settings
+    if (!current.canAskAgain) {
+      Alert.alert(
+        'Photo Library Permission Required',
+        'Please enable photo library access in Settings to save photos.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+      return false;
+    }
+
     const requested = await MediaLibrary.requestPermissionsAsync(true);
+
+    if (!requested.granted && !requested.canAskAgain) {
+      Alert.alert(
+        'Photo Library Permission Required',
+        'Please enable photo library access in Settings to save photos.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+    }
+
     return requested.granted;
   }, []);
 
@@ -617,10 +730,7 @@ const AppContent = () => {
     try {
       const hasPermission = await ensureMediaPermission();
       if (!hasPermission) {
-        Alert.alert(
-          'Photo access required',
-          'Please allow the app to save shots to your photo library.'
-        );
+        // Alert already shown in ensureMediaPermission if can't ask again
         return;
       }
 
@@ -641,6 +751,8 @@ const AppContent = () => {
       }
 
       await QuestProgressTracker.trackMany(['capture_characters', 'capture_backgrounds']);
+      // Track capture photo analytics
+      analyticsService.logCapturePhoto(activeCharacterId || '', currentBackgroundId || undefined);
     } catch (error) {
       console.error('[App] Failed to capture snapshot:', error);
       Alert.alert('Unable to save image', 'Please try again in a moment.');
@@ -658,6 +770,7 @@ const AppContent = () => {
       return;
     }
     setShowMediaSheet(true);
+    analyticsService.logSheetOpen('media');
   }, [activeCharacterId]);
 
   const handleDance = useCallback(() => {
@@ -672,6 +785,8 @@ const AppContent = () => {
       QuestProgressTracker.track('dance_character').catch(error =>
         console.warn('[App] Failed to track dance quest progress:', error)
       );
+      // Track dance analytics
+      analyticsService.logDanceTrigger(activeCharacterId || '');
     } catch (error) {
       console.error('[App] Failed to trigger dance:', error);
     }
@@ -685,133 +800,7 @@ const AppContent = () => {
     return fallback ?? '';
   }, [currentCharacter?.name, initialData?.character?.name]);
 
-  const ensureCameraPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Camera permission',
-            message: 'Camera access is required to start a video call.',
-            buttonPositive: 'OK',
-          }
-        );
-        return result === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (error) {
-        console.warn('[App] Camera permission request failed:', error);
-        return false;
-      }
-    }
-    // iOS will present the system prompt automatically when accessing the camera
-    return true;
-  }, []);
 
-  const startCameraPreviewStream = useCallback(async () => {
-    try {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-      const stream = await mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          frameRate: 30,
-          width: 720,
-          height: 1280,
-        },
-        audio: false,
-      });
-      setCameraStream(stream);
-      return true;
-    } catch (error) {
-      console.warn('[App] Failed to start camera preview:', error);
-      Alert.alert('Camera unavailable', 'Please allow camera access to start a video call.');
-      return false;
-    }
-  }, [cameraStream]);
-
-  const stopCameraPreview = useCallback(
-    (options?: { preserveVideoFlag?: boolean }) => {
-      setShowCameraPreview(false);
-      setIsCameraModeOn(false);
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-      }
-      setCameraStream(null);
-      if (!options?.preserveVideoFlag) {
-        lastCallWasVideoRef.current = false;
-      }
-    },
-    [cameraStream]
-  );
-
-  const handleToggleCameraMode = useCallback(async () => {
-    if (showCameraPreview) {
-      stopCameraPreview({ preserveVideoFlag: voiceState.isConnected });
-      if (voiceState.isConnected) {
-        try {
-          await endCall();
-        } catch (error) {
-          console.warn('[App] Failed to end call for camera mode:', error);
-        }
-      }
-      return;
-    }
-
-    if (!activeCharacterId) {
-      Alert.alert('Voice unavailable', 'Please select a character before starting a video call.');
-      return;
-    }
-
-    const hasPermission = await ensureCameraPermission();
-    if (!hasPermission) {
-      Alert.alert('Camera permission required', 'Please allow camera access to start a video call.');
-      return;
-    }
-
-    const startedPreview = await startCameraPreviewStream();
-    if (!startedPreview) {
-      return;
-    }
-
-    setShowCameraPreview(true);
-    setIsCameraModeOn(true);
-
-    if (!voiceState.isConnected) {
-      const agentId = await resolveAgentId();
-      if (!agentId) {
-        Alert.alert('Voice unavailable', 'This character does not have a voice agent available yet.');
-        stopCameraPreview();
-        return;
-      }
-      try {
-        await startCall({
-          agentId,
-          userId,
-        });
-      } catch (error) {
-        console.warn('[App] Failed to start call for camera mode:', error);
-        stopCameraPreview();
-        Alert.alert('Voice call', 'Unable to start a call right now. Please try again in a moment.');
-      }
-    }
-  }, [
-    showCameraPreview,
-    voiceState.isConnected,
-    endCall,
-    activeCharacterId,
-    ensureCameraPermission,
-    startCameraPreviewStream,
-    resolveAgentId,
-    startCall,
-    stopCameraPreview,
-    userId,
-  ]);
-
-  const handleCameraOverlayClose = useCallback(() => {
-    if (showCameraPreview) {
-      void handleToggleCameraMode();
-    }
-  }, [showCameraPreview, handleToggleCameraMode]);
 
   const handleCharacterSelect = useCallback(
     async (item: CharacterItem) => {
@@ -855,13 +844,14 @@ const AppContent = () => {
 
           ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
           isOwned = ownedCharacterIds.has(item.id);
-          
+
           const totalOwnedCharacters = ownedCharacterIds.size;
           const unlockedNow = !wasOwned && isOwned;
-          
+
           if (unlockedNow) {
             await QuestProgressTracker.track('unlock_character');
             await QuestProgressTracker.track('obtain_characters');
+            analyticsService.logCharacterUnlock(item.id, isFree ? 'free' : 'purchase');
           }
         }
 
@@ -895,13 +885,15 @@ const AppContent = () => {
         }
 
         await refreshInitialData();
-        
+
         // Refresh streak for the new character (like swift-version)
         if (refreshStreak) {
           await refreshStreak(item.id, false);
         }
-        
+
         setShowCharacterSheet(false);
+        // Track character selection
+        analyticsService.logCharacterSelect(item.id, item.name);
       } catch (error) {
         console.error('❌ Error selecting character:', error);
         Alert.alert('Error', 'Failed to select character');
@@ -943,7 +935,7 @@ const AppContent = () => {
         const backgrounds = await backgroundRepo.fetchAllBackgrounds();
         setAllBackgrounds(backgrounds);
         console.log(`✅ Loaded ${backgrounds.length} backgrounds`);
-        
+
         // Also load owned backgrounds
         const assetRepo = new AssetRepository();
         const owned = await assetRepo.fetchOwnedAssets('background');
@@ -964,7 +956,7 @@ const AppContent = () => {
         console.warn('⚠️ Cannot swipe backgrounds: allBackgrounds is empty');
         // Fallback: try to use webView functions if available
         if (webViewRef.current) {
-          const js = offset > 0 
+          const js = offset > 0
             ? 'window.nextBackground&&window.nextBackground();'
             : 'window.prevBackground&&window.prevBackground();';
           webViewRef.current.injectJavaScript(js);
@@ -974,26 +966,26 @@ const AppContent = () => {
 
       // Filter to only owned backgrounds (like swift-version)
       const ownedBackgrounds = allBackgrounds.filter(bg => ownedBackgroundIds.has(bg.id));
-      
+
       if (ownedBackgrounds.length === 0) {
         console.warn('⚠️ Cannot swipe backgrounds: no owned backgrounds');
         return;
       }
 
       const count = ownedBackgrounds.length;
-      
+
       // Find current index in owned backgrounds only
       const currentIndex = currentBackgroundId
         ? ownedBackgrounds.findIndex(bg => bg.id === currentBackgroundId)
         : 0;
-      
+
       // If current background is not owned, start from first owned
       const startIndex = currentIndex >= 0 ? currentIndex : 0;
-      
+
       // Calculate new index with modulo (like swift-version)
       let newIndex = (startIndex + offset + count) % count;
       if (newIndex < 0) newIndex += count;
-      
+
       const background = ownedBackgrounds[newIndex];
 
       if (background && currentCharacter) {
@@ -1012,7 +1004,7 @@ const AppContent = () => {
           backgroundURL: background.image || '',
           backgroundName: background.name || '',
         });
-        
+
         // Track swipe background quest (like swift-version)
         await QuestProgressTracker.track('swipe_background');
       }
@@ -1072,6 +1064,7 @@ const AppContent = () => {
         if (alreadyOwned) {
           await applyBackground(ownedBackgroundIds);
           clearConfirmPurchaseRequest();
+          analyticsService.logBackgroundChange(item.id);
           return;
         }
 
@@ -1120,7 +1113,9 @@ const AppContent = () => {
         if (!alreadyOwned && nowOwned) {
           await QuestProgressTracker.track('unlock_background');
           await QuestProgressTracker.track('obtain_backgrounds');
+          analyticsService.logBackgroundUnlock(item.id, isFree ? 'free' : 'purchase');
         }
+        analyticsService.logBackgroundChange(item.id);
 
         clearConfirmPurchaseRequest();
       } catch (error) {
@@ -1237,7 +1232,7 @@ const AppContent = () => {
 
   useEffect(() => {
     if (showCameraPreview) {
-      lastCallWasVideoRef.current = true;
+      // isCameraMode is now handled by useAppVoiceCall
       chatListWasVisibleBeforeCameraRef.current = chatState.showChatList;
       if (!voiceState.isConnected && chatState.showChatList) {
         setShowChatList(false);
@@ -1276,7 +1271,8 @@ const AppContent = () => {
           }
         }
         lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
-        webBridgeRef.current?.setCallMode(true);
+        // Only zoom if in camera mode, not voice mode
+        webBridgeRef.current?.setCallMode(isCameraMode);
         if (isBgmOnRef.current) {
           try {
             await backgroundMusicManager.pause();
@@ -1292,9 +1288,9 @@ const AppContent = () => {
         if (previousCallConnectedRef.current) {
           await stopCallMetering(true);
         }
-        stopCameraPreview({ preserveVideoFlag: true });
-        lastCallWasVideoRef.current = false;
-        
+        // stopCameraPreview({ preserveVideoFlag: true });
+        // isCameraMode is reset by useAppVoiceCall.endCall()
+
         webBridgeRef.current?.setCallMode(false);
         if (lastBgmBeforeVoiceRef.current) {
           try {
@@ -1314,16 +1310,16 @@ const AppContent = () => {
     return () => {
       cancelled = true;
     };
-  }, [voiceState.isConnected, activeCharacterId, startCallMetering, stopCallMetering, isBgmOn, stopCameraPreview]);
+  }, [voiceState.isConnected, activeCharacterId, startCallMetering, stopCallMetering, isBgmOn]);
 
   useEffect(() => {
     // Calculate unclaimed quest count (completed but not claimed)
     const unclaimedCount = quests.daily.visibleQuests.filter(
       (quest) => quest.completed && !quest.claimed
     ).length;
-    
-    setOverlayFlags(prev => ({ 
-      ...prev, 
+
+    setOverlayFlags(prev => ({
+      ...prev,
       hasIncompleteQuests: quests.hasIncompleteDaily,
       unclaimedQuestCount: unclaimedCount,
     }));
@@ -1412,16 +1408,47 @@ const AppContent = () => {
         userId: session.user.id,
         email: session.user.email,
       });
+      // Link user to OneSignal for targeted notifications
+      oneSignalService.setExternalUserId(session.user.id);
+      // Set user for analytics
+      analyticsService.setUserId(session.user.id);
+    } else {
+      // Remove user from OneSignal on logout
+      oneSignalService.removeExternalUserId();
+      // Clear analytics user
+      analyticsService.setUserId(null);
+      analyticsService.logSignOut();
+      setIsPro(false);
     }
   }, [hasRestoredSession, session]);
+
+  const handleOpenStreak = useCallback(() => {
+    setShowCostumeSheet(false);
+    setShowQuestSheet(true);
+    // Optionally open specifically to the check-in tab if supported, 
+    // but QuestSheet usually shows daily tasks/rewards by default or has tabs.
+    // Ideally we would pass a specific tab request if QuestSheet supports it.
+  }, []);
 
   useEffect(() => {
     ensureWebBridge();
     ensureInitialModelApplied(webViewRef);
-    
+
+    // Initialize OneSignal
+    oneSignalService.initialize();
+
+    // Log app open event
+    analyticsService.logAppOpen();
+
     // Initialize RevenueCat
     import('./src/services/RevenueCatManager').then(({ revenueCatManager }) => {
-      revenueCatManager.configure();
+      revenueCatManager.configure().then(() => {
+        // Check PRO status after configure
+        revenueCatManager.hasActiveSubscription().then(hasSub => {
+          setIsPro(hasSub);
+          console.log('[App] PRO status:', hasSub);
+        });
+      });
     });
   }, [ensureInitialModelApplied, ensureWebBridge]);
 
@@ -1431,6 +1458,13 @@ const AppContent = () => {
       canClaimCalendar: loginRewardState.canClaimToday,
     }));
   }, [loginRewardState.canClaimToday]);
+
+  // Compute isDarkBackground based on current background
+  const isDarkBackground = useMemo(() => {
+    if (!currentBackgroundId) return true; // Default to dark
+    const currentBg = allBackgrounds.find(bg => bg.id === currentBackgroundId);
+    return currentBg?.is_dark ?? true; // Default to dark if not set
+  }, [currentBackgroundId, allBackgrounds]);
 
   const handleModelReady = useCallback(async () => {
     console.log('🎉 [App] VRM Model is ready!');
@@ -1461,86 +1495,18 @@ const AppContent = () => {
     hasRestoredSession &&
     !!session &&
     !shouldShowSignIn &&
+    !showOnboardingV2 &&
     !showImageOnboarding &&
     !showNewUserGift &&
     !shouldWaitForInitialData &&
     !(Platform.OS === 'ios' && showSwiftUIDemo);
 
+  // Hide navigation header - we use custom SceneHeader
   useEffect(() => {
-    if (!navigation) {
-      return;
-    }
-
-    if (!showMainExperience) {
+    if (navigation) {
       navigation.setOptions({ headerShown: false });
-      return;
     }
-
-    navigation.setOptions({
-      headerShown: true,
-      headerTransparent: true,
-      headerShadowVisible: false,
-      headerTitleAlign: 'center',
-      headerStyle: {
-        backgroundColor: 'transparent',
-      },
-      headerTitle: () => (
-        <CharacterHeaderCard
-          name={characterTitle}
-          relationshipName={currentCharacter?.relationshipName}
-          relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
-          avatarUri={currentCharacter?.avatar}
-          relationshipIconUri={currentCharacter?.relationshipIconUri}
-          onPress={handleCharacterCardPress}
-        />
-      ),
-      headerLeft: () => (
-        <View style={styles.headerActions}>
-          <HeaderIconButton
-            iconName="settings"
-            onPress={handleOpenSettings}
-            accessibilityLabel="Open settings"
-          />
-          <HeaderIconButton
-            iconName={isBgmOn ? 'volume-high' : 'volume-mute'}
-            onPress={handleToggleBgm}
-            accessibilityLabel="Toggle background music"
-            active={isBgmOn} 
-          />
-        </View>
-      ),
-      headerRight: () => (
-        <View style={styles.headerActions}>
-          <HeaderIconButton
-            iconName="grid"
-            onPress={() => setShowCharacterSheet(true)}
-            accessibilityLabel="Character menu"
-          />
-          <HeaderIconButton
-            iconName={isCameraModeOn ? 'stop-circle' : 'videocam'}
-            onPress={handleToggleCameraMode}
-            accessibilityLabel="Camera mode"
-            active={isCameraModeOn}
-          />
-        </View>
-      ),
-    });
-  }, [
-    navigation,
-    showMainExperience,
-    characterTitle,
-    currentCharacter?.relationshipName,
-    currentCharacter?.relationshipProgress,
-    currentCharacter?.avatar,
-    currentCharacter?.relationshipIconUri,
-    handleCharacterCardPress,
-    handleOpenSettings,
-    handleToggleBgm,
-    isBgmOn,
-    setShowCharacterSheet,
-    handleToggleCameraMode,
-    isCameraModeOn,
-  ]);
+  }, [navigation]);
 
   const checkGiftClaimStatus = useCallback(async () => {
     try {
@@ -1599,34 +1565,54 @@ const AppContent = () => {
       const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
       const hasCharacters = ownedCharacterIds.size > 0;
 
+      const hasCompletedOnboardingV2 =
+        (await AsyncStorage.getItem('persist.hasCompletedOnboardingV2')) === 'true';
       const hasCompletedImageOnboarding =
         (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
 
-      if (hasCharacters) {
-        // User has characters, don't show onboarding images
-        // Just check if they need the gift (they might not have rooms)
+      console.log('[Onboarding Debug] hasCompletedOnboardingV2:', hasCompletedOnboardingV2);
+      console.log('[Onboarding Debug] hasCompletedImageOnboarding:', hasCompletedImageOnboarding);
+      console.log('[Onboarding Debug] hasCharacters:', hasCharacters);
+
+      // Priority: OnboardingV2 > ImageOnboarding > NewUserGift
+      if (!hasCompletedOnboardingV2) {
+        // New user who hasn't completed OnboardingV2 - show it
+        console.log('[Onboarding Debug] -> Showing OnboardingV2');
+        setShowOnboardingV2(true);
         setShowImageOnboarding(false);
-        // Check gift claim status directly (without guard)
+        setShowNewUserGift(false);
+      } else if (hasCharacters) {
+        // User has completed OnboardingV2 and has characters
+        setShowOnboardingV2(false);
+        setShowImageOnboarding(false);
+        // Check gift claim status directly
         await checkGiftClaimStatus();
       } else {
-        // No characters - show onboarding images if not completed
-        if (!hasCompletedImageOnboarding) {
-          setShowImageOnboarding(true);
-          setShowNewUserGift(false);
-        } else {
-          // Onboarding completed but no characters - show gift
-          setShowImageOnboarding(false);
-          setShowNewUserGift(true);
-        }
+        // OnboardingV2 flag is set but no characters - something went wrong
+        // Reset V2 flag and show V2 again
+        console.log('[Onboarding Debug] -> V2 completed but no characters, resetting V2 flag');
+        await AsyncStorage.removeItem('persist.hasCompletedOnboardingV2');
+        setShowOnboardingV2(true);
+        setShowImageOnboarding(false);
+        setShowNewUserGift(false);
       }
     } catch (error) {
       console.error('[App] Error checking new user for onboarding:', error);
+      const hasCompletedOnboardingV2 =
+        (await AsyncStorage.getItem('persist.hasCompletedOnboardingV2')) === 'true';
       const hasCompletedImageOnboarding =
         (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
-      if (!hasCompletedImageOnboarding) {
+
+      if (!hasCompletedOnboardingV2) {
+        setShowOnboardingV2(true);
+        setShowImageOnboarding(false);
+        setShowNewUserGift(false);
+      } else if (!hasCompletedImageOnboarding) {
+        setShowOnboardingV2(false);
         setShowImageOnboarding(true);
         setShowNewUserGift(false);
       } else {
+        setShowOnboardingV2(false);
         setShowImageOnboarding(false);
         setShowNewUserGift(true);
       }
@@ -1665,11 +1651,36 @@ const AppContent = () => {
     [refreshInitialData, refreshCurrency]
   );
 
+  const handleOnboardingV2Complete = useCallback(
+    async (data: {
+      userName: string;
+      userAge: number;
+      selectedCharacterId: string;
+      characterNickname: string;
+    }) => {
+      console.log('[App] OnboardingV2 completed:', data);
+      setShowOnboardingV2(false);
+
+      // Save character preference
+      try {
+        const userPrefsService = new UserPreferencesService();
+        await userPrefsService.saveCurrentCharacterId(data.selectedCharacterId);
+      } catch (error) {
+        console.error('[App] Error saving character after onboarding:', error);
+      }
+
+      // Refresh initial data to load the selected character
+      await Promise.all([refreshInitialData(), refreshCurrency()]);
+    },
+    [refreshInitialData, refreshCurrency]
+  );
+
   useEffect(() => {
     if (hasRestoredSession && session) {
       checkIfNewUserForOnboarding();
     }
-  }, [hasRestoredSession, session, checkIfNewUserForOnboarding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRestoredSession, session]);
 
   const renderContent = () => {
     if (!hasRestoredSession) {
@@ -1696,6 +1707,10 @@ const AppContent = () => {
           />
         </View>
       );
+    }
+
+    if (showOnboardingV2) {
+      return <CharacterSelectionScreen />;
     }
 
     if (showImageOnboarding) {
@@ -1744,6 +1759,19 @@ const AppContent = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
+        {/* Hide header correctly during video call only */}
+        {!isCameraMode && (
+          <SceneHeader
+            characterName={characterTitle}
+            relationshipName={currentCharacter?.relationshipName}
+            relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
+            avatarUri={currentCharacter?.avatar}
+            onCharacterCardPress={handleCharacterCardPress}
+            onSettingsPress={handleOpenSettings}
+            onCharacterMenuPress={() => setShowCharacterSheet(true)}
+            isDarkBackground={isDarkBackground}
+          />
+        )}
         <View style={styles.webViewWrapper} ref={snapshotViewRef}>
           <VRMWebView
             ref={webViewRef}
@@ -1753,23 +1781,19 @@ const AppContent = () => {
           />
         </View>
         <VRMUIOverlay
-          level={overlayStats.level}
-          xp={overlayStats.xp}
-          nextLevelXp={overlayStats.nextLevelXp}
-          energy={overlayStats.energy}
-          energyMax={overlayStats.energyMax}
-          hasIncompleteQuests={overlayFlags.hasIncompleteQuests}
           canClaimCalendar={overlayFlags.canClaimCalendar}
-          unclaimedQuestCount={overlayFlags.unclaimedQuestCount}
           hasMessages={overlayFlags.hasMessages}
           showChatList={overlayFlags.showChatList}
-          onLevelPress={() => setShowLevelSheet(true)}
-          onEnergyPress={() => setShowEnergySheet(true)}
+          loginStreak={chatState.streakDays ?? 0}
+          isDarkBackground={isDarkBackground}
+          isBgmOn={isBgmOn}
+          isInCall={isCameraMode}
           onBackgroundPress={() => setShowBackgroundSheet(true)}
           onCostumePress={() => setShowCostumeSheet(true)}
-          onQuestPress={handleQuestPress}
           onCalendarPress={handleCalendarPress}
-          onToggleChatList={handleOverlayChatToggle}
+          onSettingsPress={handleOpenSettings}
+          onSpeakerPress={handleToggleBgm}
+          onToggleChatList={toggleChatListInternal}
           onSwipeBackground={advanceBackground}
           onSwipeCharacter={changeCharacter}
           isChatScrolling={isChatScrolling}
@@ -1795,6 +1819,10 @@ const AppContent = () => {
             onDance={handleDance}
             isTyping={chatState.isTyping}
             onToggleMic={handleToggleMic}
+            onVideoCall={handleToggleCameraMode}
+            isVoiceCallActive={voiceState.isConnected}
+            isVideoCallActive={isCameraMode}
+            isUserSpeaking={voiceState.isUserSpeaking}
             inputPlaceholder={
               voiceState.isBooting
                 ? 'Preparing voice call...'
@@ -1803,6 +1831,7 @@ const AppContent = () => {
                   : undefined
             }
             inputDisabled={voiceState.isBooting || voiceState.status === 'connecting'}
+            voiceLoading={voiceState.isBooting || voiceState.status === 'connecting'}
             streakDays={chatState.streakDays}
             hasUnclaimed={chatState.hasUnclaimed}
             showStreakConfetti={chatState.showStreakConfetti}
@@ -1836,7 +1865,7 @@ const AppContent = () => {
           setShowCharacterSheet={setShowCharacterSheet}
           showCostumeSheet={showCostumeSheet}
           setShowCostumeSheet={setShowCostumeSheet}
-          activeCharacterId={activeCharacterId}
+          activeCharacterId={activeCharacterId ?? undefined}
           showMediaSheet={showMediaSheet}
           setShowMediaSheet={setShowMediaSheet}
           characterName={currentCharacter?.name ?? initialData?.character.name}
@@ -1853,9 +1882,59 @@ const AppContent = () => {
           setShowEnergySheet={setShowEnergySheet}
           energy={overlayStats.energy}
           energyMax={overlayStats.energyMax}
-        questSheetTabRequest={questSheetTabRequest}
-        onRefreshLoginRewards={loadLoginRewards}
+          questSheetTabRequest={questSheetTabRequest}
+          onRefreshLoginRewards={loadLoginRewards}
+          onOpenSubscription={() => {
+            console.log('[App] Opening subscription screen');
+            navigation.navigate('Subscription');
+          }}
+          streakDays={loginRewardState.currentDay}
+          onOpenStreak={handleOpenStreak}
+          isDarkBackground={isDarkBackground}
+          isPro={isPro}
         />
+        <StreakSheet
+          ref={streakSheetRef}
+          characterName={currentCharacter?.name ?? initialData?.character.name}
+          streakDays={chatState.streakDays ?? 0}
+          connectionLevel={overlayStats.level}
+          connectionProgress={overlayStats.nextLevelXp > 0
+            ? Math.min(1, overlayStats.xp / overlayStats.nextLevelXp)
+            : 0
+          }
+          friendshipDays={loginRewardState.currentDay}
+          canCheckin={chatState.canCheckIn ?? false}
+          onCheckin={async () => {
+            if (!activeCharacterId) return;
+            try {
+              const result = await performCheckIn(activeCharacterId);
+              if (result && result.reward) {
+                const reward = result.reward;
+                setRewardOverlayData({
+                  title: 'Daily Streak Reward!',
+                  subtitle: `You earned a new costume: ${reward.costume_name}`,
+                  rewards: [{
+                    id: generateId(),
+                    type: 'costume',
+                    amount: 1,
+                    icon: 'shirt',
+                    color: 'purple',
+                  }]
+                });
+                setShowRewardOverlay(true);
+
+                // Refresh owned assets/costumes
+                // Note: CostumeSheet and CharacterSheet automatically refetch owned items when opened,
+                // so no global context refresh is strictly required here.
+              }
+            } catch (error) {
+              console.error('Failed to check in:', error);
+              Alert.alert('Check-in failed', 'Please try again.');
+            }
+          }}
+          onRefreshLoginRewards={loadLoginRewards}
+        />
+
         <ToastStackView />
         <SettingsModal
           visible={showSettings}
@@ -1866,6 +1945,11 @@ const AppContent = () => {
             session?.user?.email ??
             null
           }
+          onOpenSubscription={() => {
+            console.log('[App] Opening subscription screen from settings');
+            navigation.navigate('Subscription');
+          }}
+          isPro={isPro}
         />
         {rewardOverlayData && (
           <RewardClaimOverlay
@@ -1887,6 +1971,86 @@ const AppContent = () => {
   return <SceneActionsProvider value={sceneActions}>{content}</SceneActionsProvider>;
 };
 
+// Wrapper for OnboardingV2Screen to use in navigation
+const OnboardingV2ScreenWrapper: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'OnboardingV2'>>();
+  const { selectedCharacterId } = route.params;
+
+  const handleComplete = useCallback(async (data: {
+    userName: string;
+    userAge: number;
+    selectedCharacterId: string;
+    characterNickname: string;
+  }) => {
+    // Navigate to Experience (main app)
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Experience' }],
+    });
+  }, [navigation]);
+
+  return (
+    <OnboardingV2Screen
+      onComplete={handleComplete}
+      selectedCharacterId={selectedCharacterId}
+    />
+  );
+};
+
+// Character Selection Screen for new users - loads characters and navigates to preview
+const CharacterSelectionScreen: React.FC = () => {
+  const [characters, setCharacters] = useState<CharacterItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadFreeCharacters = async () => {
+      try {
+        const characterRepo = new CharacterRepository();
+        const allCharacters = await characterRepo.fetchAllCharacters();
+        const freeChars = allCharacters
+          .filter((c) => c.tier === 'free' && c.available)
+          .slice(0, 5);
+        setCharacters(freeChars);
+      } catch (err: any) {
+        console.error('[CharacterSelection] Failed to load characters:', err);
+        setError(err.message || 'Failed to load characters');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadFreeCharacters();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color="#FF2F71" />
+          <Text style={{ color: '#fff', marginTop: 16 }}>Loading characters...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error || characters.length === 0) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingState}>
+          <Text style={{ color: '#fff', fontSize: 16 }}>
+            {error || 'No characters available'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Render CharacterPreviewScreen directly (embedded mode)
+  return <CharacterPreviewScreen characters={characters} initialIndex={0} />;
+};
 
 export default function App() {
   return (
@@ -1906,6 +2070,33 @@ export default function App() {
                 name="Experience"
                 component={AppContent}
                 options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="CharacterPreview"
+                component={CharacterPreviewScreen}
+                options={{
+                  headerShown: false,
+                  presentation: 'fullScreenModal',
+                  animation: 'slide_from_bottom',
+                }}
+              />
+              <Stack.Screen
+                name="OnboardingV2"
+                component={OnboardingV2ScreenWrapper}
+                options={{
+                  headerShown: false,
+                  presentation: 'fullScreenModal',
+                  animation: 'slide_from_right',
+                }}
+              />
+              <Stack.Screen
+                name="Subscription"
+                component={SubscriptionScreen}
+                options={{
+                  headerShown: false,
+                  presentation: 'fullScreenModal', // or 'card' depending on preference, user asked for 'màn riêng' (separate screen)
+                  animation: 'slide_from_bottom',
+                }}
               />
             </Stack.Navigator>
           </NavigationContainer>
@@ -1927,21 +2118,21 @@ const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, st
   }
   return (
     <View pointerEvents="box-none" style={styles.cameraOverlay}>
-      <View style={styles.cameraPreviewContainer}>
+      <TouchableOpacity
+        style={styles.cameraPreviewContainer}
+        onPress={onClose}
+        activeOpacity={0.9}
+      >
         <RTCView
-          streamURL={stream.toURL()}
+          streamURL={(stream as any).toURL()}
           style={styles.cameraPreview}
           objectFit="cover"
           mirror
         />
-        <TouchableOpacity style={styles.cameraCloseButton} onPress={onClose}>
-          <Ionicons name="close" size={18} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.cameraBadge}>
-          <Ionicons name="videocam" size={14} color="#fff" />
-          <Text style={styles.cameraBadgeText}>Video call mode</Text>
+        <View style={styles.cameraCloseButton}>
+          <Ionicons name="close" size={14} color="#fff" />
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -2002,17 +2193,20 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   cameraPreviewContainer: {
-    width: '90%',
-    aspectRatio: 3 / 4,
-    borderRadius: 32,
+    position: 'absolute',
+    top: 120, // Below header
+    right: 16,
+    width: 120,
+    height: 160,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#000',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
     shadowColor: '#000',
-    shadowOpacity: 0.45,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 20,
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
     elevation: 12,
   },
   cameraPreview: {
@@ -2020,12 +2214,12 @@ const styles = StyleSheet.create({
   },
   cameraCloseButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
   },

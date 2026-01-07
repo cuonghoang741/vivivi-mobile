@@ -34,7 +34,6 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
   isModelLoading = false,
 }) => {
   const opacityAnim = useRef(new Animated.Value(isModelLoading ? 0.5 : 1.0)).current;
-  const offsetXAnim = useRef(new Animated.Value(isInputActive ? 120 : 0)).current;
   const selectionAnim = useRef(new Animated.Value(1)).current;
 
   // Animate opacity when model loading changes
@@ -45,15 +44,6 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
       useNativeDriver: true,
     }).start();
   }, [isModelLoading, opacityAnim]);
-
-  // Animate offset when input active changes
-  useEffect(() => {
-    Animated.timing(offsetXAnim, {
-      toValue: isInputActive ? 120 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [isInputActive, offsetXAnim]);
 
   // Animate khi đổi nhân vật được chọn (giả lập swipe feedback)
   useEffect(() => {
@@ -68,7 +58,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
 
   const displayItems = useMemo(() => {
     if (characters.length === 0) return [];
-    
+
     if (currentIndex < 0 || currentIndex >= characters.length) return [];
 
     const count = characters.length;
@@ -90,11 +80,9 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
   }, [characters, currentIndex]);
 
   const bottomPadding = useMemo(() => {
-    if (isInputActive) {
-      return keyboardHeight + 40;
-    }
+    // Fixed position at bottom, chat overlay will adjust its width instead
     return 140;
-  }, [isInputActive, keyboardHeight]);
+  }, []);
 
   if (characters.length === 0) {
     return null;
@@ -108,10 +96,9 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
           paddingBottom: bottomPadding,
           paddingRight: 14,
           opacity: opacityAnim,
-          transform: [{ translateX: offsetXAnim }],
         },
       ]}
-      pointerEvents={isModelLoading || isInputActive ? 'none' : 'auto'}
+      pointerEvents={isModelLoading ? 'none' : 'auto'}
     >
       {displayItems.map((item) => {
         const itemIndex = characters.findIndex(c => c.id === item.id);
@@ -158,7 +145,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
                 <View style={styles.avatarBorder} />
               </Pressable>
             </Animated.View>
-            
+
             {/* Notification badge */}
             {unseenCount > 0 && (
               <View style={styles.badge}>

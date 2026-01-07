@@ -28,6 +28,7 @@ export type VoiceConversationState = {
   isBooting: boolean;
   isMuted: boolean;
   isSpeaking: boolean;
+  isUserSpeaking: boolean;
   agentVolume: number;
   callDurationSeconds: number;
 };
@@ -68,16 +69,29 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
     callbacksRef.current = options;
   }, [options]);
 
+  // Main state - only update these when necessary to trigger re-renders
   const [connectionStatus, setConnectionStatus] = useState<ConversationStatus>('disconnected');
   const [isBooting, setIsBooting] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [agentVolume, setAgentVolume] = useState(0);
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
+
+  // Use refs for frequently updated values to avoid re-renders
+  const isSpeakingRef = useRef(false);
+  const isUserSpeakingRef = useRef(false);
+  const agentVolumeRef = useRef(0);
+
+  // State versions for UI that needs to react (updated less frequently)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [agentVolume, setAgentVolume] = useState(0);
 
   const callStartTimeRef = useRef<number | null>(null);
   const volumeRef = useRef(0);
   const prevConnectedRef = useRef(false);
+
+  // Throttle state updates for frequently changing values
+  const lastVolumeUpdateRef = useRef(0);
+  const lastUserSpeakingUpdateRef = useRef(0);
 
   const updateBooting = useCallback(
     (next: boolean) => {
@@ -100,8 +114,20 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
           callbacksRef.current.onUserTranscription?.(message);
         }
       },
-      onStatusChange: ({ status }: { status: ConversationStatus }) => {
-        setConnectionStatus(status);
+      onConnect: () => {
+        console.log('[Voice] onConnect fired');
+        setConnectionStatus('connected');
+        callStartTimeRef.current = Date.now();
+        updateBooting(false);
+      },
+
+      onStatusChange: (args: { status: ConversationStatus } | ConversationStatus) => {
+        const status = typeof args === 'string' ? args : args?.status;
+        console.log('[Voice] Status changed:', status);
+        if (status) {
+          setConnectionStatus(status);
+        }
+
         if (status === 'connected') {
           callStartTimeRef.current = Date.now();
           updateBooting(false);
@@ -110,16 +136,32 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
           callStartTimeRef.current = null;
           setCallDurationSeconds(0);
           setIsMuted(false);
+          agentVolumeRef.current = 0;
           setAgentVolume(0);
+          isSpeakingRef.current = false;
+          setIsSpeaking(false);
+          isUserSpeakingRef.current = false;
+          setIsUserSpeaking(false);
         }
       },
       onModeChange: ({ mode }: { mode: string }) => {
-        setIsSpeaking(mode === 'speaking');
+        const speaking = mode === 'speaking';
+        if (isSpeakingRef.current !== speaking) {
+          isSpeakingRef.current = speaking;
+          setIsSpeaking(speaking);
+        }
       },
       onAudio: (chunk: string) => {
         volumeRef.current = computeVolumeFromAudio(chunk, volumeRef.current);
-        setAgentVolume(volumeRef.current);
+        agentVolumeRef.current = volumeRef.current;
         callbacksRef.current.onAgentVolume?.(volumeRef.current);
+
+        // Throttle state updates to max 10 times per second
+        const now = Date.now();
+        if (now - lastVolumeUpdateRef.current > 100) {
+          lastVolumeUpdateRef.current = now;
+          setAgentVolume(volumeRef.current);
+        }
       },
       onError: (message: string) => {
         updateBooting(false);
@@ -132,8 +174,22 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       onDisconnect: (details: { reason: string; message?: string }) => {
         setConnectionStatus('disconnected');
         updateBooting(false);
+        isUserSpeakingRef.current = false;
+        setIsUserSpeaking(false);
         if (details.reason === 'error') {
           callbacksRef.current.onError?.(details.message || 'Voice session disconnected');
+        }
+      },
+      onVadScore: ({ vadScore }: { vadScore: number }) => {
+        // VAD score > 0.5 indicates user is likely speaking
+        const speaking = vadScore > 0.5;
+        isUserSpeakingRef.current = speaking;
+
+        // Throttle state updates to max 5 times per second
+        const now = Date.now();
+        if (now - lastUserSpeakingUpdateRef.current > 200) {
+          lastUserSpeakingUpdateRef.current = now;
+          setIsUserSpeaking(speaking);
         }
       },
     }),
@@ -149,6 +205,7 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       callbacksRef.current.onConnectionChange?.(connected);
       if (!connected) {
         volumeRef.current = 0;
+        agentVolumeRef.current = 0;
         setAgentVolume(0);
       }
     }
@@ -166,6 +223,17 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
     }, 1000);
     return () => clearInterval(timer);
   }, [connectionStatus]);
+
+  // Sync status from conversation object directly as a fallback
+  useEffect(() => {
+    if (conversation.status && conversation.status !== connectionStatus) {
+      console.log('[Voice] Syncing status from conversation object:', conversation.status);
+      setConnectionStatus(conversation.status);
+      if (conversation.status === 'connected') {
+        updateBooting(false);
+      }
+    }
+  }, [conversation.status, connectionStatus, updateBooting]);
 
   const startCall = useCallback(
     async ({
@@ -238,10 +306,11 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       isBooting,
       isMuted,
       isSpeaking,
+      isUserSpeaking,
       agentVolume,
       callDurationSeconds,
     }),
-    [agentVolume, callDurationSeconds, connectionStatus, isBooting, isMuted, isSpeaking]
+    [agentVolume, callDurationSeconds, connectionStatus, isBooting, isMuted, isSpeaking, isUserSpeaking]
   );
 
   return {
@@ -252,5 +321,3 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
     sendText,
   };
 };
-
-

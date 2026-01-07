@@ -7,6 +7,10 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+      },
       "ios": {
         "simulator": true,
         "resourceClass": "m-medium"
@@ -20,6 +24,10 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+      },
       "ios": {
         "simulator": false,
         "resourceClass": "m-medium"
@@ -31,6 +39,10 @@
       "autoIncrement": true
     },
     "production": {
+      "env": {
+        "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+      },
       "ios": {
         "simulator": false,
         "resourceClass": "m-medium"
@@ -53,5 +65,3 @@
     }
   }
 }
-
-    

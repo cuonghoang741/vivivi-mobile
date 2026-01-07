@@ -195,14 +195,14 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
       >
-        {typeof streakDays === 'number' && (
+        {/* {typeof streakDays === 'number' && (
           <StreakBadge
             days={streakDays}
             hasUnclaimed={!!hasUnclaimed}
             showConfetti={!!showStreakConfetti}
             onPress={onStreakTap}
           />
-        )}
+        )} */}
 
         {displayedMessages.length === 0 && !isTyping ? (
           <View style={styles.emptyStateContainer}>
@@ -256,8 +256,8 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-    paddingHorizontal: 12,
+    // Leave space on right for CharacterQuickSwitcher (about 80px)
+    width: '85%',
     paddingTop: 4,
     // Limit height to prevent pushing input out of view
     maxHeight: 300, // Fixed max height instead of percentage

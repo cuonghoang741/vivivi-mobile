@@ -1,5 +1,8 @@
 import { ChatMessage } from '../types/chat';
 import { getSupabaseClient, getAuthenticatedUserId } from './supabase';
+import { telegramNotificationService } from './TelegramNotificationService';
+import { getTelegramUserInfo } from '../utils/telegramUserHelper';
+import { analyticsService } from './AnalyticsService';
 
 type ConversationRow = {
   id: string;
@@ -67,6 +70,18 @@ class ChatService {
 
     const userId = await getAuthenticatedUserId();
     const conversation_history = buildHistoryPayload(params.history);
+
+    // Send Telegram notification for user chat message (fire-and-forget)
+    getTelegramUserInfo().then(userInfo => {
+      telegramNotificationService.notifyChatMessage(
+        userInfo,
+        params.characterId,
+        params.text
+      );
+    }).catch(err => console.warn('[ChatService] Failed to send Telegram notification:', err));
+    
+    // Track send message analytics
+    analyticsService.logSendMessage(params.characterId, params.text.length);
 
     const { data, error } = await this.client.functions.invoke('gemini-chat', {
       body: {

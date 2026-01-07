@@ -15,8 +15,13 @@ type Props = {
   onDance: () => void;
   isTyping?: boolean;
   onToggleMic?: () => void;
+  onVideoCall?: () => void;
+  isVoiceCallActive?: boolean;
+  isVideoCallActive?: boolean;
+  isUserSpeaking?: boolean;
   inputPlaceholder?: string;
   inputDisabled?: boolean;
+  voiceLoading?: boolean;
   streakDays?: number;
   hasUnclaimed?: boolean;
   showStreakConfetti?: boolean;
@@ -36,8 +41,13 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onDance,
   isTyping,
   onToggleMic,
+  onVideoCall,
+  isVoiceCallActive,
+  isVideoCallActive,
+  isUserSpeaking,
   inputPlaceholder,
   inputDisabled,
+  voiceLoading,
   streakDays,
   hasUnclaimed,
   showStreakConfetti,
@@ -95,8 +105,13 @@ export const ChatBottomOverlay: React.FC<Props> = ({
             onChangeText={handleChangeText}
             onSend={handleSend}
             onToggleMic={onToggleMic}
+            onVideoCall={onVideoCall}
+            isMicMuted={isVoiceCallActive}
+            isVideoCallActive={isVideoCallActive}
+            isUserSpeaking={isUserSpeaking}
             placeholder={inputPlaceholder}
             disabled={inputDisabled}
+            voiceLoading={voiceLoading}
           />
         </View>
       </View>
@@ -107,12 +122,12 @@ export const ChatBottomOverlay: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingBottom: 16,
     // Use flex column with flex-end to keep input at bottom
     flexDirection: 'column',
     justifyContent: 'flex-end',
     // Prevent container from expanding beyond screen
     maxHeight: '100%',
+    paddingHorizontal: 10
   },
   messagesContainer: {
     // Messages container can scroll but won't push input out

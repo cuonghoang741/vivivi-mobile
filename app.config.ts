@@ -23,11 +23,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
-  
+
   extra: {
     eas: {
       projectId: EAS_PROJECT_ID,
     },
+    oneSignalAppId: '52139459-74d3-47a7-9f5c-80e07e93265c',
   },
 
   ios: {
@@ -47,6 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     requireFullScreen: false,
     usesAppleSignIn: true,
+    googleServicesFile: './GoogleService-Info.plist',
   },
 
   android: {
@@ -79,6 +81,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],
+    googleServicesFile: './google-services.json',
   },
 
   web: {
@@ -87,8 +90,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
 
   plugins: [
+    [
+      'onesignal-expo-plugin',
+      {
+        mode: 'production',
+      },
+    ],
+    '@livekit/react-native-expo-plugin',
+    './withCustomPodfile',
     'expo-updates',
     'expo-web-browser',
+    '@react-native-firebase/app',
     [
       'expo-splash-screen',
       {

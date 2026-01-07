@@ -5,9 +5,15 @@ import Purchases, {
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import { authManager } from './AuthManager';
+import { telegramNotificationService } from './TelegramNotificationService';
+import { getTelegramUserInfo } from '../utils/telegramUserHelper';
+import { analyticsService } from './AnalyticsService';
+
+Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
 
 // RevenueCat Public SDK Keys
 const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
+// const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
 const REVENUECAT_API_KEY_ANDROID = 'goog_CjxgHOafWEJNsMPLMtQgAULbupx'; // TODO: Replace with actual Android key
 
 class RevenueCatManager {
@@ -15,7 +21,7 @@ class RevenueCatManager {
   private customerInfo: CustomerInfo | null = null;
   private offerings: PurchasesOffering | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): RevenueCatManager {
     if (!RevenueCatManager.instance) {
@@ -26,8 +32,8 @@ class RevenueCatManager {
 
   async configure() {
     // Tự động chọn key dựa trên platform
-    const apiKey = Platform.OS === 'ios' 
-      ? REVENUECAT_API_KEY_IOS 
+    const apiKey = Platform.OS === 'ios'
+      ? REVENUECAT_API_KEY_IOS
       : REVENUECAT_API_KEY_ANDROID;
 
     try {
@@ -70,6 +76,19 @@ class RevenueCatManager {
     try {
       const { customerInfo, productIdentifier } = await Purchases.purchasePackage(pkg);
       this.customerInfo = customerInfo;
+
+      // Send Telegram notification for subscription (fire-and-forget)
+      getTelegramUserInfo().then(userInfo => {
+        telegramNotificationService.notifySubscription(
+          userInfo,
+          pkg.identifier,
+          productIdentifier
+        );
+      }).catch(err => console.warn('[RevenueCatManager] Failed to send Telegram notification:', err));
+
+      // Track subscription purchase analytics
+      analyticsService.logSubscriptionPurchase(pkg.identifier, pkg.product.price);
+
       return { customerInfo, productIdentifier };
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -85,9 +104,11 @@ class RevenueCatManager {
     try {
       const customerInfo = await Purchases.restorePurchases();
       this.customerInfo = customerInfo;
+      analyticsService.logSubscriptionRestore(true);
       return customerInfo;
     } catch (e) {
       console.error('RevenueCat restore error:', e);
+      analyticsService.logSubscriptionRestore(false);
       throw e;
     }
   }
@@ -103,6 +124,34 @@ class RevenueCatManager {
     return this.offerings?.availablePackages.find(
       (p) => p.identifier === identifier || p.product.identifier === identifier
     );
+  }
+
+  async hasActiveSubscription(): Promise<boolean> {
+    try {
+      const customerInfo = await Purchases.getCustomerInfo();
+      this.customerInfo = customerInfo;
+      // Check if user has any active entitlements
+      const activeEntitlements = Object.keys(customerInfo.entitlements.active);
+      return activeEntitlements.length > 0;
+    } catch (e) {
+      console.error('RevenueCat hasActiveSubscription error:', e);
+      return false;
+    }
+  }
+
+  isProUser(): boolean {
+    if (!this.customerInfo) return false;
+    const activeEntitlements = Object.keys(this.customerInfo.entitlements.active);
+    return activeEntitlements.length > 0;
+  }
+
+  async logout() {
+    try {
+      await Purchases.logOut();
+      this.customerInfo = null;
+    } catch (e) {
+      console.error('RevenueCat logout error:', e);
+    }
   }
 }
 

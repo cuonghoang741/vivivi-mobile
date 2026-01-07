@@ -41,18 +41,18 @@ export const grayDark = {
 } as const;
 
 export const brand = {
-  25: '#FCFAFF',
-  50: '#F9F5FF',
-  100: '#F4EBFF',
-  200: '#E9D7FE',
-  300: '#D6BBFB',
-  400: '#C472F7',
-  500: '#C472F7',
-  600: '#7F56D9',
-  700: '#6941C6',
-  800: '#53389E',
-  900: '#42307D',
-  950: '#2C1C5F',
+  25: '#fff5f8',
+  50: '#ffe8f0',
+  100: '#ffd6e5',
+  200: '#ffb3cc',
+  300: '#ff8fb3',
+  400: '#ff6b99',
+  500: '#ff579a',
+  600: '#e64d8a',
+  700: '#cc447a',
+  800: '#b33a6a',
+  900: '#993059',
+  950: '#661f3b',
 } as const;
 
 export const error = {
@@ -473,7 +473,7 @@ const palette = {
   ...base,
   grayLight,
   grayDark,
-  brand: grayDark,
+  brand: brand,
   error,
   warning,
   success,

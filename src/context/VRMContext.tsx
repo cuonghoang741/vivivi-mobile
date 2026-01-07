@@ -312,7 +312,13 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const persistedSelection = await Persistence.getCharacterBackgroundSelection(
             character.id
           );
-          backgroundIdToApply = persistedSelection?.backgroundId || null;
+          backgroundIdToApply = persistedSelection?.backgroundId || undefined;
+        }
+
+        // Fallback: if no background preference, use first owned background
+        if (!backgroundIdToApply && ownedBackgroundIds.length > 0) {
+          backgroundIdToApply = ownedBackgroundIds[0];
+          console.log('[VRMProvider] No background preference, using first owned:', backgroundIdToApply);
         }
 
         if (backgroundIdToApply) {

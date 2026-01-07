@@ -1,8 +1,10 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LiquidGlass } from "../LiquidGlass";
 import HapticPressable from "../ui/HapticPressable";
+import Button from "../Button";
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -34,43 +36,43 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
 
   return (
     <LiquidGlass style={styles.card} onPress={onPress}>
-        <View style={styles.cardBody}>
-          <View style={styles.topRow}>
-            <View style={styles.avatarWrapper}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} />
-              ) : (
-                <Ionicons name="person" size={12} color="#fff" />
-              )}
-            </View>
-            <Text numberOfLines={1} style={styles.characterName}>
-              {label}
-            </Text>
-          </View>
-
-          <View style={styles.relationshipRow}>
-            <View style={styles.relationshipIcon}>
-              {relationshipIconUri ? (
-                <Image
-                  source={{ uri: relationshipIconUri }}
-                  style={styles.relationshipIconImage}
-                />
-              ) : (
-                <Ionicons name="heart" size={10} color="#FF79B0" />
-              )}
-            </View>
-            <Text numberOfLines={1} style={styles.relationshipLabel}>
-              {relationshipLabel}
-            </Text>
-            <View style={styles.progressTrack} accessible accessibilityRole="progressbar">
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${Math.min(100, Math.max(0, normalizedProgress * 100))}%` },
-                ]}
-              />
-            </View>
+      <View style={styles.cardBody}>
+        <View style={styles.topRow}>
+          {/* <View style={styles.avatarWrapper}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <Ionicons name="person" size={12} color="#fff" />
+            )}
+          </View> */}
+          <Text numberOfLines={1} style={styles.characterName}>
+            {label}
+          </Text>
         </View>
+
+        {/* <View style={styles.relationshipRow}> */}
+        {/* <View style={styles.relationshipIcon}>
+            {relationshipIconUri ? (
+              <Image
+                source={{ uri: relationshipIconUri }}
+                style={styles.relationshipIconImage}
+              />
+            ) : (
+              <Ionicons name="heart" size={10} color="#FF79B0" />
+            )}
+          </View> */}
+        {/* <Text numberOfLines={1} style={styles.relationshipLabel}>
+            {relationshipLabel}
+          </Text>
+          <View style={styles.progressTrack} accessible accessibilityRole="progressbar">
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.min(100, Math.max(0, normalizedProgress * 100))}%` },
+              ]}
+            />
+          </View> */}
+        {/* </View> */}
       </View>
     </LiquidGlass>
   );
@@ -81,6 +83,7 @@ type HeaderIconButtonProps = {
   onPress?: () => void;
   active?: boolean;
   accessibilityLabel?: string;
+  iconColor?: string;
 };
 
 export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
@@ -88,16 +91,18 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
   onPress,
   active,
   accessibilityLabel,
+  iconColor = "#fff",
 }) => {
   return (
-    <HapticPressable
+    <Button
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+      variant="liquid"
+      isIconOnly
+      startIconName={iconName}
+      iconColor={iconColor}
+      size="lg"
     >
-      <Ionicons name={iconName} size={24} />
-    </HapticPressable>
+    </Button>
   );
 };
 
@@ -121,10 +126,12 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    height: 30,
+    minWidth: 90,
+    justifyContent: 'center'
   },
   characterName: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 0 },
@@ -199,4 +206,154 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  sceneHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    zIndex: 100,
+  },
 });
+
+// Scene Header Left Component
+type SceneHeaderLeftProps = {
+  onSettingsPress?: () => void;
+  onBgmToggle?: () => void;
+  isBgmOn?: boolean;
+  isDarkBackground?: boolean;
+};
+
+export const SceneHeaderLeft: React.FC<SceneHeaderLeftProps> = ({
+  onSettingsPress,
+  onBgmToggle,
+  isBgmOn = false,
+  isDarkBackground = true,
+}) => {
+  const iconColor = isDarkBackground ? '#fff' : '#000';
+
+  return (
+    <View style={styles.headerActions}>
+      <HeaderIconButton
+        iconName="settings"
+        onPress={onSettingsPress}
+        accessibilityLabel="Open settings"
+        iconColor={iconColor}
+      />
+      <HeaderIconButton
+        iconName={isBgmOn ? 'volume-high' : 'volume-mute'}
+        onPress={onBgmToggle}
+        accessibilityLabel="Toggle background music"
+        active={isBgmOn}
+        iconColor={iconColor}
+      />
+    </View>
+  );
+};
+
+// Scene Header Right Component
+type SceneHeaderRightProps = {
+  onCharacterMenuPress?: () => void;
+  onCameraToggle?: () => void;
+  isCameraModeOn?: boolean;
+  isDarkBackground?: boolean;
+};
+
+export const SceneHeaderRight: React.FC<SceneHeaderRightProps> = ({
+  onCharacterMenuPress,
+  onCameraToggle,
+  isCameraModeOn = false,
+  isDarkBackground = true,
+}) => {
+  const iconColor = isDarkBackground ? '#fff' : '#000';
+
+  return (
+    <View style={styles.headerActions}>
+      <HeaderIconButton
+        iconName="grid"
+        onPress={onCharacterMenuPress}
+        accessibilityLabel="Character menu"
+        iconColor={iconColor}
+      />
+      <HeaderIconButton
+        iconName={isCameraModeOn ? 'stop-circle' : 'videocam'}
+        onPress={onCameraToggle}
+        accessibilityLabel="Camera mode"
+        active={isCameraModeOn}
+        iconColor={iconColor}
+      />
+    </View>
+  );
+};
+
+// Full Scene Header Component (positioned absolutely at top)
+type SceneHeaderProps = {
+  // Character card props
+  characterName?: string | null;
+  relationshipName?: string | null;
+  relationshipProgress?: number | null;
+  avatarUri?: string | null;
+  onCharacterCardPress?: () => void;
+  // Left side props
+  onSettingsPress?: () => void;
+  // Right side props
+  onCharacterMenuPress?: () => void;
+  // Common props
+  isDarkBackground?: boolean;
+};
+
+export const SceneHeader: React.FC<SceneHeaderProps> = ({
+  characterName,
+  relationshipName,
+  relationshipProgress,
+  avatarUri,
+  onCharacterCardPress,
+  onSettingsPress,
+  onCharacterMenuPress,
+  isDarkBackground = true,
+}) => {
+  const insets = useSafeAreaInsets();
+  const iconColor = isDarkBackground ? '#fff' : '#000';
+
+  return (
+    <View style={[styles.sceneHeader, { paddingTop: insets.top + 8 }]}>
+      {/* Left */}
+      <View style={styles.headerActions}>
+        <HeaderIconButton
+          iconName="settings"
+          onPress={onSettingsPress}
+          accessibilityLabel="Open settings"
+          iconColor={iconColor}
+        />
+      </View>
+
+      {/* Center */}
+      <CharacterHeaderCard
+        name={characterName}
+        relationshipName={relationshipName}
+        relationshipProgress={relationshipProgress}
+        avatarUri={avatarUri}
+        onPress={onCharacterCardPress}
+      />
+
+      {/* Right */}
+      <View style={styles.headerActions}>
+        <HeaderIconButton
+          iconName="grid"
+          onPress={onCharacterMenuPress}
+          accessibilityLabel="Character menu"
+          iconColor={iconColor}
+        />
+      </View>
+    </View>
+  );
+};

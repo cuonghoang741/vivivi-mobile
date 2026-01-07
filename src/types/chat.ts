@@ -21,5 +21,6 @@ export type ChatViewState = {
   streakDays?: number;
   hasUnclaimed?: boolean;
   showStreakConfetti?: boolean;
+  canCheckIn?: boolean;
 };
 

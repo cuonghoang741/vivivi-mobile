@@ -1,45 +1,43 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
   ViewProps,
   PanResponder,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
-import Button from "./Button";
 import { LiquidGlass } from "./LiquidGlass";
-import { usePurchaseContext } from "../context/PurchaseContext";
-import { toastManager, ToastType, CurrencyKind } from "../managers/ToastManager";
+import StreakIcon from "../assets/icons/streak.svg";
 
-const VCOIN_ICON = require("../assets/images/VCoin.png");
-const RUBY_ICON = require("../assets/images/Ruby.png");
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type VRMUIOverlayProps = ViewProps & {
-  level?: number;
-  xp?: number;
-  nextLevelXp?: number;
-  energy?: number;
-  energyMax?: number;
-  hasIncompleteQuests?: boolean;
-  canClaimCalendar?: boolean;
-  unclaimedQuestCount?: number;
   hasMessages?: boolean;
   showChatList?: boolean;
+  loginStreak?: number;
+  isDarkBackground?: boolean;
+  canClaimCalendar?: boolean;
+  isBgmOn?: boolean;
+  isInCall?: boolean; // Hide overlay and disable gestures during call
 
-  onLevelPress?: () => void;
-  onEnergyPress?: () => void;
   onBackgroundPress?: () => void;
   onCostumePress?: () => void;
-  onQuestPress?: () => void;
   onCalendarPress?: () => void;
   onToggleChatList?: () => void;
+  onSettingsPress?: () => void;
+  onSpeakerPress?: () => void;
 
   // Swipe gesture handlers
   onSwipeBackground?: (offset: number) => void;
@@ -50,84 +48,65 @@ type VRMUIOverlayProps = ViewProps & {
 
 export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   style,
-  level = 1,
-  xp = 0,
-  nextLevelXp = 100,
-  energy = 80,
-  energyMax = 100,
-  hasIncompleteQuests,
-  canClaimCalendar,
-  unclaimedQuestCount = 0,
   hasMessages,
   showChatList,
-  onLevelPress,
-  onEnergyPress,
+  loginStreak = 0,
+  isDarkBackground = true,
+  canClaimCalendar,
+  isBgmOn = false,
+  isInCall = false,
   onBackgroundPress,
   onCostumePress,
-  onQuestPress,
   onCalendarPress,
   onToggleChatList,
+  onSettingsPress,
+  onSpeakerPress,
   onSwipeBackground,
   onSwipeCharacter,
   isChatScrolling = false,
   canSwipeCharacter = false,
   ...rest
 }) => {
-  const { animatedBalance, setShowPurchaseSheet } = usePurchaseContext();
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  // PanResponder for swipe gestures (like swift-version DragGesture)
+  // Animation values
+  const expandAnimation = useRef(new Animated.Value(0)).current;
+  const arrowRotation = useRef(new Animated.Value(0)).current;
+
+  // PanResponder for swipe gestures
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          // Don't respond if user is scrolling in chat
-          if (isChatScrolling) {
-            return false;
-          }
-          // Only respond if movement is significant (like swift-version minimumDistance: 20)
+          // Disable swipe during call
+          if (isInCall) return false;
+          if (isChatScrolling) return false;
           return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
         },
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-          // Capture gesture before children handle it, but only for significant movements
-          if (isChatScrolling) {
-            return false;
-          }
+          // Disable swipe during call
+          if (isInCall) return false;
+          if (isChatScrolling) return false;
           return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
         },
         onPanResponderGrant: () => {
-          // Trigger haptic feedback (like swift-version triggerHaptic(.light))
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         },
         onPanResponderRelease: (_, gestureState) => {
-          // Don't handle gesture if user is scrolling in chat
-          if (isChatScrolling) {
-            return;
-          }
-
+          if (isChatScrolling) return;
           const dx = gestureState.dx;
           const dy = gestureState.dy;
-
-          // Horizontal swipe -> change background (like swift-version)
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && onSwipeBackground) {
             onSwipeBackground(dx < 0 ? 1 : -1);
-          }
-          // Vertical swipe -> change character (only if user has more than one owned character)
-          else if (Math.abs(dy) > 40 && canSwipeCharacter && onSwipeCharacter) {
+          } else if (Math.abs(dy) > 40 && canSwipeCharacter && onSwipeCharacter) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // dy < 0 means swipe up -> next character (+1)
-            // dy > 0 means swipe down -> previous character (-1)
             onSwipeCharacter(dy < 0 ? 1 : -1);
           }
         },
       }),
-    [isChatScrolling, onSwipeBackground, onSwipeCharacter, canSwipeCharacter]
+    [isInCall, isChatScrolling, onSwipeBackground, onSwipeCharacter, canSwipeCharacter]
   );
-
-  const levelProgress = useMemo(() => {
-    if (nextLevelXp <= 0) return 0;
-    return Math.min(1, Math.max(0, xp / nextLevelXp));
-  }, [xp, nextLevelXp]);
 
   const insets = useSafeAreaInsets();
   const safeAreaPadding = useMemo(
@@ -138,50 +117,103 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     [insets.bottom, insets.top]
   );
 
-  const handleCurrencyPress = useCallback(() => {
-    setShowPurchaseSheet(true);
-  }, [setShowPurchaseSheet]);
+  // Icon color based on background brightness
+  const iconColor = isDarkBackground ? '#fff' : '#000';
 
-  const handleRandomToast = useCallback(() => {
-    const random = Math.random();
-    const toastTypes = [
-      () => toastManager.showXPToast(Math.floor(Math.random() * 100) + 10),
-      () => toastManager.showBPToast(Math.floor(Math.random() * 50) + 5),
-      () => toastManager.showRelationshipToast(Math.floor(Math.random() * 20) + 1),
-      () => toastManager.showCurrencyToast(CurrencyKind.VCOIN, Math.floor(Math.random() * 500) + 50),
-      () => toastManager.showCurrencyToast(CurrencyKind.RUBY, Math.floor(Math.random() * 100) + 10),
-      () => toastManager.showQuestProgress(
-        'Daily Quest Progress',
-        Math.floor(Math.random() * 5) + 1,
-        5,
-        false
-      ),
-      () => toastManager.showQuestProgress(
-        'Quest Completed!',
-        5,
-        5,
-        true
-      ),
-      () => toastManager.showToast(
-        ToastType.LEVEL_UP,
-        'Level Up!',
-        'You reached level 10',
-        undefined,
-        'arrow-up-circle'
-      ),
-      () => toastManager.showToast(
-        ToastType.ENERGY,
-        '+20 Energy',
-        undefined,
-        20,
-        'flash'
-      ),
-    ];
-    
-    const randomToast = toastTypes[Math.floor(Math.random() * toastTypes.length)];
-    randomToast();
+  const handleToggleExpand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+
+    // Configure layout animation - faster
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(
+        200,
+        LayoutAnimation.Types.easeInEaseOut,
+        LayoutAnimation.Properties.opacity
+      )
+    );
+
+    const toValue = isExpanded ? 0 : 1;
+
+    // Animate expand/collapse - faster spring
+    Animated.parallel([
+      Animated.spring(expandAnimation, {
+        toValue,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(arrowRotation, {
+        toValue,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setIsExpanded(!isExpanded);
+  };
+
+  // Interpolate arrow rotation
+  const arrowRotationStyle = {
+    transform: [{
+      rotate: arrowRotation.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '180deg'],
+      }),
+    }],
+  };
+
+  // Menu items configuration
+  const menuItems = [
+    {
+      key: 'streak',
+      label: 'Streak',
+      isStreakButton: true,
+      onPress: onCalendarPress,
+    },
+    {
+      key: 'messages',
+      label: showChatList ? 'Hide Chat' : 'Show Chat',
+      iconName: showChatList ? 'chatbubble' : 'chatbubble-outline',
+      onPress: onToggleChatList,
+    },
+    {
+      key: 'outfit',
+      label: 'Outfit',
+      iconName: 'shirt-outline' as const,
+      onPress: onCostumePress,
+    },
+    {
+      key: 'background',
+      label: 'Background',
+      iconName: 'image-outline' as const,
+      onPress: onBackgroundPress,
+    },
+    {
+      key: 'music',
+      label: isBgmOn ? 'Music On' : 'Music Off',
+      iconName: isBgmOn ? 'volume-high' : 'volume-mute',
+      onPress: onSpeakerPress,
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      iconName: 'settings-outline' as const,
+      onPress: onSettingsPress,
+    },
+  ];
+
+  // Hide overlay UI during call (only keep swipe handler for consistent behavior)
+  if (isInCall) {
+    return (
+      <View
+        style={[styles.container, safeAreaPadding, style]}
+        {...panResponder.panHandlers}
+        {...rest}
+        pointerEvents="box-none"
+      />
+    );
+  }
 
   return (
     <View
@@ -190,80 +222,133 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       {...rest}
     >
       <View style={styles.leftColumn} pointerEvents="box-none">
-        <ButtonTile onPress={onLevelPress}>
-          <View style={styles.levelCompactRow}>
-            <Text style={styles.levelLabel}>{`LV. ${level}`}</Text>
-            <View style={styles.levelCompactTrack}>
-              <LinearGradient
-                colors={["#FF247C", "#FF247C"]}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={[
-                  styles.levelCompactFill,
-                  { width: `${levelProgress * 100}%` },
-                ]}
-              />
-            </View>
-          </View>
-        </ButtonTile>
-
-        <ButtonTile onPress={onEnergyPress}>
-          <View style={styles.energyRow}>
-            <Ionicons name="flash" size={14} color="#111" />
-            <Text style={styles.energyLabel}>{`${energy}/${energyMax}`}</Text>
-          </View>
-        </ButtonTile>
-
-        <ButtonTile onPress={handleCurrencyPress}>
-          <CurrencyRow icon={VCOIN_ICON} amount={animatedBalance.vcoin} />
-        </ButtonTile>
-        <ButtonTile onPress={handleCurrencyPress}>
-          <CurrencyRow icon={RUBY_ICON} amount={animatedBalance.ruby} />
-        </ButtonTile>
+        {/* Empty left column */}
       </View>
+
       <View style={styles.rightColumn} pointerEvents="box-none">
-        <IconButton iconName="map-outline" onPress={onBackgroundPress} />
-        <IconButton iconName="shirt-outline" onPress={onCostumePress} />
-        <IconButton
-          iconName="flag-outline"
-          highlight={hasIncompleteQuests}
-          badgeCount={unclaimedQuestCount > 0 ? unclaimedQuestCount : undefined}
-          onPress={onQuestPress}
-        />
-        {/* <IconButton
-          iconName="calendar-outline"
-          highlight={canClaimCalendar}
-          showBadge={canClaimCalendar}
-          onPress={onCalendarPress}
-        /> */}
-        {hasMessages ? (
-          <IconButton
-            iconName={
-              showChatList ? "close-outline" : "chatbubble-ellipses-outline"
-            }
-            onPress={onToggleChatList}
-          />
-        ) : null}
-        {/* <IconButton
-          iconName="bug-outline"
-          onPress={handleRandomToast}
-        /> */}
+        {menuItems.map((item, index) => {
+          // Show only first 2 items when collapsed
+          const shouldShow = isExpanded || index < 3;
+
+          if (!shouldShow) return null;
+
+          return (
+            <AnimatedMenuItem
+              key={item.key}
+              label={item.label}
+              iconName={item.iconName as IoniconName}
+              isStreakButton={item.isStreakButton}
+              streak={loginStreak}
+              onPress={item.onPress}
+              iconColor={iconColor}
+              isExpanded={isExpanded}
+              index={index}
+              expandAnimation={expandAnimation}
+            />
+          );
+        })}
+
+        {/* Expand/Collapse button */}
+        <Pressable style={styles.expandRow} onPress={handleToggleExpand}>
+          {isExpanded && (
+            <Animated.Text
+              style={[
+                styles.menuLabel,
+                { opacity: expandAnimation }
+              ]}
+            >
+              Close
+            </Animated.Text>
+          )}
+          <Animated.View style={[styles.expandButton, arrowRotationStyle]}>
+            <Ionicons name={isExpanded ? "chevron-down" : "chevron-up"} size={20} color={iconColor} />
+          </Animated.View>
+        </Pressable>
       </View>
     </View>
   );
 };
 
-const CurrencyRow: React.FC<{
-  icon: any;
-  amount: number;
-}> = ({ icon, amount }) => (
-  <View style={styles.currencyRow}>
-    <Image source={icon} style={styles.currencyIcon} />
-    <Text style={styles.currencyLabel}>{formatCompactCurrency(amount)}</Text>
-  </View>
-);
-
 type IoniconName = keyof typeof Ionicons.glyphMap;
+
+// Animated menu item component
+const AnimatedMenuItem: React.FC<{
+  label: string;
+  iconName?: IoniconName;
+  isStreakButton?: boolean;
+  streak?: number;
+  onPress?: () => void;
+  iconColor: string;
+  isExpanded: boolean;
+  index: number;
+  expandAnimation: Animated.Value;
+}> = ({
+  label,
+  iconName,
+  isStreakButton,
+  streak = 0,
+  onPress,
+  iconColor,
+  isExpanded,
+  index,
+  expandAnimation,
+}) => {
+    // Create individual animation for staggered effect
+    const itemAnimation = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
+
+    useEffect(() => {
+      Animated.spring(itemAnimation, {
+        toValue: isExpanded ? 1 : 0,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+        delay: isExpanded ? index * 30 : 0, // Faster stagger
+      }).start();
+    }, [isExpanded, index]);
+
+    // Text opacity animation - only show when expanded
+    const textOpacity = itemAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
+
+    // Text translate animation
+    const textTranslateX = itemAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [20, 0],
+    });
+
+    return (
+      <Pressable style={styles.menuItemRow} onPress={onPress}>
+        {/* Animated label - only visible when expanded */}
+        <Animated.View
+          style={[
+            styles.labelContainer,
+            {
+              opacity: textOpacity,
+              transform: [{ translateX: textTranslateX }],
+            },
+          ]}
+        >
+          <Text style={styles.menuLabel}>{label}</Text>
+        </Animated.View>
+
+        {/* Icon button */}
+        {isStreakButton ? (
+          <View style={styles.streakFlameContainer}>
+            <StreakIcon width={50} height={50} />
+            <View style={styles.streakNumberContainer}>
+              <Text style={styles.streakNumber}>{streak}</Text>
+            </View>
+          </View>
+        ) : (
+          <LiquidGlass style={styles.iconButtonGlass} onPress={onPress}>
+            <Ionicons name={iconName!} size={18} color={iconColor} />
+          </LiquidGlass>
+        )}
+      </Pressable>
+    );
+  };
 
 const IconButton: React.FC<{
   iconName: IoniconName;
@@ -271,13 +356,14 @@ const IconButton: React.FC<{
   highlight?: boolean;
   badgeCount?: number;
   showBadge?: boolean;
-}> = ({ iconName, onPress, highlight, badgeCount, showBadge }) => {
+  iconColor?: string;
+}> = ({ iconName, onPress, highlight, badgeCount, showBadge, iconColor = '#fff' }) => {
   const shouldShowBadge = showBadge || (badgeCount !== undefined && badgeCount > 0);
-  
+
   return (
     <View style={styles.iconButtonContainer}>
       <LiquidGlass style={styles.iconButtonGlass} onPress={onPress}>
-        <Ionicons name={iconName} size={18} color="#111" />
+        <Ionicons name={iconName} size={18} color={iconColor} />
       </LiquidGlass>
       {shouldShowBadge && (
         <View style={styles.badgeContainer}>
@@ -299,38 +385,6 @@ const IconButton: React.FC<{
   );
 };
 
-const ButtonTile: React.FC<{
-  children: React.ReactNode;
-  onPress?: () => void;
-}> = ({ children, onPress }) => (
-  <Button variant="liquid" style={styles.tilePressable} onPress={onPress}>
-    <View style={styles.tileContentRow}>{children}</View>
-  </Button>
-);
-
-const formatCompactCurrency = (value: number) => {
-  if (!Number.isFinite(value)) {
-    return "0";
-  }
-
-  const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-
-  if (abs >= 1_000_000_000) {
-    return `${sign}${(abs / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
-  }
-
-  if (abs >= 1_000_000) {
-    return `${sign}${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  }
-
-  if (abs >= 1_000) {
-    return `${sign}${(abs / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  }
-
-  return `${value}`;
-};
-
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
@@ -345,70 +399,7 @@ const styles = StyleSheet.create({
   },
   rightColumn: {
     alignItems: "flex-end",
-    gap: 10,
-  },
-  tilePressable: {
-    borderRadius: 22,
-    minHeight: 44,
-    alignSelf: "flex-start",
-  },
-  tileContentRow: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 12,
-  },
-  levelLabel: {
-    color: "#111",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  levelCompactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  levelCompactTrack: {
-    width: 86,
-    height: 12,
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  levelCompactFill: {
-    height: "100%",
-    borderRadius: 10,
-  },
-  energyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  energyLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111",
-  },
-  currencyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  currencyIcon: {
-    width: 18,
-    height: 18,
-    resizeMode: "contain",
-  },
-  currencyLabel: {
-    color: "#111",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
   },
   iconButtonContainer: {
     position: "relative",
@@ -419,12 +410,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-  },
-  iconButtonHighlight: {
-    backgroundColor: "rgba(255,149,0,0.18)",
-  },
-  pressed: {
-    opacity: 0.85,
   },
   badgeContainer: {
     position: "absolute",
@@ -456,5 +441,56 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     lineHeight: 13,
+  },
+  streakFlameContainer: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  streakNumberContainer: {
+    position: "absolute",
+    top: 14,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  streakNumber: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  // Menu item styles
+  menuItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  labelContainer: {
+    // Container for animated label
+  },
+  menuLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  expandButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  expandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
   },
 });

@@ -65,21 +65,21 @@ export class UserCharacterPreferenceService {
     modelURL?: string;
     urlName?: string;
   } | null> {
-      const queryItems: Record<string, string> = {
-        select: 'costume_name,model_url,url',
-        id: `eq.${costumeId}`,
-        limit: '1',
-      };
+    const queryItems: Record<string, string> = {
+      select: 'costume_name,model_url,url',
+      id: `eq.${costumeId}`,
+      limit: '1',
+    };
 
-      const data = await executeSupabaseRequest<any[]>(
-        '/rest/v1/character_costumes',
-        queryItems,
-        'GET'
-      );
+    const data = await executeSupabaseRequest<any[]>(
+      '/rest/v1/character_costumes',
+      queryItems,
+      'GET'
+    );
     if (!data || data.length === 0) {
       return null;
     }
-        const costume = data[0];
+    const costume = data[0];
     return {
       costumeName: costume.costume_name ?? undefined,
       modelURL: costume.model_url ?? undefined,
@@ -98,12 +98,12 @@ export class UserCharacterPreferenceService {
 
       const { costumeName, modelURL, urlName } = meta;
 
-        if (webViewRef?.current) {
-          if (modelURL && costumeName) {
-            const escapedURL = modelURL.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-            const escapedName = costumeName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-            const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
-            webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+      if (webViewRef?.current) {
+        if (modelURL && costumeName) {
+          const escapedURL = modelURL.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const escapedName = costumeName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+          webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
           await Persistence.setModelName(costumeName);
           await Persistence.setModelURL(modelURL);
           if (characterId) {
@@ -113,14 +113,14 @@ export class UserCharacterPreferenceService {
               modelURL,
             });
           }
-            console.log('✅ [UserCharacterPreferenceService] Applied costume by URL:', costumeName);
+          console.log('✅ [UserCharacterPreferenceService] Applied costume by URL:', costumeName);
           return;
         }
         if (urlName) {
-            const modelName = `${urlName}.vrm`;
-            const escaped = modelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-            const js = `window.loadModelByName("${escaped}");`;
-            webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+          const modelName = `${urlName}.vrm`;
+          const escaped = modelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const js = `window.loadModelByName("${escaped}");`;
+          webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
           await Persistence.setModelName(modelName);
           await Persistence.setModelURL('');
           if (characterId) {
@@ -130,7 +130,7 @@ export class UserCharacterPreferenceService {
               modelURL: '',
             });
           }
-            console.log('✅ [UserCharacterPreferenceService] Applied costume by name:', modelName);
+          console.log('✅ [UserCharacterPreferenceService] Applied costume by name:', modelName);
         }
       }
     } catch (error) {
@@ -159,16 +159,26 @@ export class UserCharacterPreferenceService {
       const background = await backgroundRepo.fetchBackground(backgroundId);
 
       if (background && webViewRef?.current) {
-        if (!background.image) {
-          console.warn('⚠️ [UserCharacterPreferenceService] Background missing image:', backgroundId);
-          return;
+        if (background.video_url) {
+          const escaped = background.video_url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          // Try setBackgroundVideo, if not falling back to whatever the web might support (e.g. setBackgroundImage might handle it if smart enough)
+          // But best to call specific method if we want specific behavior.
+          // Assuming the web side is/will be updated to support setBackgroundVideo
+          const js = `window.setBackgroundVideo && window.setBackgroundVideo("${escaped}");`;
+          webViewRef.current.injectJavaScript(js);
+          await Persistence.setBackgroundURL(background.video_url);
+          await Persistence.setBackgroundName(background.name || '');
+          console.log('✅ [UserCharacterPreferenceService] Applied background video:', background.name);
+        } else if (background.image) {
+          const escaped = background.image.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const js = `window.setBackgroundImage&&window.setBackgroundImage("${escaped}");`;
+          webViewRef.current.injectJavaScript(js);
+          await Persistence.setBackgroundURL(background.image);
+          await Persistence.setBackgroundName(background.name || '');
+          console.log('✅ [UserCharacterPreferenceService] Applied background image:', background.name);
+        } else {
+          console.warn('⚠️ [UserCharacterPreferenceService] Background missing image/video:', backgroundId);
         }
-        const escaped = background.image.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const js = `window.setBackgroundImage&&window.setBackgroundImage("${escaped}");`;
-        webViewRef.current.injectJavaScript(js);
-        await Persistence.setBackgroundURL(background.image);
-        await Persistence.setBackgroundName(background.name || '');
-        console.log('✅ [UserCharacterPreferenceService] Applied background:', background.name);
       }
     } catch (error) {
       console.error('❌ [UserCharacterPreferenceService] Error applying background:', error);

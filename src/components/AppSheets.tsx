@@ -29,6 +29,8 @@ type AppSheetsProps = {
   showCostumeSheet: boolean;
   setShowCostumeSheet: (show: boolean) => void;
   activeCharacterId?: string;
+  streakDays?: number;
+  onOpenStreak?: () => void;
 
   // Media Sheet
   showMediaSheet: boolean;
@@ -54,6 +56,14 @@ type AppSheetsProps = {
   energy: number;
   energyMax: number;
 
+  // Subscription
+  onOpenSubscription?: () => void;
+
+  // Theme
+  isDarkBackground?: boolean;
+
+  // Pro status
+  isPro?: boolean;
 };
 
 export const AppSheets: React.FC<AppSheetsProps> = ({
@@ -69,6 +79,8 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
   showCostumeSheet,
   setShowCostumeSheet,
   activeCharacterId,
+  streakDays,
+  onOpenStreak,
   showMediaSheet,
   setShowMediaSheet,
   characterName,
@@ -85,21 +97,35 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
   setShowEnergySheet,
   energy,
   energyMax,
+  onOpenSubscription,
+  isDarkBackground = true,
+  isPro = false,
 }) => {
   return (
     <>
       <BackgroundSheet
         isOpened={showBackgroundSheet}
         onIsOpenedChange={setShowBackgroundSheet}
+        onOpenSubscription={onOpenSubscription}
+        isDarkBackground={isDarkBackground}
+        isPro={isPro}
       />
       <CharacterSheet
         isOpened={showCharacterSheet}
         onIsOpenedChange={setShowCharacterSheet}
+        onOpenSubscription={onOpenSubscription}
+        isDarkBackground={isDarkBackground}
+        isPro={isPro}
       />
       <CostumeSheet
         isOpened={showCostumeSheet}
         onIsOpenedChange={setShowCostumeSheet}
         characterId={activeCharacterId}
+        onOpenSubscription={onOpenSubscription}
+        streakDays={streakDays}
+        onOpenStreak={onOpenStreak}
+        isDarkBackground={isDarkBackground}
+        isPro={isPro}
       />
       <MediaSheet
         isOpened={showMediaSheet}
@@ -115,6 +141,7 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
           characterName={characterName || ''}
           characterAvatarURL={characterAvatarURL}
           characterDescription={characterDescription}
+          isDarkBackground={isDarkBackground}
         />
       )}
       <LevelSheet
@@ -147,4 +174,3 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
     </>
   );
 };
-
