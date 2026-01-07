@@ -50,4 +50,4 @@ dist
 .expo
 
 build-*.ipa
-build-*.aab
+build-*.aabservice-account.json
