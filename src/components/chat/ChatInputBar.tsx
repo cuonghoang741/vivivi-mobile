@@ -1,6 +1,12 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, TextInput, View, Animated } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  IconMicrophone,
+  IconMicrophoneOff,
+  IconVideo,
+  IconVideoOff,
+  IconSend,
+} from '@tabler/icons-react-native';
 import { glassButtonStyle } from '../../styles/glass';
 import { LiquidGlass } from '../LiquidGlass';
 import { isLiquidGlassSupported } from '@callstack/liquid-glass';
@@ -81,7 +87,7 @@ export const ChatInputBar: React.FC<Props> = ({
               isIconOnly
               onPress={onToggleMic}
               disabled={voiceLoading}
-              startIconName={isMicMuted ? 'mic-off' : 'mic'}
+              startIcon={isMicMuted ? IconMicrophoneOff : IconMicrophone}
               iconColor={isUserSpeaking ? '#4ADE80' : '#FF6EA1'}
             />
           </View>
@@ -95,7 +101,7 @@ export const ChatInputBar: React.FC<Props> = ({
             disabled={voiceLoading}
             isIconOnly
             onPress={onVideoCall}
-            startIconName={isVideoCallActive ? 'videocam-off' : 'videocam'}
+            startIcon={isVideoCallActive ? IconVideoOff : IconVideo}
             iconColor={"#FF6EA1"}
           />
         )}
@@ -120,7 +126,7 @@ export const ChatInputBar: React.FC<Props> = ({
                 onSend();
               }}
             >
-              <Ionicons name="paper-plane" size={18} color="#FF6EA1" />
+              <IconSend width={20} height={20} color="#FF6EA1" />
             </Pressable>
           )}
         </View>

@@ -13,7 +13,19 @@ import {
 } from "react-native";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  IconMessage,
+  IconShirt,
+  IconPhoto,
+  IconVolume,
+  IconVolumeOff,
+  IconChevronDown,
+  IconChevronUp,
+  IconHanger,
+  IconMessageOff,
+  IconMessageCircle,
+  IconMessageCircleOff,
+} from '@tabler/icons-react-native';
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
 import StreakIcon from "../assets/icons/streak.svg";
@@ -78,16 +90,36 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
+        onMoveShouldSetPanResponder: (evt, gestureState) => {
           // Disable swipe during call
           if (isInCall) return false;
           if (isChatScrolling) return false;
+
+          // Don't capture vertical gestures from left side (chat area ~85% width)
+          const { pageX } = evt.nativeEvent;
+          const isVerticalGesture = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+          const isFromChatArea = pageX < 300; // Approximate chat area width
+
+          if (isVerticalGesture && isFromChatArea) {
+            return false; // Let ScrollView handle vertical scrolling in chat area
+          }
+
           return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
         },
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
           // Disable swipe during call
           if (isInCall) return false;
           if (isChatScrolling) return false;
+
+          // Don't capture vertical gestures from left side (chat area)
+          const { pageX } = evt.nativeEvent;
+          const isVerticalGesture = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+          const isFromChatArea = pageX < 300;
+
+          if (isVerticalGesture && isFromChatArea) {
+            return false; // Let ScrollView handle vertical scrolling in chat area
+          }
+
           return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
         },
         onPanResponderGrant: () => {
@@ -165,42 +197,42 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
 
   // Menu items configuration
   const menuItems = [
-    {
-      key: 'streak',
-      label: 'Streak',
-      isStreakButton: true,
-      onPress: onCalendarPress,
-    },
+    // {
+    //   key: 'streak',
+    //   label: 'Streak',
+    //   isStreakButton: true,
+    //   onPress: onCalendarPress,
+    // },
     {
       key: 'messages',
       label: showChatList ? 'Hide Chat' : 'Show Chat',
-      iconName: showChatList ? 'chatbubble' : 'chatbubble-outline',
+      Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
       onPress: onToggleChatList,
     },
     {
       key: 'outfit',
       label: 'Outfit',
-      iconName: 'shirt-outline' as const,
+      Icon: IconHanger,
       onPress: onCostumePress,
     },
     {
       key: 'background',
       label: 'Background',
-      iconName: 'image-outline' as const,
+      Icon: IconPhoto,
       onPress: onBackgroundPress,
     },
     {
       key: 'music',
       label: isBgmOn ? 'Music On' : 'Music Off',
-      iconName: isBgmOn ? 'volume-high' : 'volume-mute',
+      Icon: isBgmOn ? IconVolume : IconVolumeOff,
       onPress: onSpeakerPress,
     },
-    {
-      key: 'settings',
-      label: 'Settings',
-      iconName: 'settings-outline' as const,
-      onPress: onSettingsPress,
-    },
+    // {
+    //   key: 'settings',
+    //   label: 'Settings',
+    //   Icon: IconSettings,
+    //   onPress: onSettingsPress,
+    // },
   ];
 
   // Hide overlay UI during call (only keep swipe handler for consistent behavior)
@@ -215,6 +247,8 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     );
   }
 
+  const ChevronIcon = isExpanded ? IconChevronDown : IconChevronUp;
+
   return (
     <View
       style={[styles.container, safeAreaPadding, style]}
@@ -228,7 +262,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       <View style={styles.rightColumn} pointerEvents="box-none">
         {menuItems.map((item, index) => {
           // Show only first 2 items when collapsed
-          const shouldShow = isExpanded || index < 3;
+          const shouldShow = isExpanded || index < 2;
 
           if (!shouldShow) return null;
 
@@ -236,8 +270,9 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             <AnimatedMenuItem
               key={item.key}
               label={item.label}
-              iconName={item.iconName as IoniconName}
-              isStreakButton={item.isStreakButton}
+              Icon={item.Icon}
+              iconProps={item.iconProps}
+              // isStreakButton={item.isStreakButton}
               streak={loginStreak}
               onPress={item.onPress}
               iconColor={iconColor}
@@ -261,7 +296,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             </Animated.Text>
           )}
           <Animated.View style={[styles.expandButton, arrowRotationStyle]}>
-            <Ionicons name={isExpanded ? "chevron-down" : "chevron-up"} size={20} color={iconColor} />
+            <ChevronIcon size={24} color={iconColor} />
           </Animated.View>
         </Pressable>
       </View>
@@ -269,12 +304,11 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   );
 };
 
-type IoniconName = keyof typeof Ionicons.glyphMap;
-
 // Animated menu item component
 const AnimatedMenuItem: React.FC<{
   label: string;
-  iconName?: IoniconName;
+  Icon?: React.ElementType;
+  iconProps?: any;
   isStreakButton?: boolean;
   streak?: number;
   onPress?: () => void;
@@ -284,7 +318,8 @@ const AnimatedMenuItem: React.FC<{
   expandAnimation: Animated.Value;
 }> = ({
   label,
-  iconName,
+  Icon,
+  iconProps,
   isStreakButton,
   streak = 0,
   onPress,
@@ -343,47 +378,12 @@ const AnimatedMenuItem: React.FC<{
           </View>
         ) : (
           <LiquidGlass style={styles.iconButtonGlass} onPress={onPress}>
-            <Ionicons name={iconName!} size={18} color={iconColor} />
+            {Icon && <Icon width={22} height={22} color={iconColor}  {...iconProps} />}
           </LiquidGlass>
         )}
       </Pressable>
     );
   };
-
-const IconButton: React.FC<{
-  iconName: IoniconName;
-  onPress?: () => void;
-  highlight?: boolean;
-  badgeCount?: number;
-  showBadge?: boolean;
-  iconColor?: string;
-}> = ({ iconName, onPress, highlight, badgeCount, showBadge, iconColor = '#fff' }) => {
-  const shouldShowBadge = showBadge || (badgeCount !== undefined && badgeCount > 0);
-
-  return (
-    <View style={styles.iconButtonContainer}>
-      <LiquidGlass style={styles.iconButtonGlass} onPress={onPress}>
-        <Ionicons name={iconName} size={18} color={iconColor} />
-      </LiquidGlass>
-      {shouldShowBadge && (
-        <View style={styles.badgeContainer}>
-          {badgeCount !== undefined && badgeCount > 0 ? (
-            <View style={[
-              styles.badgeWithCount,
-              badgeCount > 9 && { paddingHorizontal: 4 }
-            ]}>
-              <Text style={styles.badgeText}>
-                {badgeCount > 9 ? '9+' : badgeCount.toString()}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.badgeDot} />
-          )}
-        </View>
-      )}
-    </View>
-  );
-};
 
 const styles = StyleSheet.create({
   container: {

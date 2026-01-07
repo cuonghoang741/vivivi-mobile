@@ -1,3 +1,4 @@
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -22,7 +23,6 @@ import { authManager } from '../../services/AuthManager';
 import Button from '../Button';
 import { getSupabaseClient } from '../../services/supabase';
 import { getAuthIdentifier } from '../../services/authIdentifier';
-import { LEGAL_TEXT } from '../../content/legalText';
 import { BottomSheet, BottomSheetRef } from '../BottomSheet';
 
 type Props = {
@@ -53,11 +53,7 @@ const SUBSCRIPTION_LABELS: Record<SubscriptionTier, string> = {
   pro: 'Premium',
 };
 
-type LegalDoc = 'terms' | 'privacy';
-const LEGAL_TITLES: Record<LegalDoc, string> = {
-  terms: 'Terms of Service',
-  privacy: 'Privacy Policy',
-};
+
 
 type FeedbackKind = 'problem' | 'feature';
 
@@ -65,7 +61,6 @@ type SettingsScreen =
   | { key: 'root' }
   | { key: 'editProfile' }
   | { key: 'purchaseHistory' }
-  | { key: 'legal'; doc: LegalDoc }
   | { key: 'feedback'; kind: FeedbackKind };
 
 type InAppPurchase = {
@@ -152,7 +147,7 @@ const PremiumBanner: React.FC<{
     };
 
     return (
-      <Pressable onPress={onPress}>
+      <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.8 }}>
         <LinearGradient
           colors={['#FF4081', '#F50057']}
           start={{ x: 0, y: 0 }}
@@ -197,7 +192,7 @@ const PremiumBanner: React.FC<{
   }
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.8 }}>
       <LinearGradient
         colors={['#FF5D9D', '#FF2D79']}
         start={{ x: 0, y: 0 }}
@@ -407,7 +402,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
 
   const avatarLetter = resolvedDisplayName.charAt(0).toUpperCase() || '?';
   const resolvedEmail = authState.user?.email ?? email ?? 'No email';
-  const versionLabel = `Version ${Constants.expoConfig?.version ?? '1.0.0'}`;
+  const versionLabel = `Version ${Constants.expoConfig?.version ?? '1.0.0'} `;
 
   const renderContent = () => {
     switch (currentScreen.key) {
@@ -494,12 +489,12 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
               <SettingsRow
                 icon="document-text-outline"
                 label="Terms of Service"
-                onPress={() => pushScreen({ key: 'legal', doc: 'terms' })}
+                onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/terms')}
               />
               <SettingsRow
                 icon="shield-checkmark-outline"
                 label="Privacy Policy"
-                onPress={() => pushScreen({ key: 'legal', doc: 'privacy' })}
+                onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}
               />
               <SettingsRow
                 icon="bug-outline"
@@ -534,8 +529,6 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
         );
       case 'purchaseHistory':
         return <PurchaseHistoryScreen />;
-      case 'legal':
-        return <LegalDocumentScreen doc={currentScreen.doc} />;
       case 'feedback':
         return <FeedbackFormScreen kind={currentScreen.kind} onSubmitted={popScreen} />;
       default:
@@ -545,10 +538,9 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
 
   const getTitle = () => {
     switch (currentScreen.key) {
-      case 'root': return undefined; // No title in root to save space
+      case 'root': return 'Settings'; // No title in root to save space
       case 'editProfile': return 'Personal Information';
       case 'purchaseHistory': return 'History';
-      case 'legal': return LEGAL_TITLES[currentScreen.doc];
       case 'feedback': return currentScreen.kind === 'problem' ? 'Report Bug' : 'Feature Request';
       default: return 'Settings';
     }
@@ -564,15 +556,6 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
       detents={['large']}
       title={getTitle()}
       backgroundBlur='system-thick-material-dark'
-      headerLeft={!isRootScreen && (
-        <Button
-          variant="liquid"
-          size="md"
-          isIconOnly
-          startIconName="chevron-back"
-          onPress={popScreen}
-        />
-      )}
     >
       <View style={[styles.container, { maxHeight: height }]}>
         {renderContent()}
@@ -650,10 +633,8 @@ const EditProfileScreen: React.FC<{
         />
       </View>
 
-      <View style={{ height: 24 }} />
-
       <Pressable
-        style={styles.deleteAccountButton}
+        style={({ pressed }) => [styles.deleteAccountButton, pressed && { opacity: 0.7 }]}
         onPress={() => {
           Alert.alert('Delete Account?', 'This cannot be undone.', [
             { text: 'Cancel', style: 'cancel' },
@@ -662,10 +643,11 @@ const EditProfileScreen: React.FC<{
               style: 'destructive',
               onPress: async () => {
                 try {
-                  // Actually delete the account
+                  setTimeout(() => {
+                    onAccountDeleted();
+                  }, 4000);
                   await authManager.deleteAccountLocally();
-                  // Then close the UI
-                  onAccountDeleted();
+                  // Close the sheet first so user sees it dismiss
                 } catch (e: any) {
                   console.error('Delete account error:', e);
                   Alert.alert('Error', e?.message || 'Failed to delete account');
@@ -691,11 +673,7 @@ const PurchaseHistoryScreen: React.FC = () => {
   );
 };
 
-const LegalDocumentScreen: React.FC<{ doc: LegalDoc }> = ({ doc }) => (
-  <ScrollView contentContainerStyle={styles.subScreenContent}>
-    <Text style={styles.legalText}>{LEGAL_TEXT[doc]}</Text>
-  </ScrollView>
-);
+
 
 const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void }> = ({ kind, onSubmitted }) => {
   const [text, setText] = useState('');
@@ -732,6 +710,7 @@ const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingBottom: 50
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -851,11 +830,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 20,
     alignSelf: 'flex-start',
+    width: '100%'
   },
   premiumButtonText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#000',
+    textAlign: 'center'
   },
   premiumIconContainer: {
     position: 'absolute',
@@ -913,6 +894,7 @@ const styles = StyleSheet.create({
   },
   pressedRow: {
     backgroundColor: 'rgba(255,255,255,0.05)',
+    opacity: 0.7,
   },
   rowIconContainer: {
     marginRight: 12,
@@ -1003,7 +985,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   deleteAccountButton: {
-    marginTop: 40,
+    marginTop: 10,
     alignItems: 'center',
     padding: 16,
   },

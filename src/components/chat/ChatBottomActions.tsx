@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { glassButtonStyle } from '../../styles/glass';
+import { LiquidGlass } from '../LiquidGlass';
 
 type Props = {
   onCapture: () => void;
@@ -28,10 +28,10 @@ const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void 
   label,
   onPress,
 }) => (
-  <Pressable style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} onPress={onPress}>
+  <LiquidGlass style={styles.button} onPress={onPress}>
     <Ionicons name={icon as any} size={14} color="#fff" />
     <Text style={styles.buttonLabel}>{label}</Text>
-  </Pressable>
+  </LiquidGlass>
 );
 
 const styles = StyleSheet.create({
@@ -49,10 +49,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    ...glassButtonStyle,
   },
   buttonPressed: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    opacity: 0.7,
   },
   buttonLabel: {
     color: '#fff',
@@ -60,4 +59,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

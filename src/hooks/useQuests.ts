@@ -170,29 +170,29 @@ export const useQuests = (enabled = true) => {
         if (!update) {
           return quest;
         }
-        
+
         // Check if quest just completed (was not completed, now is completed)
         const wasCompleted = quest.completed;
         const isNowCompleted = update.completed;
         const justCompleted = !wasCompleted && isNowCompleted;
-        
-        if (justCompleted && quest.quest) {
-          // Show toast for completed daily quest
-          toastManager.showDailyQuestProgress(
-            quest.quest.description || 'Daily Quest Completed!',
-            update.progress,
-            quest.quest.target_value,
-            true
-          );
-        }
-        
+
+        // if (justCompleted && quest.quest) {
+        //   // Show toast for completed daily quest
+        //   toastManager.showDailyQuestProgress(
+        //     quest.quest.description || 'Daily Quest Completed!',
+        //     update.progress,
+        //     quest.quest.target_value,
+        //     true
+        //   );
+        // }
+
         return {
           ...quest,
           progress: update.progress,
           completed: update.completed,
         };
       });
-      
+
       return {
         ...prev,
         quests: newQuests,
@@ -207,29 +207,29 @@ export const useQuests = (enabled = true) => {
         if (!update) {
           return quest;
         }
-        
+
         // Check if quest just completed (was not completed, now is completed)
         const wasCompleted = quest.completed;
         const isNowCompleted = update.completed;
         const justCompleted = !wasCompleted && isNowCompleted;
-        
-        if (justCompleted && quest.quest) {
-          // Show toast for completed level quest
-          toastManager.showLevelQuestProgress(
-            quest.quest.description || 'Level Quest Completed!',
-            update.progress,
-            quest.quest.target_value,
-            true
-          );
-        }
-        
+
+        // if (justCompleted && quest.quest) {
+        //   // Show toast for completed level quest
+        //   toastManager.showLevelQuestProgress(
+        //     quest.quest.description || 'Level Quest Completed!',
+        //     update.progress,
+        //     quest.quest.target_value,
+        //     true
+        //   );
+        // }
+
         return {
           ...quest,
           progress: update.progress,
           completed: update.completed,
         };
       });
-      
+
       return {
         ...prev,
         quests: newQuests,

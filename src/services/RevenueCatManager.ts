@@ -3,7 +3,7 @@ import Purchases, {
   PurchasesPackage,
   PurchasesOffering,
 } from 'react-native-purchases';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import { authManager } from './AuthManager';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { getTelegramUserInfo } from '../utils/telegramUserHelper';
@@ -12,8 +12,8 @@ import { analyticsService } from './AnalyticsService';
 Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
 
 // RevenueCat Public SDK Keys
-const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
-// const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+// const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
+const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
 const REVENUECAT_API_KEY_ANDROID = 'goog_CjxgHOafWEJNsMPLMtQgAULbupx'; // TODO: Replace with actual Android key
 
 class RevenueCatManager {
@@ -21,13 +21,26 @@ class RevenueCatManager {
   private customerInfo: CustomerInfo | null = null;
   private offerings: PurchasesOffering | null = null;
 
-  private constructor() { }
-
   static getInstance(): RevenueCatManager {
     if (!RevenueCatManager.instance) {
       RevenueCatManager.instance = new RevenueCatManager();
     }
     return RevenueCatManager.instance;
+  }
+
+  private constructor() {
+    // Force init on startup
+    this.configure();
+
+    // Listen for app state changes
+    AppState.addEventListener('change', this.handleAppStateChange);
+  }
+
+  handleAppStateChange = (nextAppState: AppStateStatus) => {
+    if (nextAppState === 'active') {
+      console.log('📱 App has come to the foreground! Force re-configuring RevenueCat...');
+      this.configure();
+    }
   }
 
   async configure() {
@@ -44,7 +57,7 @@ class RevenueCatManager {
       return;
     }
 
-    if (authManager.user?.id) {
+    if (authManager?.user?.id) {
       await Purchases.logIn(authManager.user.id);
     }
 
@@ -136,6 +149,16 @@ class RevenueCatManager {
     } catch (e) {
       console.error('RevenueCat hasActiveSubscription error:', e);
       return false;
+    }
+  }
+
+  async login(userId: string) {
+    try {
+      const { customerInfo } = await Purchases.logIn(userId);
+      this.customerInfo = customerInfo;
+      console.log(`[RevenueCatManager] Logged in as ${userId}`);
+    } catch (e) {
+      console.error('RevenueCat login error:', e);
     }
   }
 

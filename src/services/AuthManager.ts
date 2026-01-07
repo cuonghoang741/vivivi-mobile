@@ -346,29 +346,14 @@ export class AuthManager {
 
   private async clearLocalStateAfterDeletion() {
     try {
-      const keysToClear = [
-        PersistKeys.characterId,
-        PersistKeys.modelName,
-        PersistKeys.modelURL,
-        PersistKeys.backgroundName,
-        PersistKeys.backgroundURL,
-        PersistKeys.hasRatedApp,
-        PersistKeys.lastReviewPromptAt,
-        PersistKeys.ageVerified18,
-        "persist.hasCompletedImageOnboarding",
-        "persist.hasSeenImageOnboarding",
-        "persist.hasClaimedGift",
-        "settings.hapticsEnabled",
-        "settings.autoPlayMusic",
-        "settings.autoEnterTalking",
-        "settings.enableNSFW",
-        "settings.kidsMode",
-        "settings.dictation",
-        "settings.voiceMode",
-        "subscription.tier",
-      ];
-      await AsyncStorage.multiRemove(keysToClear);
+      // Clear ALL AsyncStorage data to ensure clean state
+      await AsyncStorage.clear();
+      console.log('[AuthManager] Cleared all AsyncStorage data');
+
+      // Reset age verification to false (safety measure)
       await AsyncStorage.setItem(PersistKeys.ageVerified18, "false");
+
+      // Clear client ID
       await clearClientId();
     } catch (error) {
       console.warn("[AuthManager] Failed clearing local state", error);
@@ -421,6 +406,7 @@ export class AuthManager {
         });
         analyticsService.logSignIn('email');
         analyticsService.setUserId(data.user.id);
+        await revenueCatManager.login(data.user.id);
       }
 
       this.setState({ isLoading: false });
@@ -460,6 +446,7 @@ export class AuthManager {
           session: data.session,
           user: data.user,
         });
+        await revenueCatManager.login(data.user.id);
       }
 
       this.setState({ isLoading: false });
@@ -526,6 +513,7 @@ export class AuthManager {
       if (data.user) {
         analyticsService.logSignIn('apple');
         analyticsService.setUserId(data.user.id);
+        await revenueCatManager.login(data.user.id);
       }
     } catch (error: any) {
       if (error?.code === "ERR_CANCELED") {
@@ -597,6 +585,7 @@ export class AuthManager {
         if (sessionData.user) {
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
+          await revenueCatManager.login(sessionData.user.id);
         }
         return;
       }
@@ -619,6 +608,7 @@ export class AuthManager {
         if (sessionData.user) {
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
+          await revenueCatManager.login(sessionData.user.id);
         }
         return;
       }

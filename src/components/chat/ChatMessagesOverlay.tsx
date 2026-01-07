@@ -78,8 +78,7 @@ const ChatOverlayItem: React.FC<ChatOverlayItemProps> = ({
   }, [fadeAnim, translateYAnim]);
 
   // Tính opacity theo vị trí (gần giống Swift version)
-  const positionOpacity =
-    total > 0 ? Math.max(0.3, 1 - (total - 1 - index) * 0.2) : 1;
+  const positionOpacity = 1;
 
   return (
     <Animated.View
@@ -182,6 +181,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
           transform: [{ translateX: translateXAnim }],
         },
       ]}
+      pointerEvents="box-none"
     >
       <ScrollView
         ref={scrollViewRef}
@@ -194,6 +194,8 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         onScrollBeginDrag={handleScrollBeginDrag}
         onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={true}
       >
         {/* {typeof streakDays === 'number' && (
           <StreakBadge

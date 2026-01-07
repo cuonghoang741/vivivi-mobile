@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const DIAMOND_ICON_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/gHCihrZqs0a7K0rms5qSXE1TRs8FuWwPWaEeLIey.png';
 
@@ -12,28 +12,9 @@ type GoProButtonProps = {
 
 export const GoProButton: React.FC<GoProButtonProps> = ({
     onPress,
-    label = 'Go Unlimited',
+    label = 'Go Pro',
 }) => {
-    const [isPro, setIsPro] = React.useState(false);
-
-    React.useEffect(() => {
-        const checkStatus = async () => {
-            try {
-                const tier = await AsyncStorage.getItem('subscription.tier');
-                if (tier?.toLowerCase() === 'pro') {
-                    setIsPro(true);
-                }
-            } catch (e) {
-                // ignore
-            }
-        };
-        checkStatus();
-
-        // Add a simple interval or event listener if needed, but for now mount check is okay
-        // optimizing to check every time window focus might be better in future
-        const interval = setInterval(checkStatus, 2000);
-        return () => clearInterval(interval);
-    }, []);
+    const { isPro } = useSubscription();
 
     const handlePress = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -47,7 +28,7 @@ export const GoProButton: React.FC<GoProButtonProps> = ({
             style={({ pressed }) => [
                 styles.container,
                 pressed && styles.pressed,
-                isPro && styles.proContainer // Optional: different style for Pro
+                isPro && styles.proContainer
             ]}
             onPress={handlePress}
         >

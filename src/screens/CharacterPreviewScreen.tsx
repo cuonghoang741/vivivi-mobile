@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import {
     View,
     StyleSheet,
@@ -10,20 +10,22 @@ import {
     Pressable,
     useWindowDimensions,
     Alert,
+    Animated,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { Video, ResizeMode } from 'expo-av';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { VRMWebView } from '../components/VRMWebView';
 import { CharacterItem } from '../repositories/CharacterRepository';
 import { brand } from '../styles/palette';
 import { BackgroundRepository } from '../repositories/BackgroundRepository';
+import { CostumeRepository } from '../repositories/CostumeRepository';
 import { CustomSheet } from '../components/CustomSheet';
 import Button from '../components/Button';
 import { DiamondBadge } from '../components/DiamondBadge';
+import DiamondIcon from '../assets/icons/diamond.svg';
 import { useVRMContext } from '../context/VRMContext';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
 
@@ -39,15 +41,6 @@ type CharacterPreviewRouteProp = RouteProp<RootStackParamList, 'CharacterPreview
 type CharacterPreviewNavigationProp = NativeStackNavigationProp<RootStackParamList, 'CharacterPreview'>;
 
 const DEFAULT_BACKGROUND_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/JAZHAJFvr2Lj8gtKb7cBPSnpPiQBPcNoG7tlEihj.jpg';
-const FBX_BASE_URL = 'https://n6n.top/Anim/';
-const DEFAULT_PREVIEW_ANIMATIONS = ['Standing Greeting.fbx', 'Hand Raising.fbx'];
-
-// Get random animation from default list
-const getRandomPreviewAnimation = () => {
-    const randomIndex = Math.floor(Math.random() * DEFAULT_PREVIEW_ANIMATIONS.length);
-    return DEFAULT_PREVIEW_ANIMATIONS[randomIndex];
-};
-
 
 interface CharacterPreviewScreenProps {
     characters?: CharacterItem[];
@@ -55,6 +48,7 @@ interface CharacterPreviewScreenProps {
     isViewMode?: boolean;
     ownedCharacterIds?: string[];
     isPro?: boolean;
+    onSelect?: (character: CharacterItem) => void;
 }
 
 export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (props) => {
@@ -76,20 +70,93 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const [currentIndex, setCurrentIndex] = useState(initialIdx);
     const character = characters[currentIndex];
     const isOwned = character ? ownedCharacterIds.has(character.id) : false;
-    // PRO users or owned characters can be selected
     const canSelect = isOwned || isPro;
 
-
-    const webViewRef = useRef<WebView>(null);
-    const hasLoadedModelRef = useRef(false);
+    // Store all video URLs in a map (loaded once)
+    const [characterVideoUrls, setCharacterVideoUrls] = useState<Map<string, string | null>>(new Map());
+    const [isLoadingVideos, setIsLoadingVideos] = useState(true);
     const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>(DEFAULT_BACKGROUND_URL);
     const [isDarkBackground, setIsDarkBackground] = useState(true);
     const insets = useSafeAreaInsets();
     const { height: screenHeight } = useWindowDimensions();
 
-    // Calculate thumbnails position above the lowest snap point (0.25 = 25% of screen)
+    // Fade animation
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const prevIndexRef = useRef(currentIndex);
+
+    // Calculate thumbnails position
     const lowestSnapHeight = screenHeight * 0.25;
-    const thumbnailsBottomPosition = !isOnboardingFlow ? lowestSnapHeight + 20 : insets.bottom + 60; // 20px padding above sheet
+    const thumbnailsBottomPosition = !isOnboardingFlow ? lowestSnapHeight + 20 : insets.bottom + 60;
+
+    // Load all character videos once on mount
+    useEffect(() => {
+        const loadAllVideos = async () => {
+            if (characters.length === 0) return;
+            setIsLoadingVideos(true);
+
+            const costumeRepo = new CostumeRepository();
+            const videoMap = new Map<string, string | null>();
+
+            await Promise.all(
+                characters.map(async (char) => {
+                    try {
+                        let targetVideoUrl: string | null = null;
+
+                        // 1. Try default costume first
+                        if (char.default_costume_id) {
+                            const defaultCostume = await costumeRepo.fetchCostumeById(char.default_costume_id);
+                            if (defaultCostume?.video_url) {
+                                targetVideoUrl = defaultCostume.video_url;
+                            }
+                        }
+
+                        // 2. If no default costume video, try fetching all costumes
+                        if (!targetVideoUrl) {
+                            const costumes = await costumeRepo.fetchCostumes(char.id);
+                            const costumeWithVideo = costumes.find(c => c.video_url);
+                            if (costumeWithVideo) {
+                                targetVideoUrl = costumeWithVideo.video_url ?? null;
+                            }
+                        }
+
+                        videoMap.set(char.id, targetVideoUrl);
+                    } catch (err) {
+                        console.warn('[CharacterPreview] Failed to fetch video for character:', char.name, err);
+                        videoMap.set(char.id, null);
+                    }
+                })
+            );
+
+            setCharacterVideoUrls(videoMap);
+            setIsLoadingVideos(false);
+            console.log('[CharacterPreview] Loaded videos for', videoMap.size, 'characters');
+        };
+
+        loadAllVideos();
+    }, [characters]);
+
+    // Get current video URL from preloaded map
+    const currentVideoUrl = character ? characterVideoUrls.get(character.id) : null;
+
+    // Fade animation when switching characters
+    useEffect(() => {
+        if (prevIndexRef.current !== currentIndex) {
+            // Fade out
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+            }).start(() => {
+                // After fade out, fade in
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                }).start();
+            });
+            prevIndexRef.current = currentIndex;
+        }
+    }, [currentIndex, fadeAnim]);
 
     // Fetch background when character changes
     useEffect(() => {
@@ -113,44 +180,17 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
         fetchBackground();
     }, [character?.background_default_id]);
 
-    // Reload VRM model (animation will be triggered by modelLoaded event)
-    useEffect(() => {
-        if (character && webViewRef.current && hasLoadedModelRef.current) {
-            // Update background if it changed
-            const jsBackground = `
-                if (typeof window.setBackgroundImage === 'function') {
-                   window.setBackgroundImage("${backgroundImageUrl}");
-                } else {
-                   document.body.style.backgroundImage = 'url("${backgroundImageUrl}")';
-                }
-                true;
-            `;
-            webViewRef.current.injectJavaScript(jsBackground);
-
-            const escapedURL = character.base_model_url?.replace(/\\/g, '\\\\').replace(/"/g, '\\"') || '';
-            const escapedName = (character.name || 'Character').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
-            const js = `
-                (async () => {
-                    if (typeof window.loadModelByURL === 'function') {
-                        await window.loadModelByURL("${escapedURL}", "${escapedName}");
-                    }
-                })();
-                true;
-            `;
-            webViewRef.current.injectJavaScript(js);
-        }
-    }, [currentIndex, character, backgroundImageUrl]);
-
     const handleSelectCharacter = useCallback(() => {
         if (character) {
-            navigation.navigate('OnboardingV2', { selectedCharacterId: character.id });
+            if (props.onSelect) {
+                props.onSelect(character);
+            } else {
+                navigation.navigate('OnboardingV2', { selectedCharacterId: character.id });
+            }
         }
-    }, [navigation, character]);
+    }, [navigation, character, props.onSelect]);
 
     const handleUpgradeToPro = useCallback(() => {
-        // Navigate to subscription screen or show upgrade modal
-        // For now, just show an alert
         Alert.alert(
             'Upgrade to Roxie Pro',
             'Unlock all characters, costumes, and backgrounds with a Pro subscription.',
@@ -161,70 +201,13 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
         );
     }, [navigation]);
 
-    // Hide default navigation header
     useEffect(() => {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
 
-    // Check if we should show back button
     const showBackButton = isViewMode || !isOnboardingFlow;
-
-    // Price info for header right
     const hasRuby = (character?.price_ruby ?? 0) > 0;
     const hasCoin = (character?.price_vcoin ?? 0) > 0;
-    const showPrices = !isViewMode && !isOnboardingFlow && !isOwned && (hasRuby || hasCoin);
-
-    const handleVRMMessage = useCallback((message: string) => {
-        console.log('[CharacterPreview] Received VRM message:', message);
-
-        // Handle model loaded event - play greeting
-        if (message === 'modelLoaded') {
-            console.log('[CharacterPreview] Model loaded, playing random greeting');
-            const js = `
-                if (typeof window.playRandomGreeting === 'function') {
-                    window.playRandomGreeting();
-                }
-                true;
-            `;
-            webViewRef.current?.injectJavaScript(js);
-            return;
-        }
-
-        if (message === 'initialReady' && !hasLoadedModelRef.current) {
-            hasLoadedModelRef.current = true;
-
-            // Set background
-            const bgUrl = backgroundImageUrl;
-
-            const jsBackground = `
-                // Set background image
-                if (typeof window.setBackgroundImage === 'function') {
-                   window.setBackgroundImage("${bgUrl}");
-                } else {
-                   document.body.style.backgroundImage = 'url("${bgUrl}")';
-                }
-                true;
-            `;
-            webViewRef.current?.injectJavaScript(jsBackground);
-
-            if (character.base_model_url) {
-                const escapedURL = character.base_model_url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-                const escapedName = (character.name || 'Character').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
-                const js = `
-                    (async () => {
-                        // Load VRM model
-                        if (typeof window.loadModelByURL === 'function') {
-                            await window.loadModelByURL("${escapedURL}", "${escapedName}");
-                        }
-                    })();
-                    true;
-                `;
-
-                webViewRef.current?.injectJavaScript(js);
-            }
-        }
-    }, [character.base_model_url, character.name, backgroundImageUrl]);
 
     return (
         <View style={styles.container}>
@@ -232,7 +215,6 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
 
             {/* Custom Header */}
             <View style={[styles.customHeader, { paddingTop: insets.top }]}>
-                {/* Left: Back button */}
                 <View style={styles.headerLeft}>
                     {showBackButton && (
                         <Button
@@ -246,12 +228,8 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                     )}
                 </View>
 
-                {/* Center: Title */}
-                <View style={styles.headerCenter}>
+                <View style={styles.headerCenter} />
 
-                </View>
-
-                {/* Right: PRO badge for unowned characters */}
                 <View style={styles.headerRight}>
                     {!isOwned && !isOnboardingFlow && (
                         <DiamondBadge size="md" />
@@ -259,16 +237,28 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                 </View>
             </View>
 
-            {/* Full Screen VRM WebView */}
+            {/* Full Screen Video Player with Fade */}
             <View style={styles.webViewContainer}>
-                <VRMWebView
-                    ref={webViewRef}
-                    onMessage={handleVRMMessage}
-                    enableDebug={false}
-                />
-
-
+                <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
+                    {currentVideoUrl ? (
+                        <Video
+                            source={{ uri: currentVideoUrl }}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode={ResizeMode.COVER}
+                            isLooping
+                            shouldPlay
+                            isMuted={true}
+                        />
+                    ) : (
+                        <Image
+                            source={{ uri: character?.avatar || character?.thumbnail_url || backgroundImageUrl }}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode="cover"
+                        />
+                    )}
+                </Animated.View>
             </View>
+
 
             {/* Floating Prev/Next Navigation Buttons */}
             {characters.length > 1 && (
@@ -451,8 +441,8 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                     {/* From CharacterSheet: show Upgrade to Pro for unowned characters (non-PRO users) */}
                     {!isOnboardingFlow && !canSelect && (
                         <TouchableOpacity style={styles.goProButton} onPress={handleUpgradeToPro}>
-                            <DiamondBadge size="lg" />
-                            <Text style={styles.goProButtonText}>Go Unlimited</Text>
+                            <DiamondIcon width={24} height={24} />
+                            <Text style={styles.goProButtonText}>Go Pro</Text>
                         </TouchableOpacity>
                     )}
 
@@ -763,16 +753,15 @@ const styles = StyleSheet.create({
     },
     goProButton: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255, 87, 154, 0.6)',
-        paddingVertical: 16,
+        backgroundColor: 'white',
         borderRadius: 100,
         alignItems: 'center',
         justifyContent: 'center',
         alignSelf: 'stretch',
+        paddingVertical: 16,
         gap: 9,
     },
     goProButtonText: {
-        color: '#fff',
         fontSize: 17,
         fontWeight: '700',
     },

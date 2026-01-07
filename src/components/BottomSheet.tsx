@@ -121,14 +121,23 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
 
         return (
             <View style={styles.header}>
-                {/* Title (centered) */}
-                {title && (
-                    <Text style={[styles.headerTitle, { color: textColor }]}>{title}</Text>
-                )}
-
-                {/* Left side (absolute) */}
+                {/* Left side */}
                 <View style={styles.headerLeft}>
-                    {headerLeft ?? (
+                    {headerLeft}
+                </View>
+
+                {/* Title (centered) */}
+                <View style={styles.headerCenter}>
+                    {title && (
+                        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
+                            {title}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Right side */}
+                <View style={styles.headerRight}>
+                    {headerRight ?? (
                         showCloseButton && (
                             <Pressable
                                 style={[styles.closeButton, { backgroundColor: closeButtonBg }]}
@@ -138,11 +147,6 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
                             </Pressable>
                         )
                     )}
-                </View>
-
-                {/* Right side (absolute) */}
-                <View style={styles.headerRight}>
-                    {headerRight}
                 </View>
             </View>
         );
@@ -177,7 +181,7 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
             detents={detents}
             cornerRadius={cornerRadius}
             grabber={grabber}
-            backgroundColor={backgroundColor}
+            backgroundColor={backgroundColor ?? 'transparent'}
             backgroundBlur={backgroundBlur ? backgroundBlur : isDarkBackground ? 'dark' : 'light'}
             // backgroundBlur={'system-thick-material-dark'}
             onDidDismiss={handleDismiss}
@@ -199,31 +203,32 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingVertical: 16,
-        position: 'relative',
         minHeight: 56,
+    },
+    headerLeft: {
+        flex: 1,
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+    },
+    headerCenter: {
+        flex: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerRight: {
+        flex: 1,
+        alignItems: 'flex-end',
+        justifyContent: 'center',
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
         textAlign: 'center',
-    },
-    headerLeft: {
-        position: 'absolute',
-        left: 20,
-        top: 0,
-        bottom: 0,
-        justifyContent: 'center',
-    },
-    headerRight: {
-        position: 'absolute',
-        right: 20,
-        top: 0,
-        bottom: 0,
-        justifyContent: 'center',
     },
     closeButton: {
         width: 40,

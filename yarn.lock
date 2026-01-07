@@ -2417,6 +2417,18 @@
     deepmerge "^4.3.1"
     svgo "^3.0.2"
 
+"@tabler/icons-react-native@^3.36.1":
+  version "3.36.1"
+  resolved "https://registry.yarnpkg.com/@tabler/icons-react-native/-/icons-react-native-3.36.1.tgz#9e4b20233356c916109668a5adbc6bcf55d974ab"
+  integrity sha512-tM5lwRsqw3reatBfhaa7GbTMbfdSkgno2UiUBIGklG7SYTSmCe6ivQNrIl+DCabLSPzTlePmIb93taikMPIIPQ==
+  dependencies:
+    "@tabler/icons" ""
+
+"@tabler/icons@":
+  version "3.36.1"
+  resolved "https://registry.yarnpkg.com/@tabler/icons/-/icons-3.36.1.tgz#a893104b3c56e02458b13342abb6e466d4a81a8d"
+  integrity sha512-f4Jg3Fof/Vru5ioix/UO4GX+sdDsF9wQo47FbtvG+utIYYVQ/QVAC0QYgcBbAjQGfbdOh2CCf0BgiFOF9Ixtjw==
+
 "@trysound/sax@0.2.0":
   version "0.2.0"
   resolved "https://registry.npmjs.org/@trysound/sax/-/sax-0.2.0.tgz"

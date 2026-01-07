@@ -4,11 +4,12 @@ import React, {
   useMemo,
   useRef,
   useState,
+  forwardRef,
+  useImperativeHandle,
 } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -16,7 +17,9 @@ import {
   View,
   useWindowDimensions,
   Platform,
+  ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { Video } from 'expo-av';
@@ -24,15 +27,21 @@ import { Video } from 'expo-av';
 import Button from '../Button';
 import AssetRepository from '../../repositories/AssetRepository';
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
-import { usePurchaseContext, ConfirmPurchasePortal } from '../../context/PurchaseContext';
-import { QuestProgressTracker } from '../../utils/QuestProgressTracker';
+import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { DiamondBadge } from '../DiamondBadge';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type MediaSheetProps = {
   isOpened: boolean;
   onIsOpenedChange: (opened: boolean) => void;
   characterId?: string | null;
   characterName?: string | null;
+  onOpenSubscription?: () => void;
+  isDarkBackground?: boolean;
+  isPro?: boolean;
 };
+
+export type MediaSheetRef = BottomSheetRef;
 
 type TabKey = 'video' | 'photo';
 
@@ -45,72 +54,42 @@ const isVideoItem = (item: MediaItem) => {
   return url.endsWith('.mp4') || url.includes('video');
 };
 
-export const MediaSheet: React.FC<MediaSheetProps> = ({
+export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   isOpened,
   onIsOpenedChange,
   characterId,
   characterName,
-}) => {
+  onOpenSubscription,
+  isDarkBackground = true,
+  isPro = false,
+}, ref) => {
+  const sheetRef = useRef<BottomSheetRef>(null);
   const [items, setItems] = useState<MediaItem[]>([]);
-  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<TabKey>('video');
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const ownedIdsRef = useRef(ownedIds);
 
-  useEffect(() => {
-    ownedIdsRef.current = ownedIds;
-  }, [ownedIds]);
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  // Dynamic colors (matching CharacterDetailSheet)
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const tertiaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
+  const cardBgColor = isDarkBackground ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const activeTabBgColor = isDarkBackground ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+
+  // Expose present/dismiss via ref
+  useImperativeHandle(ref, () => ({
+    present: (index?: number) => sheetRef.current?.present(index),
+    dismiss: () => sheetRef.current?.dismiss(),
+  }));
 
   const mediaRepositoryRef = useRef<MediaRepository>();
   if (!mediaRepositoryRef.current) {
     mediaRepositoryRef.current = new MediaRepository();
   }
-  const assetRepositoryRef = useRef<AssetRepository>();
-  if (!assetRepositoryRef.current) {
-    assetRepositoryRef.current = new AssetRepository();
-  }
-
-  const {
-    confirmPurchase,
-    performPurchase,
-    handlePurchaseError,
-    refresh: refreshCurrency,
-  } = usePurchaseContext();
-
-  const { width } = useWindowDimensions();
-
-  const sortedItems = useMemo(() => {
-    const available = items.filter(item => item.available ?? true);
-    const owned = new Set(ownedIds);
-    return [...available].sort((a, b) => {
-      const aOwned = owned.has(a.id);
-      const bOwned = owned.has(b.id);
-      if (aOwned !== bOwned) {
-        return aOwned ? -1 : 1;
-      }
-      const aPrice = (a.price_vcoin ?? 0) + (a.price_ruby ?? 0);
-      const bPrice = (b.price_vcoin ?? 0) + (b.price_ruby ?? 0);
-      return aPrice - bPrice;
-    });
-  }, [items, ownedIds]);
-
-  const currentItems = useMemo(() => {
-    return sortedItems.filter(item =>
-      selectedTab === 'video' ? isVideoItem(item) : !isVideoItem(item)
-    );
-  }, [sortedItems, selectedTab]);
-
-  const fetchOwned = useCallback(async () => {
-    try {
-      const owned = await assetRepositoryRef.current!.fetchOwnedAssets('media');
-      setOwnedIds(owned);
-    } catch (error) {
-      console.warn('[MediaSheet] Failed to fetch owned media:', error);
-    }
-  }, []);
 
   const loadMedia = useCallback(async () => {
     if (!characterId) {
@@ -122,12 +101,8 @@ export const MediaSheet: React.FC<MediaSheetProps> = ({
     setErrorMessage(null);
 
     try {
-      const [media, owned] = await Promise.all([
-        mediaRepositoryRef.current!.fetchAllMedia(characterId),
-        assetRepositoryRef.current!.fetchOwnedAssets('media'),
-      ]);
+      const media = await mediaRepositoryRef.current!.fetchAllMedia(characterId);
       setItems(media);
-      setOwnedIds(owned);
     } catch (error: any) {
       console.error('[MediaSheet] Failed to load media:', error);
       setErrorMessage(error?.message ?? 'Unable to load media');
@@ -138,228 +113,169 @@ export const MediaSheet: React.FC<MediaSheetProps> = ({
 
   useEffect(() => {
     if (isOpened) {
-      if (items.length === 0) {
+      if (items.length === 0 || characterId) {
         loadMedia();
-      } else {
-        fetchOwned();
       }
     } else {
       setPreviewItem(null);
     }
-  }, [fetchOwned, isOpened, items.length, loadMedia]);
+  }, [isOpened, characterId, loadMedia]); // Removed items.length to allow refresh on re-open if char changed
 
-  const closeSheet = useCallback(() => {
-    onIsOpenedChange(false);
-  }, [onIsOpenedChange]);
+  const handleTabChange = (tab: TabKey) => {
+    Haptics.selectionAsync();
+    setSelectedTab(tab);
+  };
 
-  const ensureOwnership = useCallback(
-    async (item: MediaItem) => {
-      const trackMediaMilestone = async () => {
-        const nextCount = ownedIdsRef.current.size + 1;
-        if (QuestProgressTracker.shouldTrackCollectionMilestone(nextCount, [10])) {
-          await QuestProgressTracker.track('obtain_media');
-        }
-      };
-
-      if ((item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0) {
-        const success = await assetRepositoryRef.current!.createAsset(item.id, 'media');
-        if (success) {
-          setOwnedIds(prev => new Set(prev).add(item.id));
-          await trackMediaMilestone();
-          return true;
-        }
-        return false;
-      }
-
-      const title = item.media_type === 'video' ? 'Buy video' : 'Buy photo';
-      const confirmed = await confirmPurchase(
-        `${title}`,
-        item.price_vcoin ?? 0,
-        item.price_ruby ?? 0
-      );
-      if (!confirmed) {
-        return false;
-      }
-
-      try {
-        setIsPurchasing(true);
-        await performPurchase({
-          itemId: item.id,
-          itemType: 'media',
-          priceVcoin: item.price_vcoin ?? 0,
-          priceRuby: item.price_ruby ?? 0,
-        });
-        await refreshCurrency();
-        setOwnedIds(prev => new Set(prev).add(item.id));
-        await trackMediaMilestone();
-        return true;
-      } catch (error) {
-        handlePurchaseError(error);
-        return false;
-      } finally {
-        setIsPurchasing(false);
-      }
-    },
-    [confirmPurchase, handlePurchaseError, performPurchase, refreshCurrency]
-  );
+  const currentItems = useMemo(() => {
+    const filtered = items.filter(item =>
+      selectedTab === 'video' ? isVideoItem(item) : !isVideoItem(item)
+    );
+    // Sort: Free first, then Premium
+    return filtered.sort((a, b) => {
+      const isFreeA = (a.price_vcoin ?? 0) === 0 && (a.price_ruby ?? 0) === 0;
+      const isFreeB = (b.price_vcoin ?? 0) === 0 && (b.price_ruby ?? 0) === 0;
+      if (isFreeA && !isFreeB) return -1;
+      if (!isFreeA && isFreeB) return 1;
+      return 0;
+    });
+  }, [items, selectedTab]);
 
   const handleSelect = useCallback(
-    async (item: MediaItem) => {
+    (item: MediaItem) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-      if (ownedIds.has(item.id)) {
-        setPreviewItem(item);
-        return;
-      }
 
-      const granted = await ensureOwnership(item);
-      if (granted) {
+      const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+
+      if (isPro || isFree) {
         setPreviewItem(item);
+      } else {
+        // Not pro and not free -> Upsell
+        sheetRef.current?.dismiss();
+        setTimeout(() => {
+          onOpenSubscription?.();
+        }, 300);
       }
     },
-    [ensureOwnership, ownedIds]
+    [isPro, onOpenSubscription]
   );
 
   const renderItem = useCallback(
     ({ item }: { item: MediaItem }) => {
-      const owned = ownedIds.has(item.id);
+      const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+      const isUnlocked = isPro || isFree;
+
       const thumb = item.thumbnail || item.url;
-      const cardWidth = (width - 48) / 2; // padding & gap
+      const cardWidth = (width - 40 - 12) / 2; // Matching CharacterDetailSheet spacing
 
       return (
         <Pressable
           onPress={() => handleSelect(item)}
           style={[styles.card, { width: cardWidth }]}
         >
-          <View style={styles.thumbnailWrapper}>
+          <View style={[styles.thumbnailWrapper, { backgroundColor: cardBgColor }]}>
             {thumb ? (
-              <Image source={{ uri: thumb }} style={styles.thumbnail} resizeMode="cover" />
+              <Image
+                source={{ uri: thumb }}
+                style={styles.thumbnail}
+                contentFit="cover"
+                transition={200}
+                blurRadius={!isUnlocked ? 50 : 0}
+              />
             ) : (
               <View style={[styles.thumbnail, styles.thumbnailFallback]}>
-                <Ionicons name="image" color="#999" size={28} />
+                <Ionicons name="image" color={tertiaryTextColor} size={28} />
               </View>
             )}
-            {!owned && <View style={styles.lockOverlay} />}
-            <View style={styles.badgeStack}>
-              {!owned && (
-                <View style={styles.lockBadge}>
-                  <Ionicons name="lock-closed" size={14} color="#fff" />
+
+            {!isUnlocked && (
+              <View style={styles.lockOverlay}>
+                <View style={styles.diamondBadgeContainer}>
+                  <DiamondBadge size="md" />
                 </View>
-              )}
-              {(item.price_vcoin ?? 0) > 0 || (item.price_ruby ?? 0) > 0 ? (
-                <View style={styles.priceBadge}>
-                  {item.price_vcoin ? (
-                    <Text style={styles.priceText}>{`${item.price_vcoin} VC`}</Text>
-                  ) : null}
-                  {item.price_ruby ? (
-                    <Text style={styles.priceText}>{`${item.price_ruby} Ruby`}</Text>
-                  ) : null}
-                </View>
-              ) : (
-                <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>FREE</Text>
-                </View>
-              )}
-            </View>
+              </View>
+            )}
           </View>
-          <Text style={styles.mediaTitle} numberOfLines={1}>
-            {item.media_type === 'video' ? 'Video' : 'Photo'}
-          </Text>
-          <Text style={styles.mediaSubtitle} numberOfLines={1}>
-            {owned ? 'Owned' : ''}
-          </Text>
+
         </Pressable>
       );
     },
-    [handleSelect, ownedIds, width]
+    [handleSelect, width, isPro, cardBgColor, tertiaryTextColor, textColor]
   );
 
   return (
     <>
-      <Modal
-        visible={isOpened}
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
-        onRequestClose={closeSheet}
+      <BottomSheet
+        ref={sheetRef}
+        isOpened={isOpened}
+        onIsOpenedChange={onIsOpenedChange}
+        title={characterName ? `${characterName}'s Media` : 'Media Gallery'}
+        isDarkBackground={isDarkBackground}
+        detents={[0.5, 0.9]}
       >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Button
-              size="md"
-              variant="liquid"
-              isIconOnly
-              startIconName="close"
-              onPress={closeSheet}
-            />
-            <View style={styles.headerTitleWrapper}>
-              <Text style={styles.headerSubtitle}>{characterName || 'Vivivi'}</Text>
-              <Text style={styles.headerTitle}>Media Gallery</Text>
-            </View>
-            <View style={{ width: 44 }} />
-          </View>
-
-          <View style={styles.tabBar}>
-            {(['video', 'photo'] as TabKey[]).map(tab => (
-              <Pressable
-                key={tab}
-                onPress={() => setSelectedTab(tab)}
-                style={[
-                  styles.tabButton,
-                  selectedTab === tab && styles.tabButtonActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabButtonText,
-                    selectedTab === tab && styles.tabButtonTextActive,
-                  ]}
-                >
-                  {tab === 'video' ? 'Video' : 'Photo'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {isLoading && items.length === 0 ? (
-            <View style={styles.centerContent}>
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
-          ) : errorMessage ? (
-            <View style={styles.centerContent}>
-              <Text style={styles.errorTitle}>Unable to load media</Text>
-              <Text style={styles.errorSubtitle}>{errorMessage}</Text>
-              <Pressable onPress={loadMedia} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>Try again</Text>
-              </Pressable>
-            </View>
-          ) : currentItems.length === 0 ? (
-            <View style={styles.centerContent}>
-              <Text style={styles.emptyText}>
-                {selectedTab === 'video'
-                  ? 'No videos available'
-                  : 'No photos available'}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={currentItems}
-              keyExtractor={item => item.id}
-              renderItem={renderItem}
-              numColumns={2}
-              columnWrapperStyle={styles.columnWrapper}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              extraData={ownedIds}
-            />
-          )}
-
-          {isPurchasing ? (
-            <View style={styles.purchasingOverlay}>
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
-          ) : null}
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
+          <Pressable
+            style={[
+              styles.tabButton,
+              selectedTab === 'video' && { backgroundColor: activeTabBgColor }
+            ]}
+            onPress={() => handleTabChange('video')}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: selectedTab === 'video' ? textColor : secondaryTextColor }
+            ]}>
+              Video
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.tabButton,
+              selectedTab === 'photo' && { backgroundColor: activeTabBgColor }
+            ]}
+            onPress={() => handleTabChange('photo')}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: selectedTab === 'photo' ? textColor : secondaryTextColor }
+            ]}>
+              Photo
+            </Text>
+          </Pressable>
         </View>
-        <ConfirmPurchasePortal hostId="media-sheet" active={isOpened} />
-      </Modal>
+
+        {isLoading && items.length === 0 ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color={textColor} />
+          </View>
+        ) : errorMessage ? (
+          <View style={styles.centerContent}>
+            <Text style={[styles.errorTitle, { color: textColor }]}>Unable to load media</Text>
+            <Text style={[styles.errorSubtitle, { color: secondaryTextColor }]}>{errorMessage}</Text>
+            <Pressable onPress={loadMedia} style={[styles.retryButton, { borderColor: textColor }]}>
+              <Text style={[styles.retryButtonText, { color: textColor }]}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : currentItems.length === 0 ? (
+          <View style={styles.centerContent}>
+            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
+              {selectedTab === 'video'
+                ? 'No videos available'
+                : 'No photos available'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={currentItems}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            numColumns={2}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </BottomSheet>
 
       <MediaPreviewModal
         item={previewItem}
@@ -367,123 +283,102 @@ export const MediaSheet: React.FC<MediaSheetProps> = ({
       />
     </>
   );
-};
+});
 
 const MediaPreviewModal: React.FC<{
   item: MediaItem | null;
   onClose: () => void;
 }> = ({ item, onClose }) => {
   const videoRef = useRef<Video | null>(null);
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
   useEffect(() => {
     if (!item && videoRef.current) {
       videoRef.current.stopAsync().catch(() => undefined);
     }
   }, [item]);
 
+  if (!item) return null;
+
+  const isVideo = isVideoItem(item);
+
   return (
     <Modal visible={!!item} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.previewBackdrop}>
-        <View style={styles.previewCard}>
-          {item ? (
-            isVideoItem(item) ? (
-              <Video
-                ref={ref => {
-                  videoRef.current = ref;
-                }}
-                style={styles.previewVideo}
-                source={{ uri: item.url }}
-                useNativeControls
-                resizeMode="contain"
-                shouldPlay
-                isLooping
-              />
-            ) : (
-              <Image
-                source={{ uri: item.url }}
-                style={styles.previewImage}
-                resizeMode="contain"
-              />
-            )
-          ) : null}
-          <Button
-            size='md'
-            variant='liquid'
-            onPress={onClose}
-            style={styles.previewCloseButton}
+      <View style={styles.lightboxContainer}>
+        <Pressable
+          style={[styles.lightboxCloseButton, { top: insets.top + 10 }]}
+          onPress={onClose}
+          hitSlop={20}
+        >
+          <Ionicons name="close" size={28} color="#fff" />
+        </Pressable>
+
+        {isVideo ? (
+          <Video
+            ref={ref => {
+              videoRef.current = ref;
+            }}
+            style={{ width, height: height * 0.8 }}
+            source={{ uri: item.url }}
+            useNativeControls
+            resizeMode="contain"
+            shouldPlay
+            isLooping
+          />
+        ) : (
+          <ScrollView
+            style={{ width, height }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            maximumZoomScale={3}
+            minimumZoomScale={1}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            centerContent
           >
-            Close
-          </Button>
-        </View>
+            <Image
+              source={{ uri: item.url }}
+              style={{ width, height }}
+              contentFit="contain"
+            />
+          </ScrollView>
+        )}
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#050505',
-    paddingTop: Platform.OS === 'android' ? 32 : 12,
-  },
-  header: {
+  tabsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  headerTitleWrapper: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerSubtitle: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 12,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 10,
-    marginBottom: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 24,
+    padding: 4,
   },
   tabButton: {
     flex: 1,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
+    borderRadius: 20,
   },
-  tabButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderColor: '#fff',
-  },
-  tabButtonText: {
-    color: 'rgba(255,255,255,0.7)',
+  tabText: {
+    fontSize: 15,
     fontWeight: '600',
-  },
-  tabButtonTextActive: {
-    color: '#fff',
   },
   centerContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 200,
     paddingHorizontal: 24,
   },
   errorTitle: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 6,
   },
   errorSubtitle: {
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 12,
@@ -493,122 +388,77 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#fff',
   },
   retryButtonText: {
-    color: '#fff',
     fontWeight: '600',
   },
   emptyText: {
-    color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
   },
   columnWrapper: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 18,
+    gap: 12,
+    marginBottom: 12,
   },
   listContent: {
-    paddingBottom: 48,
+    paddingHorizontal: 20,
   },
   card: {
     gap: 8,
   },
   thumbnailWrapper: {
-    borderRadius: 16,
+    borderRadius: 24,
     overflow: 'hidden',
     position: 'relative',
+    aspectRatio: 3 / 4,
   },
   thumbnail: {
     width: '100%',
-    aspectRatio: 0.75,
+    height: '100%',
   },
   thumbnailFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   lockOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  badgeStack: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  lockBadge: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 999,
-    padding: 6,
-  },
-  priceBadge: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  priceText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  freeBadge: {
-    backgroundColor: '#38ef7d',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  freeBadgeText: {
-    color: '#000',
-    fontWeight: '700',
-    fontSize: 11,
-  },
-  mediaTitle: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  mediaSubtitle: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-  },
-  purchasingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  previewBackdrop: {
+  diamondBadgeContainer: {
+    // Center it
+  },
+  priceBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FFD700',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  priceText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  mediaTitle: {
+    fontWeight: '600',
+    fontSize: 14,
+    paddingLeft: 4,
+  },
+  lightboxContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  previewCard: {
-    width: '100%',
-    borderRadius: 20,
-    backgroundColor: '#0a0a0a',
-    padding: 16,
-    alignItems: 'center',
-  },
-  previewImage: {
-    width: '100%',
-    height: 360,
-    marginBottom: 16,
-  },
-  previewVideo: {
-    width: '100%',
-    height: 360,
-    marginBottom: 16,
     backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  previewCloseButton: {
-    alignSelf: 'center',
-    paddingHorizontal: 24,
+  lightboxCloseButton: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
   },
 });
-
-

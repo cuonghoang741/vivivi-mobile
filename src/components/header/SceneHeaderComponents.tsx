@@ -1,12 +1,18 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  IconSettings,
+  IconVolume,
+  IconVolume3, // volume-high equivalent? IconVolume is usually high. IconVolume3 is likely high. Let's check docs or assume IconVolume is fine. Tabler has IconVolume, IconVolume2, IconVolume3. IconVolume is usually speaker with no waves? No, IconVolume is speaker. IconVolume2/3 have waves. Let's use IconVolume for now or IconVolumeOn if available? Tabler: IconVolume, IconVolume2, IconVolume3. Let's use IconVolume for generic "on".
+  IconVolumeOff,
+  IconLayoutGrid,
+  IconPlayerStop,
+  IconVideo,
+} from "@tabler/icons-react-native";
 import { LiquidGlass } from "../LiquidGlass";
 import HapticPressable from "../ui/HapticPressable";
 import Button from "../Button";
-
-type IoniconName = keyof typeof Ionicons.glyphMap;
 
 type CharacterHeaderCardProps = {
   name?: string | null;
@@ -15,6 +21,7 @@ type CharacterHeaderCardProps = {
   relationshipIconUri?: string | null;
   avatarUri?: string | null;
   onPress?: () => void;
+  isDarkBackground?: boolean;
 };
 
 export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
@@ -24,6 +31,7 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
   relationshipIconUri,
   avatarUri,
   onPress,
+  isDarkBackground = true,
 }) => {
   const normalizedProgress = clamp(relationshipProgress ?? 0);
   const label = name?.trim() ?? "";
@@ -45,7 +53,13 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
               <Ionicons name="person" size={12} color="#fff" />
             )}
           </View> */}
-          <Text numberOfLines={1} style={styles.characterName}>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.characterName,
+              { color: isDarkBackground ? "#fff" : "#000" },
+            ]}
+          >
             {label}
           </Text>
         </View>
@@ -79,7 +93,7 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
 };
 
 type HeaderIconButtonProps = {
-  iconName: IoniconName;
+  Icon: React.ElementType;
   onPress?: () => void;
   active?: boolean;
   accessibilityLabel?: string;
@@ -87,7 +101,7 @@ type HeaderIconButtonProps = {
 };
 
 export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
-  iconName,
+  Icon,
   onPress,
   active,
   accessibilityLabel,
@@ -98,7 +112,7 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
       onPress={onPress}
       variant="liquid"
       isIconOnly
-      startIconName={iconName}
+      startIcon={Icon}
       iconColor={iconColor}
       size="lg"
     >
@@ -244,13 +258,13 @@ export const SceneHeaderLeft: React.FC<SceneHeaderLeftProps> = ({
   return (
     <View style={styles.headerActions}>
       <HeaderIconButton
-        iconName="settings"
+        Icon={IconSettings}
         onPress={onSettingsPress}
         accessibilityLabel="Open settings"
         iconColor={iconColor}
       />
       <HeaderIconButton
-        iconName={isBgmOn ? 'volume-high' : 'volume-mute'}
+        Icon={isBgmOn ? IconVolume : IconVolumeOff}
         onPress={onBgmToggle}
         accessibilityLabel="Toggle background music"
         active={isBgmOn}
@@ -279,13 +293,13 @@ export const SceneHeaderRight: React.FC<SceneHeaderRightProps> = ({
   return (
     <View style={styles.headerActions}>
       <HeaderIconButton
-        iconName="grid"
+        Icon={IconLayoutGrid}
         onPress={onCharacterMenuPress}
         accessibilityLabel="Character menu"
         iconColor={iconColor}
       />
       <HeaderIconButton
-        iconName={isCameraModeOn ? 'stop-circle' : 'videocam'}
+        Icon={isCameraModeOn ? IconPlayerStop : IconVideo}
         onPress={onCameraToggle}
         accessibilityLabel="Camera mode"
         active={isCameraModeOn}
@@ -329,7 +343,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
       {/* Left */}
       <View style={styles.headerActions}>
         <HeaderIconButton
-          iconName="settings"
+          Icon={IconSettings}
           onPress={onSettingsPress}
           accessibilityLabel="Open settings"
           iconColor={iconColor}
@@ -343,12 +357,13 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
         relationshipProgress={relationshipProgress}
         avatarUri={avatarUri}
         onPress={onCharacterCardPress}
+        isDarkBackground={isDarkBackground}
       />
 
       {/* Right */}
       <View style={styles.headerActions}>
         <HeaderIconButton
-          iconName="grid"
+          Icon={IconLayoutGrid}
           onPress={onCharacterMenuPress}
           accessibilityLabel="Character menu"
           iconColor={iconColor}

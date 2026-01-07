@@ -131,9 +131,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   agentBubble: {
-    backgroundColor: 'rgba(255,138,196,0.35)',
+    backgroundColor: 'rgba(244, 28, 42, 0.33)',
     borderWidth: 1,
-    borderColor: 'rgba(255,138,196,0.55)',
+    borderColor: 'rgba(244, 28, 42, 0.40)',
   },
   userBubble: {
     backgroundColor: 'rgba(15,15,15,0.75)',

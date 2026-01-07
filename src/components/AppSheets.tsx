@@ -132,6 +132,9 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         onIsOpenedChange={setShowMediaSheet}
         characterId={activeCharacterId}
         characterName={characterName}
+        onOpenSubscription={onOpenSubscription}
+        isDarkBackground={isDarkBackground}
+        isPro={isPro}
       />
       {activeCharacterId && (
         <CharacterDetailSheet

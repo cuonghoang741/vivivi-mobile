@@ -242,7 +242,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
       onIsOpenedChange={onIsOpenedChange}
       title="Backgrounds"
       isDarkBackground={isDarkBackground}
-      headerRight={
+      headerLeft={
         !isPro ? (
           <GoProButton onPress={() => {
             sheetRef.current?.dismiss();

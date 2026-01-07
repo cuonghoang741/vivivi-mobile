@@ -24,6 +24,7 @@ export const useAppVoiceCall = ({
     const [isCameraMode, setIsCameraMode] = useState(false); // Video call (zoom to face + camera)
     const [showCameraPreview, setShowCameraPreview] = useState(false);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const isSwitchingModeRef = useRef(false);
     const agentIdCacheRef = useRef<Map<string, string>>(new Map());
@@ -194,6 +195,7 @@ export const useAppVoiceCall = ({
     // End entire call (both voice & camera)
     const endCall = useCallback(async () => {
         try {
+            setIsProcessing(true);
             stopCameraPreview();
             await endVoiceConversation();
             if (webBridgeRef.current) {
@@ -204,6 +206,8 @@ export const useAppVoiceCall = ({
             setIsCameraMode(false);
         } catch (error) {
             console.warn('[useAppVoiceCall] Error ending call:', error);
+        } finally {
+            setIsProcessing(false);
         }
     }, [endVoiceConversation, stopCameraPreview, webBridgeRef]);
 
@@ -251,6 +255,7 @@ export const useAppVoiceCall = ({
         if (voiceState.isBooting || voiceState.status === 'connecting') return;
 
         isSwitchingModeRef.current = true;
+        setIsProcessing(true);
 
         try {
             // If already in any call mode, end it
@@ -274,6 +279,7 @@ export const useAppVoiceCall = ({
             }
         } finally {
             isSwitchingModeRef.current = false;
+            setIsProcessing(false);
         }
     }, [
         voiceState.isBooting,
@@ -291,6 +297,7 @@ export const useAppVoiceCall = ({
         if (voiceState.isBooting || voiceState.status === 'connecting') return;
 
         isSwitchingModeRef.current = true;
+        setIsProcessing(true);
 
         try {
             // CASE 1: Already in camera mode -> turn OFF camera mode
@@ -380,6 +387,7 @@ export const useAppVoiceCall = ({
 
         } finally {
             isSwitchingModeRef.current = false;
+            setIsProcessing(false);
         }
     }, [
         voiceState.isBooting,
@@ -419,6 +427,7 @@ export const useAppVoiceCall = ({
         ensureCameraPermission,
         ensureMicrophonePermission,
         stopCameraPreview,
-        startCameraPreviewStream
+        startCameraPreviewStream,
+        isProcessing
     };
 };

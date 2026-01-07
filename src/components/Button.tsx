@@ -19,6 +19,7 @@ import { glassButtonStyle } from '../styles/glass';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 export type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'link' | 'liquid';
 
+// ... imports ...
 export interface ButtonProps {
   children?: React.ReactNode;
   size?: ButtonSize;
@@ -30,9 +31,12 @@ export interface ButtonProps {
   isIconOnly?: boolean;
   startIconName?: keyof typeof Ionicons.glyphMap;
   endIconName?: keyof typeof Ionicons.glyphMap;
+  startIcon?: React.ElementType;
+  endIcon?: React.ElementType;
   iconColor?: ColorValue;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  tintColor?: string
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -46,9 +50,12 @@ export const Button: React.FC<ButtonProps> = ({
   isIconOnly,
   startIconName,
   endIconName,
+  startIcon: StartIcon,
+  endIcon: EndIcon,
   iconColor,
   onPress,
   style,
+  tintColor,
 }) => {
   const baseColors = getBaseColors(color);
   const { buttonStyle, textStyle, iconSize } = getStyles({
@@ -75,7 +82,14 @@ export const Button: React.FC<ButtonProps> = ({
           opacity: loading ? 0 : 1,
         }}
       >
-        {startIconName ? (
+        {StartIcon ? (
+          <StartIcon
+            width={iconSize}
+            height={iconSize}
+            color={(iconColor ?? textStyle.color) as string}
+            style={styles.icon}
+          />
+        ) : startIconName ? (
           <Ionicons
             name={startIconName}
             size={iconSize}
@@ -86,7 +100,14 @@ export const Button: React.FC<ButtonProps> = ({
         {!isIconOnly && children ? (
           <Text style={textStyle}>{children}</Text>
         ) : null}
-        {endIconName ? (
+        {EndIcon ? (
+          <EndIcon
+            width={iconSize}
+            height={iconSize}
+            color={(iconColor ?? textStyle.color) as string}
+            style={styles.icon}
+          />
+        ) : endIconName ? (
           <Ionicons
             name={endIconName}
             size={iconSize}

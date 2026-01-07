@@ -198,8 +198,20 @@ export const SubscriptionScreen: React.FC = () => {
         }
     };
 
-    const yearlyPackage = packages.find(p => p.packageType === 'ANNUAL' || p.identifier.toLowerCase().includes('year'));
-    const monthlyPackage = packages.find(p => p.packageType === 'MONTHLY' || p.identifier.toLowerCase().includes('month'));
+    console.log("packagesxxx", packages)
+
+    const yearlyPackage = packages.find(p =>
+        p.packageType === 'ANNUAL' ||
+        p.identifier.toLowerCase().includes('year') ||
+        p.identifier.toLowerCase().includes('annual') ||
+        p.product.title.toLowerCase().includes('year') ||
+        p.product.title.toLowerCase().includes('annual')
+    );
+    const monthlyPackage = packages.find(p =>
+        p.packageType === 'MONTHLY' ||
+        p.identifier.toLowerCase().includes('month') ||
+        p.product.title.toLowerCase().includes('month')
+    );
 
     // Handle background render
     const renderBackground = () => {
@@ -233,7 +245,7 @@ export const SubscriptionScreen: React.FC = () => {
 
             <SafeAreaView style={styles.safeArea} edges={['top']}>
                 <View style={styles.header}>
-                    <Button variant='liquid' size="xl" onPress={() => navigation.goBack()} startIconName='close' isIconOnly />
+                    <Button variant='liquid' size="lg" onPress={() => navigation.goBack()} startIconName='close' isIconOnly />
                 </View>
 
                 <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -321,8 +333,9 @@ export const SubscriptionScreen: React.FC = () => {
                     </View>
 
                     <Pressable
-                        style={styles.upgradeButton}
-                        onPress={handleSubscribe}
+                        style={[styles.upgradeButton, isLoading && styles.upgradeButtonDisabled]}
+                        onPress={isLoading ? undefined : handleSubscribe}
+                        disabled={isLoading}
                         android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
                     >
                         <LinearGradient
@@ -331,18 +344,22 @@ export const SubscriptionScreen: React.FC = () => {
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                         >
-                            <Text style={styles.upgradeButtonText}>
-                                {subscriptionTier === 'pro' ? 'Update Subscription' : 'Upgrade'}
-                            </Text>
+                            {isLoading ? (
+                                <ActivityIndicator color="#000" />
+                            ) : (
+                                <Text style={styles.upgradeButtonText}>
+                                    {subscriptionTier === 'pro' ? 'Update Subscription' : 'Upgrade'}
+                                </Text>
+                            )}
                         </LinearGradient>
                     </Pressable>
 
                     <View style={styles.footerLinks}>
-                        <LinkText onPress={() => Linking.openURL('https://roxie.ai/privacy')}>Privacy Policy</LinkText>
+                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/privacy')}>Privacy Policy</LinkText>
                         <Text style={styles.footerSeparator}>|</Text>
                         <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                         <Text style={styles.footerSeparator}>|</Text>
-                        <LinkText onPress={() => Linking.openURL('https://roxie.ai/terms')}>Terms of Use</LinkText>
+                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/terms')}>Terms of Use</LinkText>
                     </View>
 
                 </ScrollView>
@@ -508,6 +525,9 @@ const styles = StyleSheet.create({
         borderRadius: 30,
         overflow: 'hidden',
         marginBottom: 24,
+    },
+    upgradeButtonDisabled: {
+        opacity: 0.7,
     },
     upgradeButtonGradient: {
         paddingVertical: 16,

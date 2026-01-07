@@ -51,7 +51,7 @@ type VRMContextValue = {
   initialData: InitialDataState | null;
   initialDataLoading: boolean;
   initialDataError: Error | null;
-  refreshInitialData: () => Promise<void>;
+  refreshInitialData: (skipModelReset?: boolean) => Promise<void>;
   ensureInitialModelApplied: (webViewRef: React.MutableRefObject<any>) => Promise<void>;
   currentCharacter: CharacterState | null;
   setCurrentCharacterState: React.Dispatch<React.SetStateAction<CharacterState | null>>;
@@ -99,6 +99,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setInitialData(null);
       setInitialDataError(null);
       setHasAppliedInitialModel(false);
+      setCurrentCharacterState(null); // Clear character state on logout/delete
     }
   }, [authSnapshot.session]);
 
@@ -229,7 +230,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     []
   );
 
-  const bootstrapInitialData = useCallback(async () => {
+  const bootstrapInitialData = useCallback(async (skipModelReset?: boolean) => {
     if (!authSnapshot.session) {
       return;
     }
@@ -280,7 +281,9 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchedAt: Date.now(),
       });
       setInitialDataError(null);
-      setHasAppliedInitialModel(false);
+      if (!skipModelReset) {
+        setHasAppliedInitialModel(false);
+      }
     } catch (error) {
       const normalized =
         error instanceof Error ? error : new Error('Không thể tải dữ liệu ban đầu');
@@ -291,10 +294,10 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [authSnapshot.session, seedPersistenceSelections]);
 
-  const refreshInitialData = useCallback(async () => {
+  const refreshInitialData = useCallback(async (skipModelReset?: boolean) => {
     setInitialData(null);
     setInitialDataError(null);
-    await bootstrapInitialData();
+    await bootstrapInitialData(skipModelReset);
   }, [bootstrapInitialData]);
 
   const ensureInitialModelApplied = useCallback(
@@ -315,10 +318,10 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           backgroundIdToApply = persistedSelection?.backgroundId || undefined;
         }
 
-        // Fallback: if no background preference, use first owned background
-        if (!backgroundIdToApply && ownedBackgroundIds.length > 0) {
-          backgroundIdToApply = ownedBackgroundIds[0];
-          console.log('[VRMProvider] No background preference, using first owned:', backgroundIdToApply);
+        // Fallback: if no background preference, use character's default background
+        if (!backgroundIdToApply && character.background_default_id) {
+          backgroundIdToApply = character.background_default_id;
+          console.log('[VRMProvider] No background preference, using character default:', backgroundIdToApply);
         }
 
         if (backgroundIdToApply) {

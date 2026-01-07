@@ -147,33 +147,33 @@ class LevelQuestManagerImpl {
     }
 
     // Show toast notifications for updated quests (like swift-version)
-    for (const { quest, isCompleted } of updatedQuests) {
-      if (!quest.quest) continue;
+    // for (const { quest, isCompleted } of updatedQuests) {
+    //   if (!quest.quest) continue;
 
-      const progress = quest.progress;
-      const target = quest.quest.target_value;
+    //   const progress = quest.progress;
+    //   const target = quest.quest.target_value;
 
-      // Show toast with progress bar
-      toastManager.showLevelQuestProgress(
-        quest.quest.description,
-        progress,
-        target,
-        isCompleted
-      );
+    //   // Show toast with progress bar
+    //   toastManager.showLevelQuestProgress(
+    //     quest.quest.description,
+    //     progress,
+    //     target,
+    //     isCompleted
+    //   );
 
-      // If completed, show completion toast
-      if (isCompleted) {
-        toastManager.showToast(
-          ToastType.QUEST,
-          'Quest Completed!',
-          quest.quest.description,
-          undefined,
-          'checkmark-circle',
-          undefined,
-          3000
-        );
-      }
-    }
+    //   // If completed, show completion toast
+    //   if (isCompleted) {
+    //     toastManager.showToast(
+    //       ToastType.QUEST,
+    //       'Quest Completed!',
+    //       quest.quest.description,
+    //       undefined,
+    //       'checkmark-circle',
+    //       undefined,
+    //       3000
+    //     );
+    //   }
+    // }
 
     console.log(`📋 Updated ${updatedQuests.length} level quest(s) for type: ${type}`);
   }
@@ -235,7 +235,7 @@ class LevelQuestManagerImpl {
 
     // Mark as claimed in database
     try {
-      await this.questService.claimLevelQuestReward(questId);
+      await this.questService.markLevelQuestClaimed(questId);
     } catch (error) {
       console.error('❌ Failed to mark quest as claimed:', error);
       return;

@@ -193,7 +193,7 @@ export class QuestService {
     );
   }
 
-  async claimLevelQuestReward(questId: string): Promise<void> {
+  async markLevelQuestClaimed(questId: string): Promise<void> {
     await this.repository.markLevelQuestClaimed(questId);
   }
 

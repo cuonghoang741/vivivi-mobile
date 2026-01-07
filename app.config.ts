@@ -86,7 +86,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
 
   web: {
     output: 'single',
-    favicon: './assets/favicon.png',
+    favicon: './assets/icon.png',
   },
 
   plugins: [
@@ -104,7 +104,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-splash-screen',
       {
-        image: './assets/splash-icon.png',
+        image: './assets/icon.png',
         resizeMode: 'contain',
         backgroundColor: '#000000',
       },

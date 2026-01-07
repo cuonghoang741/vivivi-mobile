@@ -6,20 +6,25 @@ import {
   Pressable,
   FlatList,
   useWindowDimensions,
+  Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
+import { BackgroundRepository } from '../../repositories/BackgroundRepository';
+import { UserCharacterPreferenceService } from '../../services/UserCharacterPreferenceService';
+import { Persistence } from '../../utils/persistence';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useSceneActions } from '../../context/SceneActionsContext';
 import { GoProButton } from '../GoProButton';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 
-import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
 import { DiamondBadge } from '../DiamondBadge';
+import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
+import Button from '../Button';
 
 interface CharacterSheetProps {
   isOpened: boolean;
@@ -40,6 +45,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const shimmerOpacity = useRef(new Animated.Value(0.3)).current;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
@@ -51,6 +57,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
   const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const overlayColors = isDarkBackground
+    ? ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const
+    : ['transparent', 'rgba(255,255,255,0.4)', 'rgba(255,255,255,0.85)'] as const;
+  const actionButtonBg = isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
@@ -77,14 +87,22 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     setItems([]);
 
     try {
+      // 1. Fetch ownership first
+      const assetRepository = new AssetRepository();
+      const characterIds = await assetRepository.fetchOwnedAssets('character');
+      const newOwnedSet = new Set(characterIds);
+      setOwnedCharacterIds(newOwnedSet);
+
+      // 2. Fetch characters
       const characterRepository = new CharacterRepository();
       let loadedItems = await characterRepository.fetchAllCharacters();
 
       loadedItems = loadedItems.filter((item) => item.available !== false);
 
+      // 3. Sort using the freshly fetched ownership
       const sortedItems = loadedItems.sort((char1, char2) => {
-        const isOwned1 = ownedCharacterIds.has(char1.id);
-        const isOwned2 = ownedCharacterIds.has(char2.id);
+        const isOwned1 = newOwnedSet.has(char1.id);
+        const isOwned2 = newOwnedSet.has(char2.id);
         if (isOwned1 !== isOwned2) return isOwned1 ? -1 : 1;
         return 0;
       });
@@ -96,22 +114,44 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, ownedCharacterIds]);
+  }, [isLoading]);
 
   useEffect(() => {
     if (isOpened) {
       if (items.length === 0) {
-        fetchOwnedCharacterIds(() => load());
+        load();
       } else {
         fetchOwnedCharacterIds();
       }
     }
   }, [isOpened, items.length, fetchOwnedCharacterIds, load]);
 
+  useEffect(() => {
+    if (isLoading) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerOpacity, {
+            toValue: 0.3,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      shimmerOpacity.stopAnimation();
+      shimmerOpacity.setValue(0.3);
+    }
+  }, [isLoading]);
+
   const filteredItems = useMemo(() => items, [items]);
 
-  const handleSelect = (item: CharacterItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handlePreview = (item: CharacterItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const index = items.findIndex(c => c.id === item.id);
 
     onIsOpenedChange(false);
@@ -121,11 +161,70 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       navigation.navigate('CharacterPreview', {
         characters: items,
         initialIndex: index !== -1 ? index : 0,
-        isViewMode: false,
+        isViewMode: true,
         ownedCharacterIds: Array.from(ownedCharacterIds),
         isPro: isPro,
       });
     }, 300);
+  };
+
+  const handleSelect = async (item: CharacterItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const index = items.findIndex(c => c.id === item.id);
+    const isOwned = ownedCharacterIds.has(item.id);
+
+    onIsOpenedChange(false);
+    sheetRef.current?.dismiss();
+
+    if (isOwned) {
+      selectCharacter(item);
+    } else if (isPro) {
+      // PRO user: Auto unlock and select immediately
+      try {
+        const assetRepository = new AssetRepository();
+
+        // 1. Grant character ownership
+        await assetRepository.createAsset(item.id, 'character');
+        setOwnedCharacterIds(prev => new Set([...prev, item.id]));
+
+        // 2. Handle default background
+        if (item.background_default_id) {
+          // Grant background ownership if needed
+          const ownedBg = await assetRepository.fetchOwnedAssets('background');
+          if (!ownedBg.has(item.background_default_id)) {
+            await assetRepository.createAsset(item.background_default_id, 'background');
+            console.log('[CharacterSheet] Granted ownership of default background:', item.background_default_id);
+          }
+
+          // Save preference
+          await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+            current_background_id: item.background_default_id,
+          });
+
+          // Persist to local storage
+          const bgRepo = new BackgroundRepository();
+          const bg = await bgRepo.fetchBackground(item.background_default_id);
+          if (bg) {
+            await Persistence.setBackgroundURL(bg.image || '');
+            await Persistence.setBackgroundName(bg.name || '');
+            await Persistence.setCharacterBackgroundSelection(item.id, {
+              backgroundId: item.background_default_id,
+              backgroundURL: bg.image || '',
+              backgroundName: bg.name || '',
+            });
+          }
+        }
+
+        selectCharacter(item);
+      } catch (error) {
+        console.error('Failed to auto-unlock PRO character:', error);
+        selectCharacter(item);
+      }
+    } else {
+      setTimeout(() => {
+        onOpenSubscription?.();
+      }, 300);
+    }
   };
 
   const renderItem = ({ item }: { item: CharacterItem }) => {
@@ -167,14 +266,14 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
           )}
 
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)']}
+            colors={overlayColors}
             style={styles.cardContentOverlay}
             locations={[0, 0.5, 1]}
           >
             <View style={styles.cardInfo}>
-              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+              <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{item.name}</Text>
               {item?.data?.characteristics && (
-                <Text style={styles.cardDescription} numberOfLines={1}>
+                <Text style={[styles.cardDescription, { color: secondaryTextColor }]} numberOfLines={1}>
                   {item?.data?.characteristics}
                 </Text>
               )}
@@ -182,12 +281,27 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
             {isOwned && (
               <View style={styles.actionButtonsRow}>
-                <View style={styles.actionButtonCircle}>
-                  <Ionicons name="chatbubble" size={18} color="rgba(255,255,255,0.8)" />
-                </View>
-                <View style={styles.actionButtonPill}>
-                  <VolumeMixedIcon width={20} height={20} />
-                </View>
+                <Button
+                  variant='liquid'
+                  size="lg"
+                  style={[styles.actionButtonCircle, { backgroundColor: actionButtonBg }]}
+                  onPress={() => {
+                    handlePreview(item);
+                  }}
+                  startIconName='chatbubble-outline'
+                >
+                </Button>
+                <Button
+                  size="lg"
+                  variant='liquid'
+                  fullWidth
+                  style={styles.actionButtonPill}
+                  onPress={() => {
+                    handleSelect(item);
+                  }}
+                >
+                  <VolumeMixedIcon width={24} height={24} fill="#000" />
+                </Button>
               </View>
             )}
           </LinearGradient>
@@ -200,8 +314,14 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     const itemWidth = (width - 40 - 12) / 2;
     return (
       <View style={styles.skeletonGrid}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <View key={i} style={[styles.skeletonCard, { width: itemWidth }]} />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Animated.View
+            key={i}
+            style={[
+              styles.skeletonCard,
+              { width: itemWidth, opacity: shimmerOpacity }
+            ]}
+          />
         ))}
       </View>
     );
@@ -209,7 +329,11 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
-      return <View style={styles.centerContainer}>{renderSkeleton()}</View>;
+      return (
+        <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+          {renderSkeleton()}
+        </View>
+      );
     }
 
     if (errorMessage) {
@@ -258,7 +382,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       title="Characters"
       isDarkBackground={isDarkBackground}
       detents={[0.7, 0.95]}
-      headerRight={
+      headerLeft={
         !isPro ? (
           <GoProButton onPress={() => {
             sheetRef.current?.dismiss();
@@ -336,7 +460,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 12,
-    paddingBottom: 16,
+    paddingBottom: 10,
     paddingTop: 40,
     justifyContent: 'flex-end',
   },
@@ -349,9 +473,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   cardDescription: {
     color: 'rgba(255,255,255,0.7)',
@@ -363,19 +484,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
     width: '100%',
+    paddingHorizontal: 28
   },
   actionButtonCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(55, 53, 53, 0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionButtonPill: {
-    width: '60%',
     height: 44,
     borderRadius: 22,
     backgroundColor: '#fff',

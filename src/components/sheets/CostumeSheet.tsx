@@ -158,6 +158,8 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;
 
+      const borderColor = !isDarkBackground ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
+
       return (
         <Pressable
           onPress={() => handleSelect(item)}
@@ -167,7 +169,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
             pressed && styles.pressed,
           ]}
         >
-          <View style={[styles.imageContainer, { width: itemWidth, height: itemHeight }]}>
+          <View style={[styles.imageContainer, { width: itemWidth, height: itemHeight, borderColor }]}>
             <View style={[styles.placeholder, { width: itemWidth, height: itemHeight }]} />
 
             {item.thumbnail ? (
@@ -218,7 +220,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
         </Pressable>
       );
     },
-    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays]
+    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground]
   );
 
   const renderContent = () => {
@@ -275,7 +277,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       onIsOpenedChange={onIsOpenedChange}
       title="Costumes"
       isDarkBackground={isDarkBackground}
-      headerRight={
+      headerLeft={
         !isPro ? (
           <GoProButton onPress={() => {
             sheetRef.current?.dismiss();

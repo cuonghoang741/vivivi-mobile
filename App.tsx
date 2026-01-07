@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView } from 'react-native';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
@@ -16,14 +16,15 @@ import { ImageOnboardingScreen } from './src/screens/ImageOnboardingScreen';
 import { NewUserGiftScreen } from './src/screens/NewUserGiftScreen';
 import { OnboardingV2Screen } from './src/screens/OnboardingV2Screen';
 import { CharacterPreviewScreen } from './src/screens/CharacterPreviewScreen';
-import { SubscriptionScreen } from './src/screens/SubscriptionScreen';
 import { authManager } from './src/services/AuthManager';
 import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
+import { SubscriptionSheet } from './src/components/sheets/SubscriptionSheet';
 import { useChatManager } from './src/hooks/useChatManager';
 import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
 import { useVoiceCall } from './src/hooks/useVoiceCall';
 import { DetectedAction } from './src/services/ActionDetectionService';
+import { VoiceLoadingOverlay } from './src/components/VoiceLoadingOverlay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
@@ -40,6 +41,7 @@ import { useLoginRewards } from './src/hooks/useLoginRewards';
 import { useQuests } from './src/hooks/useQuests';
 import { SceneActionsProvider } from './src/context/SceneActionsContext';
 import { PurchaseProvider, usePurchaseContext } from './src/context/PurchaseContext';
+import { SubscriptionProvider, useSubscription } from './src/context/SubscriptionContext';
 import { backgroundMusicManager } from './src/services/BackgroundMusicManager';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
@@ -56,7 +58,6 @@ type RootStackParamList = {
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
   CharacterPreview: { characters: CharacterItem[]; initialIndex?: number; ownedCharacterIds?: string[] };
   OnboardingV2: { selectedCharacterId: string };
-  Subscription: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -113,7 +114,8 @@ const AppContent = () => {
   const [isCheckingNewUser, setIsCheckingNewUser] = useState(false);
   const { stats: overlayStats, refresh: refreshStats, consumeEnergy, refillEnergy } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
-  const [isPro, setIsPro] = useState(false);
+  const [showSubscriptionSheet, setShowSubscriptionSheet] = useState(false);
+  const { isPro } = useSubscription();
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
@@ -203,100 +205,28 @@ const AppContent = () => {
     async (questId: string) => {
       try {
         const result = await quests.claimDailyQuest(questId);
-        // Show reward overlay (like swift-version)
-        const rewardItems: RewardItem[] = [];
-        if (result.reward.vcoin > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'vcoin',
-            amount: result.reward.vcoin,
-            icon: 'cash',
-            color: 'green',
-          });
-        }
-        if (result.reward.ruby > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'ruby',
-            amount: result.reward.ruby,
-            icon: 'diamond',
-            color: 'pink',
-          });
-        }
-        if (result.reward.xp > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'xp',
-            amount: result.reward.xp,
-            icon: 'star',
-            color: 'yellow',
-          });
-        }
-        if (rewardItems.length > 0) {
-          setRewardOverlayData({
-            title: 'Daily Quest Completed!',
-            subtitle: result.quest.quest?.description,
-            rewards: rewardItems,
-          });
-          setShowRewardOverlay(true);
-        }
+        // Reward overlay removed as per request
         return result;
       } catch (error) {
         console.error('❌ Failed to claim daily quest:', error);
         throw error;
       }
     },
-    [quests, generateId]
+    [quests]
   );
 
   const handleClaimLevelQuest = useCallback(
     async (questId: string) => {
       try {
         const result = await quests.claimLevelQuest(questId);
-        // Show reward overlay (like swift-version)
-        const rewardItems: RewardItem[] = [];
-        if (result.reward.vcoin > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'vcoin',
-            amount: result.reward.vcoin,
-            icon: 'cash',
-            color: 'green',
-          });
-        }
-        if (result.reward.ruby > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'ruby',
-            amount: result.reward.ruby,
-            icon: 'diamond',
-            color: 'pink',
-          });
-        }
-        if (result.reward.xp > 0) {
-          rewardItems.push({
-            id: generateId(),
-            type: 'xp',
-            amount: result.reward.xp,
-            icon: 'star',
-            color: 'yellow',
-          });
-        }
-        if (rewardItems.length > 0) {
-          setRewardOverlayData({
-            title: 'Level Quest Completed!',
-            subtitle: result.quest.quest?.description,
-            rewards: rewardItems,
-          });
-          setShowRewardOverlay(true);
-        }
+        // Reward overlay removed as per request
         return result;
       } catch (error) {
         console.error('❌ Failed to claim level quest:', error);
         throw error;
       }
     },
-    [quests, generateId]
+    [quests]
   );
 
   const handleRefreshDailyQuests = useCallback(async () => {
@@ -323,11 +253,26 @@ const AppContent = () => {
   }, []);
 
 
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setIsKeyboardVisible(true);
+      if (Platform.OS === 'ios') {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardVisible(false);
+      if (Platform.OS === 'ios') {
+        setKeyboardHeight(0);
+      }
+    });
+
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -374,6 +319,7 @@ const AppContent = () => {
       }
     };
   }, []);
+
 
   // Mute BGM if needed (when agent speaks) - must be defined before handleAgentReply
   const muteBgmIfNeeded = useCallback(async () => {
@@ -437,7 +383,7 @@ const AppContent = () => {
         break;
 
       case 'open_subscription':
-        navigation.navigate('Subscription');
+        setShowSubscriptionSheet(true);
         break;
 
       case 'start_voice_call':
@@ -515,7 +461,8 @@ const AppContent = () => {
     agentIdCacheRef,
     ensureCameraPermission,
     ensureMicrophonePermission,
-    stopCameraPreview
+    stopCameraPreview,
+    isProcessing: isVoiceProcessing,
   } = useAppVoiceCall({
     activeCharacterId: activeCharacterId ?? undefined,
     userId: session?.user?.id ?? null,
@@ -753,9 +700,9 @@ const AppContent = () => {
       await QuestProgressTracker.trackMany(['capture_characters', 'capture_backgrounds']);
       // Track capture photo analytics
       analyticsService.logCapturePhoto(activeCharacterId || '', currentBackgroundId || undefined);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[App] Failed to capture snapshot:', error);
-      Alert.alert('Unable to save image', 'Please try again in a moment.');
+      Alert.alert('Unable to save image', `Please try again. ${error.message || ''}`);
     } finally {
       setIsSavingSnapshot(false);
     }
@@ -884,7 +831,115 @@ const AppContent = () => {
           );
         }
 
-        await refreshInitialData();
+        // Handle default background
+        if (item.background_default_id) {
+          try {
+            // Check/Grant ownership of the default background
+            let ownedBgs = await assetRepo.fetchOwnedAssets('background');
+            if (!ownedBgs.has(item.background_default_id)) {
+              await assetRepo.createAsset(item.background_default_id, 'background');
+              ownedBgs.add(item.background_default_id); // Optimistically update set
+              console.log('[App] Granted ownership of default background during switch:', item.background_default_id);
+            }
+
+            // Save preference
+            await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+              current_background_id: item.background_default_id,
+            });
+
+            // Apply immediately if this is the first time (or we just want to enforce default)
+            // However, UserCharacterPreferenceService.loadUserCharacterPreference will return the latest preference.
+            // If the user already has a preference, we might NOT want to overwrite it with default unless they have NO preference?
+            // But the request says "grant default ... and show it".
+            // For consistency with "new" character unlock, we should probably set it as current.
+            // But if the user ALREADY has a preference for this character, we ideally shouldn't reset it every time they select the character.
+            // Wait, the logic for `handleCharacterSelectionComplete` (new user/onboarding) sets it as current.
+            // For `handleCharacterSelect` (existing user switching), we should check if they already have a preference.
+
+            // Let's check existing preference first
+            const existingPref = await UserCharacterPreferenceService.loadUserCharacterPreference(item.id);
+
+            // If no background pref, apply default
+            if (!existingPref.backgroundId) {
+              await UserCharacterPreferenceService.applyBackgroundById(
+                item.background_default_id,
+                webViewRef,
+                ownedBgs
+              );
+              await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+                current_background_id: item.background_default_id,
+              });
+              setCurrentBackgroundId(item.background_default_id);
+
+              // Persist
+              const bgRepo = new BackgroundRepository();
+              const bg = await bgRepo.fetchBackground(item.background_default_id);
+              if (bg) {
+                await Persistence.setCharacterBackgroundSelection(item.id, {
+                  backgroundId: item.background_default_id,
+                  backgroundURL: bg.image || '',
+                  backgroundName: bg.name || '',
+                });
+              }
+            } else {
+              // Apply existing preference (handled by normal flow? No, normal flow relies on `refreshInitialData` or `useEffect`?
+              // Actually `refreshInitialData` loads `initialData` which contains `character` and `preference`.
+              // But switching character manually here might need manual application if we don't reload everything.
+              // `handleCharacterSelect` calls `refreshInitialData` (line 833).
+              // `ensureInitialModelApplied` is called in `useEffect` on `initialData`.
+              // So if we just ensure the preference exists in DB, `refreshInitialData` -> `useVRMContext` -> `useEffect` should handle application.
+              // BUT `handleCharacterSelect` also calls `UserCharacterPreferenceService.loadFallbackModel`.
+
+              // Let's just ensure assets are owned. The application of "default" should only happen if no current preference exists?
+              // User request: "lúc chọn nhân vật ... hiện cấp cho ng dùng nhân vật đó và background default ... giờ cấp thêm cả costume default"
+              // "When selecting ... grant user that character and default background ... now grant default costume too".
+              // This implies "Granting" (ownership).
+
+              // If I look at the previous `handleCharacterSelect` implementation, it didn't explicitly handle default background granting!
+              // It only handled it in `handleCharacterSelectionComplete` (onboarding).
+              // The logic for *switching* characters (handleCharacterSelect) relies on `UserCharacterPreferenceService.saveUserCharacterPreference`? 
+              // No, line 822 saves `saveCurrentCharacterId`.
+
+              // So if I own a character but never selected it, and I click it:
+              // 1. It saves current character ID.
+              // 2. It loads fallback model.
+              // 3. It refreshes initial data.
+
+              // If I have never set a background for this character, `initialData` preference will be empty?
+              // And `App.tsx` line 523: `if (initialData?.preference?.backgroundId) ... else if (ownedBackgrounds.length > 0) ...`
+
+              // The missing piece is GRANTING the default costume/background if the user bought the character but the defaults weren't bundled.
+              // So I should just add the "Ensure Ownership" logic here.
+
+            }
+          } catch (e) {
+            console.warn('Error handling default background:', e);
+          }
+        }
+
+        // Handle default costume ownership
+        if (item.default_costume_id) {
+          try {
+            let ownedCostumes = await assetRepo.fetchOwnedAssets('character_costume');
+            if (!ownedCostumes.has(item.default_costume_id)) {
+              await assetRepo.createAsset(item.default_costume_id, 'character_costume');
+              console.log('[App] Granted ownership of default costume during switch:', item.default_costume_id);
+
+              // If we just granted it, let's also set it as default preference if none exists?
+              const existingPref = await UserCharacterPreferenceService.loadUserCharacterPreference(item.id);
+              if (!existingPref.costumeId) {
+                await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+                  current_costume_id: item.default_costume_id
+                });
+                // We don't need to apply it here because `refreshInitialData` will pick up the new preference
+              }
+            }
+          } catch (e) {
+            console.warn('Error handling default costume:', e);
+          }
+        }
+
+        await refreshInitialData(true);
 
         // Refresh streak for the new character (like swift-version)
         if (refreshStreak) {
@@ -1271,8 +1326,8 @@ const AppContent = () => {
           }
         }
         lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
-        // Only zoom if in camera mode, not voice mode
-        webBridgeRef.current?.setCallMode(isCameraMode);
+        // Zoom in for both voice and video modes
+        webBridgeRef.current?.setCallMode(true);
         if (isBgmOnRef.current) {
           try {
             await backgroundMusicManager.pause();
@@ -1326,6 +1381,12 @@ const AppContent = () => {
   }, [quests.hasIncompleteDaily, quests.daily.visibleQuests]);
 
 
+  // Ref to track connection state for cleanup (avoiding effect re-runs)
+  const isVoiceConnectedRef = useRef(voiceState.isConnected);
+  useEffect(() => {
+    isVoiceConnectedRef.current = voiceState.isConnected;
+  }, [voiceState.isConnected]);
+
   const endCallRef = useRef(endCall);
   useEffect(() => {
     endCallRef.current = endCall;
@@ -1335,11 +1396,11 @@ const AppContent = () => {
   useEffect(() => {
     return () => {
       // Only end call if actually connected
-      if (voiceState.isConnected) {
+      if (isVoiceConnectedRef.current) {
         endCallRef.current();
       }
     };
-  }, [voiceState.isConnected]);
+  }, []);
 
   useEffect(() => {
     if (!session && voiceState.isConnected) {
@@ -1418,7 +1479,7 @@ const AppContent = () => {
       // Clear analytics user
       analyticsService.setUserId(null);
       analyticsService.logSignOut();
-      setIsPro(false);
+      // Note: PRO status is now handled by SubscriptionProvider
     }
   }, [hasRestoredSession, session]);
 
@@ -1440,16 +1501,7 @@ const AppContent = () => {
     // Log app open event
     analyticsService.logAppOpen();
 
-    // Initialize RevenueCat
-    import('./src/services/RevenueCatManager').then(({ revenueCatManager }) => {
-      revenueCatManager.configure().then(() => {
-        // Check PRO status after configure
-        revenueCatManager.hasActiveSubscription().then(hasSub => {
-          setIsPro(hasSub);
-          console.log('[App] PRO status:', hasSub);
-        });
-      });
-    });
+    // Note: RevenueCat is now initialized and managed by SubscriptionProvider
   }, [ensureInitialModelApplied, ensureWebBridge]);
 
   useEffect(() => {
@@ -1675,6 +1727,99 @@ const AppContent = () => {
     [refreshInitialData, refreshCurrency]
   );
 
+  const handleCharacterSelectionComplete = useCallback(
+    async (character: CharacterItem) => {
+      console.log('[App] Character selection complete:', character.name);
+
+      // 1. Save character preference
+      try {
+        const userPrefsService = new UserPreferencesService();
+        await userPrefsService.saveCurrentCharacterId(character.id);
+
+        // Also ensure asset is created/owned (if free)
+        const assetRepo = new AssetRepository();
+        const owned = await assetRepo.fetchOwnedAssets('character');
+        if (!owned.has(character.id)) {
+          await assetRepo.createAsset(character.id, 'character');
+        }
+
+        // Save default background preference for this character
+        if (character.background_default_id) {
+          // Grant ownership of the default background
+          const ownedBg = await assetRepo.fetchOwnedAssets('background');
+          if (!ownedBg.has(character.background_default_id)) {
+            await assetRepo.createAsset(character.background_default_id, 'background');
+            console.log('[App] Granted ownership of default background:', character.background_default_id);
+          }
+
+          // Save as user preference
+          await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {
+            current_background_id: character.background_default_id,
+          });
+
+          // Also persist to local storage for immediate use
+          const bgRepo = new BackgroundRepository();
+          const bg = await bgRepo.fetchBackground(character.background_default_id);
+          if (bg) {
+            await Persistence.setBackgroundURL(bg.image || '');
+            await Persistence.setBackgroundName(bg.name || '');
+            await Persistence.setCharacterBackgroundSelection(character.id, {
+              backgroundId: character.background_default_id,
+              backgroundURL: bg.image || '',
+              backgroundName: bg.name || '',
+            });
+          }
+        }
+
+        // Save default costume preference for this character
+        if (character.default_costume_id) {
+          // Grant ownership of the default costume
+          const ownedCostumes = await assetRepo.fetchOwnedAssets('character_costume');
+          if (!ownedCostumes.has(character.default_costume_id)) {
+            await assetRepo.createAsset(character.default_costume_id, 'character_costume');
+            console.log('[App] Granted ownership of default costume:', character.default_costume_id);
+          }
+
+          // Save as user preference
+          await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {
+            current_costume_id: character.default_costume_id,
+          });
+
+          // Also persist to local storage for immediate use
+          const costumeMeta = await UserCharacterPreferenceService.loadCostumeMetadata(character.default_costume_id);
+          if (costumeMeta) {
+            await Persistence.setModelName(costumeMeta.costumeName || costumeMeta.urlName || '');
+            await Persistence.setModelURL(costumeMeta.modelURL || '');
+            await Persistence.setCharacterCostumeSelection(character.id, {
+              costumeId: character.default_costume_id,
+              modelName: costumeMeta.costumeName || costumeMeta.urlName,
+              modelURL: costumeMeta.modelURL,
+            });
+            console.log('✅ [App] Persisted default costume selection:', character.default_costume_id);
+          }
+        }
+
+      } catch (error) {
+        console.error('[App] Error saving character logic:', error);
+      }
+
+      // 2. Ask for Notification Permission
+      try {
+        await oneSignalService.requestPermission();
+      } catch (error) {
+        console.warn('[App] Failed to request notification permission', error);
+      }
+
+      // 3. Mark OnboardingV2 as done and hide it
+      await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
+      setShowOnboardingV2(false);
+
+      // 4. Refresh data
+      await Promise.all([refreshInitialData(), refreshCurrency()]);
+    },
+    [refreshInitialData, refreshCurrency]
+  );
+
   useEffect(() => {
     if (hasRestoredSession && session) {
       checkIfNewUserForOnboarding();
@@ -1710,7 +1855,7 @@ const AppContent = () => {
     }
 
     if (showOnboardingV2) {
-      return <CharacterSelectionScreen />;
+      return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
     }
 
     if (showImageOnboarding) {
@@ -1734,18 +1879,18 @@ const AppContent = () => {
       );
     }
 
-    if (shouldWaitForInitialData) {
-      return (
-        <View style={styles.container}>
-          <StatusBar barStyle="light-content" />
-          <InitialLoadingScreen
-            loading={initialDataLoading}
-            error={initialDataError?.message ?? null}
-            onRetry={refreshInitialData}
-          />
-        </View>
-      );
-    }
+    // if (shouldWaitForInitialData) {
+    //   return (
+    //     <View style={styles.container}>
+    //       <StatusBar barStyle="light-content" />
+    //       <InitialLoadingScreen
+    //         loading={initialDataLoading}
+    //         error={initialDataError?.message ?? null}
+    //         onRetry={refreshInitialData}
+    //       />
+    //     </View>
+    //   );
+    // }
 
     if (Platform.OS === 'ios' && showSwiftUIDemo) {
       return (
@@ -1772,7 +1917,7 @@ const AppContent = () => {
             isDarkBackground={isDarkBackground}
           />
         )}
-        <View style={styles.webViewWrapper} ref={snapshotViewRef}>
+        <View style={styles.webViewWrapper} ref={snapshotViewRef} collapsable={false}>
           <VRMWebView
             ref={webViewRef}
             onModelReady={handleModelReady}
@@ -1809,7 +1954,13 @@ const AppContent = () => {
             <Text style={styles.savedToastText}>Saved to Photos</Text>
           </View>
         ) : null}
-        <View pointerEvents="box-none" style={styles.chatOverlay}>
+        <View
+          style={[
+            styles.chatOverlay,
+            { bottom: keyboardHeight }
+          ]}
+          pointerEvents="box-none"
+        >
           <ChatBottomOverlay
             messages={chatState.messages}
             showChatList={chatState.showChatList}
@@ -1830,8 +1981,8 @@ const AppContent = () => {
                   ? 'Voice call active — type to send instantly'
                   : undefined
             }
-            inputDisabled={voiceState.isBooting || voiceState.status === 'connecting'}
-            voiceLoading={voiceState.isBooting || voiceState.status === 'connecting'}
+            inputDisabled={voiceState.isBooting || voiceState.status === 'connecting' || isVoiceProcessing}
+            voiceLoading={voiceState.isBooting || voiceState.status === 'connecting' || isVoiceProcessing}
             streakDays={chatState.streakDays}
             hasUnclaimed={chatState.hasUnclaimed}
             showStreakConfetti={chatState.showStreakConfetti}
@@ -1885,8 +2036,8 @@ const AppContent = () => {
           questSheetTabRequest={questSheetTabRequest}
           onRefreshLoginRewards={loadLoginRewards}
           onOpenSubscription={() => {
-            console.log('[App] Opening subscription screen');
-            navigation.navigate('Subscription');
+            console.log('[App] Opening subscription sheet');
+            setShowSubscriptionSheet(true);
           }}
           streakDays={loginRewardState.currentDay}
           onOpenStreak={handleOpenStreak}
@@ -1946,8 +2097,8 @@ const AppContent = () => {
             null
           }
           onOpenSubscription={() => {
-            console.log('[App] Opening subscription screen from settings');
-            navigation.navigate('Subscription');
+            console.log('[App] Opening subscription sheet from settings');
+            setShowSubscriptionSheet(true);
           }}
           isPro={isPro}
         />
@@ -1963,6 +2114,13 @@ const AppContent = () => {
             }}
           />
         )}
+        <VoiceLoadingOverlay
+          visible={voiceState.isBooting || voiceState.status === 'connecting'}
+        />
+        <SubscriptionSheet
+          isOpened={showSubscriptionSheet}
+          onClose={() => setShowSubscriptionSheet(false)}
+        />
       </View>
     );
   };
@@ -1999,7 +2157,12 @@ const OnboardingV2ScreenWrapper: React.FC = () => {
 };
 
 // Character Selection Screen for new users - loads characters and navigates to preview
-const CharacterSelectionScreen: React.FC = () => {
+// Custom props for CharacterSelectionScreen
+interface CharacterSelectionScreenProps {
+  onComplete: (character: CharacterItem) => void;
+}
+
+const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({ onComplete }) => {
   const [characters, setCharacters] = useState<CharacterItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2049,58 +2212,52 @@ const CharacterSelectionScreen: React.FC = () => {
   }
 
   // Render CharacterPreviewScreen directly (embedded mode)
-  return <CharacterPreviewScreen characters={characters} initialIndex={0} />;
+  // Pass onComplete to act as the "Select"/Continue action
+  return <CharacterPreviewScreen characters={characters} initialIndex={0} onSelect={onComplete} />;
 };
 
 export default function App() {
   return (
     <ElevenLabsProvider>
       <VRMProvider>
-        <PurchaseProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              screenOptions={{
-                headerTransparent: true,
-                headerTitleAlign: 'center',
-                headerTintColor: '#fff',
-                contentStyle: { backgroundColor: '#000' },
-              }}
-            >
-              <Stack.Screen
-                name="Experience"
-                component={AppContent}
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="CharacterPreview"
-                component={CharacterPreviewScreen}
-                options={{
-                  headerShown: false,
-                  presentation: 'fullScreenModal',
-                  animation: 'slide_from_bottom',
+        <SubscriptionProvider>
+          <PurchaseProvider>
+            <NavigationContainer>
+              <Stack.Navigator
+                screenOptions={{
+                  headerTransparent: true,
+                  headerTitleAlign: 'center',
+                  headerTintColor: '#fff',
+                  contentStyle: { backgroundColor: '#000' },
                 }}
-              />
-              <Stack.Screen
-                name="OnboardingV2"
-                component={OnboardingV2ScreenWrapper}
-                options={{
-                  headerShown: false,
-                  presentation: 'fullScreenModal',
-                  animation: 'slide_from_right',
-                }}
-              />
-              <Stack.Screen
-                name="Subscription"
-                component={SubscriptionScreen}
-                options={{
-                  headerShown: false,
-                  presentation: 'fullScreenModal', // or 'card' depending on preference, user asked for 'màn riêng' (separate screen)
-                  animation: 'slide_from_bottom',
-                }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </PurchaseProvider>
+              >
+                <Stack.Screen
+                  name="Experience"
+                  component={AppContent}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="CharacterPreview"
+                  component={CharacterPreviewScreen}
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    animation: 'slide_from_bottom',
+                  }}
+                />
+                <Stack.Screen
+                  name="OnboardingV2"
+                  component={OnboardingV2ScreenWrapper}
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    animation: 'slide_from_right',
+                  }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </PurchaseProvider>
+        </SubscriptionProvider>
       </VRMProvider>
     </ElevenLabsProvider>
   );
@@ -2159,7 +2316,7 @@ const styles = StyleSheet.create({
   },
   savedToastContainer: {
     position: 'absolute',
-    top: 80,
+    top: 130,
     alignSelf: 'center',
     backgroundColor: '#fff',
     paddingHorizontal: 18,

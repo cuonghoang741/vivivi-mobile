@@ -1,3 +1,4 @@
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PersistKeys } from '../config/supabase';
@@ -72,24 +75,7 @@ export const SignInScreen: React.FC<Props> = ({
     };
   }, []);
 
-  const handleLegalPress = useCallback(
-    async (doc: LegalDocument) => {
-      if (onOpenLegal) {
-        onOpenLegal(doc);
-        return;
-      }
-      const link = LEGAL_LINKS[doc];
-      if (!link) {
-        return;
-      }
-      try {
-        await Linking.openURL(link);
-      } catch (error) {
-        console.warn('[SignIn] Could not open legal link', error);
-      }
-    },
-    [onOpenLegal]
-  );
+
 
   useEffect(() => {
     if (!isLoading && !showAgePrompt) {
@@ -138,6 +124,30 @@ export const SignInScreen: React.FC<Props> = ({
     }
   }, [onSignInWithApple, onSignInWithGoogle, pendingProvider]);
 
+  const handleLegalPress = useCallback(
+    async (doc: LegalDocument) => {
+      if (onOpenLegal) {
+        onOpenLegal(doc);
+        return;
+      }
+      const link = LEGAL_LINKS[doc];
+      if (!link) {
+        return;
+      }
+      try {
+        await WebBrowser.openBrowserAsync(link);
+      } catch (error) {
+        console.warn('[SignIn] Could not open legal link', error);
+        // Fallback to Linking if WebBrowser fails
+        try {
+          await Linking.openURL(link);
+        } catch (linkingError) {
+          console.warn('[SignIn] Linking fallback failed', linkingError);
+        }
+      }
+    },
+    [onOpenLegal]
+  );
   const handleApplePress = useCallback(() => {
     triggerProvider('apple');
   }, [triggerProvider]);

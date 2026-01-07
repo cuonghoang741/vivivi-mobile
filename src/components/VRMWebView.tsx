@@ -36,10 +36,10 @@ export const VRMWebView = React.forwardRef<WebView, VRMWebViewProps>(({
   enableDebug = false,
 }, ref) => {
   const webViewRef = useRef<WebView>(null);
-  
+
   // Expose ref to parent (similar to Swift's @Binding var webView)
   React.useImperativeHandle(ref, () => webViewRef.current!);
-  
+
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [fileListScript, setFileListScript] = useState<string>('');
   const [persistedScript, setPersistedScript] = useState<string>('');
@@ -68,7 +68,7 @@ export const VRMWebView = React.forwardRef<WebView, VRMWebViewProps>(({
     const prepareConfiguration = async () => {
       try {
         console.log('🔧 [VRMWebView] Preparing configuration...');
-        
+
         // Generate file list JSON (similar to Swift's FileDiscovery.generateFileListJSON())
         const fileListJSON = await FileDiscovery.generateFileListJSON();
         console.log('📁 [VRMWebView] File list JSON:', fileListJSON);
@@ -119,10 +119,10 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
   // In Swift: Two separate WKUserScripts are added to configuration.userContentController
   const injectedJavaScript = useMemo(() => {
     if (!fileListScript) return '';
-    
+
     // Combine both scripts (fileList and persisted) - Swift adds them separately but they run together
     const combined = fileListScript + (persistedScript ? '\n' + persistedScript : '');
-    
+
     // This runs at document start, before HTML scripts execute
     // Similar to Swift's injectionTime: .atDocumentStart, forMainFrameOnly: true
     return `
@@ -139,13 +139,13 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
   const handleMessage = (event: any) => {
     const message = event.nativeEvent.data;
     console.log('📨 [VRMWebView] Received message:', message);
-    
+
     setDebugInfo(prev => ({
       ...prev,
       lastMessage: message,
       consoleLogs: [...prev.consoleLogs.slice(-9), `[${new Date().toLocaleTimeString()}] ${message}`],
     }));
-    
+
     // Swift version: if message.name == "loading", let text = message.body as? String, text == "initialReady"
     if (message === 'initialReady') {
       console.log('🎉 [VRMWebView] Model ready!');
@@ -154,13 +154,13 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
         onModelReady();
       }
     }
-    
+
     // Also handle modelLoaded message (sent when VRM model is actually loaded)
     if (message === 'modelLoaded') {
       console.log('✅ [VRMWebView] VRM model loaded!');
       setDebugInfo(prev => ({ ...prev, modelReady: true }));
     }
-    
+
     if (onMessage) {
       onMessage(message);
     }
@@ -182,17 +182,17 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
       consoleLogs: [],
       lastMessage: null,
     });
-    
+
     // Reset scripts
     setFileListScript('');
     setPersistedScript('');
     setHtmlContent(null);
-    
+
     // Reload WebView
     if (webViewRef.current) {
       webViewRef.current.reload();
     }
-    
+
     // Re-prepare configuration
     setTimeout(() => {
       const prepareConfiguration = async () => {
@@ -222,66 +222,61 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
 
   return (
     <View style={styles.container}>
-      {isReady ? (
-        <WebView
-          ref={webViewRef}
-          // Load HTML file (similar to Swift's loadFileURL)
-          source={{ 
-            html: htmlContent,
-            baseUrl: 'file:///' // Similar to Swift's allowingReadAccessTo: bundleURL
-          }}
-          style={styles.webview}
-          // Inject scripts at document start (similar to Swift's WKUserScript with injectionTime: .atDocumentStart)
-          injectedJavaScript={injectedJavaScript}
-          // Configuration matching Swift's WKWebViewConfiguration
-          javaScriptEnabled={true} // Similar to preferences.allowsContentJavaScript = true
-          domStorageEnabled={true}
-          allowsInlineMediaPlayback={true} // Swift: configuration.allowsInlineMediaPlayback = true
-          mediaPlaybackRequiresUserAction={false} // Swift: configuration.mediaTypesRequiringUserActionForPlayback = []
-          // Message handler (similar to Swift's WKScriptMessageHandler with name "loading")
-          onMessage={handleMessage}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            const errorMsg = `WebView error: ${nativeEvent.code || 'unknown'} - ${nativeEvent.description || String(nativeEvent) || 'Unknown error'}`;
-            console.error('❌ [VRMWebView]', errorMsg, nativeEvent);
-            setDebugInfo(prev => ({ ...prev, error: errorMsg }));
-          }}
-          // Navigation delegate equivalent
-          onLoadStart={() => {
-            console.log('🚀 [VRMWebView] Load started');
-            setDebugInfo(prev => ({ ...prev, webViewLoaded: false }));
-          }}
-          onLoadEnd={() => {
-            console.log('✅ [VRMWebView] Load ended');
-            setDebugInfo(prev => ({ ...prev, webViewLoaded: true }));
-          }}
-          onLoadProgress={({ nativeEvent }) => {
-            console.log(`📊 [VRMWebView] Load progress: ${Math.round(nativeEvent.progress * 100)}%`);
-          }}
-          onHttpError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.error('❌ [VRMWebView] HTTP error:', nativeEvent);
-            setDebugInfo(prev => ({ ...prev, error: `HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}` }));
-          }}
-          onRenderProcessGone={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.error('❌ [VRMWebView] Render process gone:', nativeEvent);
-            setDebugInfo(prev => ({ ...prev, error: 'Render process crashed' }));
-          }}
-          originWhitelist={['*']}
-          mixedContentMode="always"
-          // iOS specific - matching Swift exactly
-          scrollEnabled={false} // Swift: webView.scrollView.contentInsetAdjustmentBehavior = .never (similar effect)
-          bounces={false} // Swift: webView.scrollView.bounces = false
-          allowsBackForwardNavigationGestures={false}
-          // Android specific
-          androidLayerType="hardware"
-        />
-      ) : (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading girl...</Text>
-        </View>
-      )}
+      <WebView
+        ref={webViewRef}
+        // Load HTML file (similar to Swift's loadFileURL)
+        source={{
+          html: htmlContent || '',
+          baseUrl: 'file:///' // Similar to Swift's allowingReadAccessTo: bundleURL
+        }}
+        style={styles.webview}
+        // Inject scripts at document start (similar to Swift's WKUserScript with injectionTime: .atDocumentStart)
+        injectedJavaScript={injectedJavaScript}
+        // Configuration matching Swift's WKWebViewConfiguration
+        javaScriptEnabled={true} // Similar to preferences.allowsContentJavaScript = true
+        domStorageEnabled={true}
+        allowsInlineMediaPlayback={true} // Swift: configuration.allowsInlineMediaPlayback = true
+        mediaPlaybackRequiresUserAction={false} // Swift: configuration.mediaTypesRequiringUserActionForPlayback = []
+        // Message handler (similar to Swift's WKScriptMessageHandler with name "loading")
+        onMessage={handleMessage}
+        onError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          const errorMsg = `WebView error: ${nativeEvent.code || 'unknown'} - ${nativeEvent.description || String(nativeEvent) || 'Unknown error'}`;
+          console.error('❌ [VRMWebView]', errorMsg, nativeEvent);
+          setDebugInfo(prev => ({ ...prev, error: errorMsg }));
+        }}
+        // Navigation delegate equivalent
+        onLoadStart={() => {
+          console.log('🚀 [VRMWebView] Load started');
+          setDebugInfo(prev => ({ ...prev, webViewLoaded: false }));
+        }}
+        onLoadEnd={() => {
+          console.log('✅ [VRMWebView] Load ended');
+          setDebugInfo(prev => ({ ...prev, webViewLoaded: true }));
+        }}
+        onLoadProgress={({ nativeEvent }) => {
+          console.log(`📊 [VRMWebView] Load progress: ${Math.round(nativeEvent.progress * 100)}%`);
+        }}
+        onHttpError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.error('❌ [VRMWebView] HTTP error:', nativeEvent);
+          setDebugInfo(prev => ({ ...prev, error: `HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}` }));
+        }}
+        onRenderProcessGone={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.error('❌ [VRMWebView] Render process gone:', nativeEvent);
+          setDebugInfo(prev => ({ ...prev, error: 'Render process crashed' }));
+        }}
+        originWhitelist={['*']}
+        mixedContentMode="always"
+        // iOS specific - matching Swift exactly
+        scrollEnabled={false} // Swift: webView.scrollView.contentInsetAdjustmentBehavior = .never (similar effect)
+        bounces={false} // Swift: webView.scrollView.bounces = false
+        allowsBackForwardNavigationGestures={false}
+        // Android specific
+        androidLayerType="hardware"
+      />
+
 
       {/* Debug Panel */}
       {showDebug && (
@@ -325,15 +320,15 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
           <TouchableOpacity style={styles.button} onPress={handleReload}>
             <Text style={styles.buttonText}>🔄 Reload</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.button} 
+          <TouchableOpacity
+            style={styles.button}
             onPress={() => setShowDebug(!showDebug)}
           >
             <Text style={styles.buttonText}>{showDebug ? '👁️ Hide Debug' : '🔍 Show Debug'}</Text>
           </TouchableOpacity>
           {webViewRef.current && (
-            <TouchableOpacity 
-              style={styles.button} 
+            <TouchableOpacity
+              style={styles.button}
               onPress={() => {
                 console.log('🔍 [VRMWebView] Injecting debug script...');
                 webViewRef.current?.injectJavaScript(`

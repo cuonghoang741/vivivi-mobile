@@ -1,67 +1,45 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Image,
+    Dimensions,
     Linking,
     Modal,
     Pressable,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Button from '../Button';
-import { getSupabaseClient } from '../../services/supabase';
-import { revenueCatManager } from '../../services/RevenueCatManager';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { PurchasesPackage } from 'react-native-purchases';
+import { LiquidGlassView } from '@callstack/liquid-glass';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { useVRMContext } from '../../context/VRMContext';
+import { CostumeRepository } from '../../repositories/CostumeRepository';
+import { UserCharacterPreferenceService } from '../../services/UserCharacterPreferenceService';
+import Button from '../Button';
 
-const DIAMOND_ICON_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/gHCihrZqs0a7K0rms5qSXE1TRs8FuWwPWaEeLIey.png';
+// Icons
+import Icon1 from '../../assets/icons/subscriptions/4.svg';
+import Icon2 from '../../assets/icons/subscriptions/2.svg';
+import Icon3 from '../../assets/icons/subscriptions/3.svg';
+import Icon4 from '../../assets/icons/subscriptions/5.svg';
+import Icon5 from '../../assets/icons/subscriptions/1.svg';
+import Icon6 from '../../assets/icons/subscriptions/6.svg';
 
-type SubscriptionTier = 'free' | 'pro';
+const { height } = Dimensions.get('window');
 
-const SUBSCRIPTION_LABELS: Record<SubscriptionTier, string> = {
-    free: 'Free plan',
-    pro: 'Roxie Pro',
-};
-
-type BillingPeriod = 'monthly' | 'yearly';
-
-type SubscriptionPlan = {
-    id: string;
-    productId: string;
-    billingPeriod: BillingPeriod;
-    price: string;
-    pricePerMonth?: string;
-    savings?: string;
-    recommended?: boolean;
-};
-
-const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
-    {
-        id: 'monthly',
-        productId: 'monthly', // Matching RC identifier if possible, or map it
-        billingPeriod: 'monthly',
-        price: '$9.99 / month',
-    },
-    {
-        id: 'yearly',
-        productId: 'yearly', // Matching RC identifier
-        billingPeriod: 'yearly',
-        price: '$59.99 / year',
-        pricePerMonth: '$5/mo',
-        savings: 'Save 50%',
-        recommended: true,
-    },
-];
-
-const PRO_FEATURES = [
-    'Unlock all characters & costumes',
-    'Unlock all backgrounds',
-    'Unlimited conversations',
-    'Priority support',
+const SUBSCRIPTION_FEATURES = [
+    { icon: Icon1, text: 'Unlimited messages, no daily limits' },
+    { icon: Icon2, text: 'Access secreted photos and videos' },
+    { icon: Icon3, text: '30 minutes of video calls each month' },
+    { icon: Icon4, text: 'Unlock all of 15+ girlfriends' },
+    { icon: Icon5, text: 'Unlimited outfits' },
+    { icon: Icon6, text: 'Unlimited backgrounds' },
 ];
 
 interface SubscriptionSheetProps {
@@ -73,500 +51,472 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     isOpened,
     onClose,
 }) => {
-    const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-    const [isLoading, setIsLoading] = useState(false);
+    const insets = useSafeAreaInsets();
+    const { currentCharacter } = useVRMContext();
+    const {
+        isPro,
+        isLoading: contextLoading,
+        packages,
+        packagesLoaded,
+        customerInfo,
+        purchasePackage,
+        restorePurchases,
+    } = useSubscription();
+
     const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
-    const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [backgroundVideo, setBackgroundVideo] = useState<string | null>(null);
+    const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
-    const tierLabel = SUBSCRIPTION_LABELS[subscriptionTier];
-    const isFree = subscriptionTier === 'free';
+    // Find yearly and monthly packages
+    const yearlyPackage = packages.find(p =>
+        p.packageType === 'ANNUAL' ||
+        p.identifier.toLowerCase().includes('year') ||
+        p.identifier.toLowerCase().includes('annual') ||
+        p.product.title.toLowerCase().includes('year') ||
+        p.product.title.toLowerCase().includes('annual')
+    );
+    const monthlyPackage = packages.find(p =>
+        p.packageType === 'MONTHLY' ||
+        p.identifier.toLowerCase().includes('month') ||
+        p.product.title.toLowerCase().includes('month')
+    );
 
-    const loadData = useCallback(async () => {
-        try {
-            setIsLoading(true);
-
-            // 1. Load Subscription Tier
-            const cached = await AsyncStorage.getItem('subscription.tier');
-            if (cached) {
-                setSubscriptionTier(normalizeTier(cached));
-            }
-
-            const supabase = await getSupabaseClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (user) {
-                const { data } = await supabase
-                    .from('subscriptions')
-                    .select('tier')
-                    .eq('user_id', user.id)
-                    .maybeSingle();
-
-                const tier = normalizeTier(data?.tier);
-                setSubscriptionTier(tier);
-                await AsyncStorage.setItem('subscription.tier', tier);
-            }
-
-            // 2. Load RevenueCat Offerings
-            const offerings = await revenueCatManager.loadOfferings();
-            if (offerings && offerings.availablePackages.length > 0) {
-                setPackages(offerings.availablePackages);
-                // Default to yearly if available, otherwise first available
-                const yearly = offerings.availablePackages.find(
-                    p => p.packageType === 'ANNUAL' || p.identifier.toLowerCase().includes('year')
-                );
-                setSelectedPackage(yearly || offerings.availablePackages[0]);
-            }
-
-        } catch (err) {
-            console.warn('[SubscriptionSheet] Failed to load data', err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
+    // Load background video
     useEffect(() => {
-        if (isOpened) {
-            loadData();
+        if (!isOpened || !currentCharacter) return;
+
+        const loadVideo = async () => {
+            try {
+                const prefs = await UserCharacterPreferenceService.loadUserCharacterPreference(currentCharacter.id);
+                const costumeId = prefs?.costumeId || (currentCharacter as any).default_costume_id;
+
+                if (costumeId) {
+                    const costumeRepo = new CostumeRepository();
+                    const costume = await costumeRepo.fetchCostumeById(costumeId);
+                    if (costume?.video_url) {
+                        setBackgroundVideo(costume.video_url);
+                    }
+                }
+            } catch (e) {
+                console.warn('[SubscriptionSheet] Failed to load character costume video:', e);
+            }
+        };
+
+        loadVideo();
+    }, [isOpened, currentCharacter]);
+
+    // Set default selected package
+    useEffect(() => {
+        if (packages.length > 0 && !selectedPackage) {
+            setSelectedPackage(yearlyPackage || monthlyPackage || packages[0]);
         }
-    }, [isOpened, loadData]);
+    }, [packages, selectedPackage, yearlyPackage, monthlyPackage]);
+
+    // Check active subscription product
+    useEffect(() => {
+        if (customerInfo) {
+            const activeEntitlement = customerInfo.entitlements.active['pro'] ||
+                customerInfo.entitlements.active['Pro'] ||
+                customerInfo.entitlements.active['roxie_pro'];
+            if (activeEntitlement) {
+                setActiveProductId(activeEntitlement.productIdentifier);
+            }
+        }
+    }, [customerInfo]);
 
     const handleSubscribe = async () => {
         if (!selectedPackage) return;
 
-        try {
-            setIsLoading(true);
-            console.log('[SubscriptionSheet] Purchase initialized', selectedPackage);
-            const { customerInfo } = await revenueCatManager.purchasePackage(selectedPackage);
-            console.log('[SubscriptionSheet] Purchase completed. CustomerInfo:', JSON.stringify(customerInfo, null, 2));
+        setIsProcessing(true);
+        console.log('[SubscriptionSheet] Purchase initialized', selectedPackage);
 
-            const isPro = customerInfo.entitlements.active['pro'] ||
-                customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['roxie_pro'];
+        const result = await purchasePackage(selectedPackage);
 
-            if (isPro) {
-                setSubscriptionTier('pro');
-                await AsyncStorage.setItem('subscription.tier', 'pro');
-                Alert.alert('Success', 'You are now a Pro member!', [
-                    { text: 'OK', onPress: onClose }
-                ]);
-            } else {
-                console.warn('[SubscriptionSheet] Purchase successful but no active entitlement found. Active:', Object.keys(customerInfo.entitlements.active));
-                Alert.alert('Purchase Successful', 'Your purchase was successful, but we could not verify your Pro status immediately. Please try "Restore" or contact support.');
-            }
-        } catch (e: any) {
-            if (!e.userCancelled) {
-                Alert.alert('Purchase Failed', e.message || 'Unknown error occurred');
-            }
-        } finally {
-            setIsLoading(false);
+        setIsProcessing(false);
+
+        if (result.success) {
+            Alert.alert('Success', 'You are now a Pro member!', [
+                { text: 'OK', onPress: onClose }
+            ]);
+        } else if (result.error && result.error !== 'cancelled') {
+            Alert.alert('Purchase Failed', result.error || 'Unknown error occurred');
         }
     };
 
     const handleRestorePurchases = async () => {
-        try {
-            setIsLoading(true);
-            const customerInfo = await revenueCatManager.restorePurchases();
-            console.log('[SubscriptionSheet] Restore completed. CustomerInfo:', JSON.stringify(customerInfo, null, 2));
+        setIsProcessing(true);
 
-            const isPro = customerInfo.entitlements.active['pro'] ||
-                customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['roxie_pro'];
+        const result = await restorePurchases();
 
-            if (isPro) {
-                setSubscriptionTier('pro');
-                await AsyncStorage.setItem('subscription.tier', 'pro');
-                Alert.alert('Success', 'Purchases restored successfully!', [
-                    { text: 'OK', onPress: onClose }
-                ]);
-            } else {
-                console.warn('[SubscriptionSheet] Restore successful but no active entitlement found. Active:', Object.keys(customerInfo.entitlements.active));
-                Alert.alert('Restore', 'No active Pro subscription found.');
-            }
-        } catch (e: any) {
-            Alert.alert('Restore Failed', e.message);
-        } finally {
-            setIsLoading(false);
+        setIsProcessing(false);
+
+        if (result.isPro) {
+            Alert.alert('Success', 'Purchases restored successfully!', [
+                { text: 'OK', onPress: onClose }
+            ]);
+        } else if (result.error) {
+            Alert.alert('Restore Failed', result.error);
+        } else {
+            Alert.alert('Restore', 'No active Pro subscription found.');
         }
     };
 
-    // Helper to format package for display
-    const renderPackageOption = (pkg: PurchasesPackage) => {
-        const isSelected = selectedPackage?.identifier === pkg.identifier;
-        const isYearly = pkg.packageType === 'ANNUAL' || pkg.identifier.toLowerCase().includes('year');
-        const pricePerMonth = isYearly
-            ? (pkg.product.price / 12).toLocaleString(undefined, { style: 'currency', currency: pkg.product.currencyCode })
-            : null;
-
-        return (
-            <Pressable
-                key={pkg.identifier}
-                style={[
-                    styles.planOption,
-                    isSelected && styles.planOptionSelected,
-                ]}
-                onPress={() => setSelectedPackage(pkg)}
-            >
-                {isYearly && (
-                    <View style={styles.savingsBadge}>
-                        <Text style={styles.savingsText}>Save 50%</Text>
-                    </View>
-                )}
-                <View style={styles.planContent}>
-                    <Text style={styles.planPeriod}>
-                        {isYearly ? 'Yearly' : 'Monthly'}
-                    </Text>
-                    <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
-                    {pricePerMonth && (
-                        <Text style={styles.planPricePerMonth}>{`${pricePerMonth} / mo`}</Text>
-                    )}
-                </View>
-                <View style={styles.radioButton}>
-                    {isSelected && <View style={styles.radioButtonInner} />}
-                </View>
-            </Pressable>
-        );
-    };
+    const videoSource = backgroundVideo || 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
 
     return (
         <Modal
             visible={isOpened}
             animationType="slide"
-            presentationStyle="pageSheet"
+            presentationStyle="fullScreen"
             onRequestClose={onClose}
         >
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Pressable style={styles.closeButton} onPress={onClose}>
-                        <Ionicons name="close" size={24} color="#fff" />
-                    </Pressable>
-                    <View style={styles.headerTitleRow}>
-                        <Image source={{ uri: DIAMOND_ICON_URL }} style={{ width: 18, height: 18 }} />
-                        <Text style={styles.headerTitle}>Roxie Pro</Text>
-                    </View>
-                    <View style={{ width: 44 }} />
+                <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
+                {/* Background Video - Top Half */}
+                <View style={styles.videoHeader}>
+                    <Video
+                        source={{ uri: videoSource }}
+                        style={styles.backgroundVideo}
+                        resizeMode={ResizeMode.COVER}
+                        isLooping
+                        shouldPlay={isOpened}
+                        isMuted={true}
+                    />
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.8)', '#000']}
+                        style={styles.gradientOverlay}
+                        pointerEvents="none"
+                    />
+                </View>
+
+                {/* Header with Close Button */}
+                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+                    <View style={{ flex: 1 }} />
+                    <Button
+                        variant='liquid'
+                        size="lg"
+                        onPress={onClose}
+                        startIconName='close'
+                        isIconOnly
+                    />
                 </View>
 
                 <ScrollView
                     style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
                     showsVerticalScrollIndicator={false}
                 >
-                    {isLoading && packages.length === 0 ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#FF5D9D" />
-                        </View>
-                    ) : (
-                        <>
-                            {/* Banner */}
-                            <View style={styles.banner}>
-                                <Image
-                                    source={{
-                                        uri: 'https://pub-14a49f54cd754145a7362876730a1a52.r2.dev/Packages/Store_Banner-min.png',
-                                    }}
-                                    style={styles.bannerImage}
-                                    resizeMode="cover"
-                                />
-                                <View style={styles.bannerOverlay}>
-                                    <Text style={styles.bannerTitle}>
-                                        {isFree ? 'Unlock Everything' : tierLabel}
-                                    </Text>
-                                    <Text style={styles.bannerSubtitle}>
-                                        {isFree ? 'Get unlimited access to all content' : 'Active subscription'}
-                                    </Text>
-                                </View>
-                            </View>
+                    <View style={styles.heroContent}>
+                        <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
+                            <Text style={styles.proBadgeTextName}>Roxie</Text>
+                            <LinearGradient
+                                colors={['#FFD91B', '#FFE979']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.premiumBadge}
+                            >
+                                <Text style={styles.premiumBadgeText}>Premium</Text>
+                            </LinearGradient>
+                        </LiquidGlassView>
+                        <Text style={styles.title}>Stay With Me{'\n'}Without Limits</Text>
+                    </View>
 
-                            {/* Current Status */}
-                            <View style={styles.statusCard}>
-                                <Text style={styles.statusLabel}>Current status</Text>
-                                <Text style={styles.statusValue}>{tierLabel}</Text>
-                                <Text style={styles.statusHint}>
-                                    {isFree
-                                        ? 'Upgrade to access all characters, costumes, and backgrounds.'
-                                        : 'You are enjoying premium perks.'}
-                                </Text>
+                    <View style={styles.featuresList}>
+                        {SUBSCRIPTION_FEATURES.map((feature, index) => (
+                            <View key={index} style={styles.featureRow}>
+                                <feature.icon width={24} height={24} fill="#fff" style={{ marginRight: 12 }} />
+                                <Text style={styles.featureText}>{feature.text}</Text>
                             </View>
+                        ))}
+                    </View>
 
-                            {/* Pro Features */}
-                            <View style={styles.featuresCard}>
-                                <Text style={styles.featuresTitle}>What's included</Text>
-                                {PRO_FEATURES.map((feature) => (
-                                    <View key={feature} style={styles.featureRow}>
-                                        <Ionicons name="checkmark-circle" size={20} color="#FF5D9D" />
-                                        <Text style={styles.featureText}>{feature}</Text>
+                    <View style={styles.pricingContainer}>
+                        {yearlyPackage && (
+                            <Pressable
+                                style={[
+                                    styles.planCard,
+                                    selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
+                                ]}
+                                onPress={() => setSelectedPackage(yearlyPackage)}
+                            >
+                                {activeProductId === yearlyPackage.product.identifier ? (
+                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                    </View>
+                                ) : (selectedPackage?.identifier === yearlyPackage.identifier && (
+                                    <View style={styles.blueBadge}>
+                                        <Text style={styles.blueBadgeText}>80% OFF</Text>
                                     </View>
                                 ))}
-                            </View>
+                                <Text style={styles.planName}>Yearly</Text>
+                                <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
+                                <Text style={styles.planPeriod}>per year</Text>
+                                <Text style={styles.planSubDetail}>
+                                    {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
+                                        style: 'currency',
+                                        currency: yearlyPackage.product.currencyCode
+                                    })}/per month
+                                </Text>
+                            </Pressable>
+                        )}
 
-                            {/* Billing Period Selection */}
-                            {packages.length > 0 && (
-                                <View style={styles.planSelector}>
-                                    {packages.map(renderPackageOption)}
-                                </View>
-                            )}
-                            {/* Fallback if no packages loaded yet but not loading */}
-                            {packages.length === 0 && !isLoading && (
-                                <View style={styles.planSelector}>
-                                    <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
-                                        Unable to load subscription plans. Please try again later.
-                                    </Text>
-                                </View>
-                            )}
-
-                            {/* Subscribe Button */}
-                            <Button
-                                fullWidth
-                                style={styles.subscribeButton}
-                                disabled={packages.length === 0 || isLoading}
-                                loading={isLoading && packages.length > 0}
-                                onPress={handleSubscribe}
+                        {monthlyPackage && (
+                            <Pressable
+                                style={[
+                                    styles.planCard,
+                                    selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
+                                ]}
+                                onPress={() => setSelectedPackage(monthlyPackage)}
                             >
-                                {isFree ? 'Subscribe Now' : 'Update Subscription'}
-                            </Button>
+                                {activeProductId === monthlyPackage.product.identifier && (
+                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                    </View>
+                                )}
+                                <Text style={styles.planName}>Monthly</Text>
+                                <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
+                                <Text style={styles.planPeriod}>per month</Text>
+                            </Pressable>
+                        )}
 
-                            {/* Manage Subscription (for existing subscribers) */}
-                            {!isFree && (
-                                <Button
-                                    fullWidth
-                                    variant="outline"
-                                    style={styles.subscribeButton}
-                                    onPress={() => {
-                                        Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => { });
-                                    }}
-                                >
-                                    Manage Subscription
-                                </Button>
+                        {/* Fallback if no yearly/monthly found */}
+                        {!yearlyPackage && !monthlyPackage && packages.length > 0 && packages.map(pkg => (
+                            <Pressable
+                                key={pkg.identifier}
+                                style={[
+                                    styles.planCard,
+                                    selectedPackage?.identifier === pkg.identifier && styles.planCardSelected
+                                ]}
+                                onPress={() => setSelectedPackage(pkg)}
+                            >
+                                {activeProductId === pkg.product.identifier && (
+                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                    </View>
+                                )}
+                                <Text style={styles.planName}>{pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly'}</Text>
+                                <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
+                            </Pressable>
+                        ))}
+
+                        {(contextLoading || isProcessing) && packages.length === 0 && (
+                            <ActivityIndicator color="#FFE66D" size="large" style={{ marginVertical: 20 }} />
+                        )}
+                    </View>
+
+                    <Pressable
+                        style={[styles.upgradeButton, (isProcessing || contextLoading) && styles.upgradeButtonDisabled]}
+                        onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
+                        disabled={isProcessing || contextLoading}
+                        android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+                    >
+                        <LinearGradient
+                            colors={['#FFD91B', '#FFE979']}
+                            style={styles.upgradeButtonGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            {isProcessing ? (
+                                <ActivityIndicator color="#000" />
+                            ) : (
+                                <Text style={styles.upgradeButtonText}>
+                                    {isPro ? 'Update Subscription' : 'Upgrade'}
+                                </Text>
                             )}
+                        </LinearGradient>
+                    </Pressable>
 
-                            {/* Footer Links */}
-                            <View style={styles.footerLinks}>
-                                <Pressable onPress={() => Linking.openURL('https://roxie.ai/terms')}>
-                                    <Text style={styles.footerLink}>Terms</Text>
-                                </Pressable>
-                                <Text style={styles.footerDot}>•</Text>
-                                <Pressable onPress={() => Linking.openURL('https://roxie.ai/privacy')}>
-                                    <Text style={styles.footerLink}>Privacy</Text>
-                                </Pressable>
-                                <Text style={styles.footerDot}>•</Text>
-                                <Pressable onPress={handleRestorePurchases}>
-                                    <Text style={styles.footerLink}>Restore</Text>
-                                </Pressable>
-                            </View>
-                        </>
-                    )}
+                    <View style={styles.footerLinks}>
+                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
+                            Privacy Policy
+                        </LinkText>
+                        <Text style={styles.footerSeparator}>|</Text>
+                        <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
+                        <Text style={styles.footerSeparator}>|</Text>
+                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/terms')}>
+                            Terms of Use
+                        </LinkText>
+                    </View>
                 </ScrollView>
             </View>
         </Modal>
     );
 };
 
-const normalizeTier = (tier?: string | null): SubscriptionTier => {
-    const normalized = (tier ?? '').toLowerCase();
-    if (normalized === 'pro' || normalized.includes('pro')) {
-        return 'pro';
-    }
-    return 'free';
-};
+const LinkText: React.FC<{ onPress: () => void; children: React.ReactNode }> = ({ onPress, children }) => (
+    <Pressable onPress={onPress}>
+        <Text style={styles.footerLink}>{children}</Text>
+    </Pressable>
+);
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#1A1A2E',
+        backgroundColor: '#000',
+    },
+    videoHeader: {
+        position: 'absolute',
+        top: 0,
+        width: '100%',
+        height: '50%',
+    },
+    backgroundVideo: {
+        width: '100%',
+        height: '100%',
+    },
+    gradientOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 150,
+        width: '100%',
     },
     header: {
         flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
-    },
-    closeButton: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    headerTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#fff',
     },
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        padding: 16,
+        paddingHorizontal: 20,
+        paddingTop: height * 0.1,
         paddingBottom: 40,
     },
-    loadingContainer: {
-        flex: 1,
+    heroContent: {
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 100,
+        marginBottom: 14,
     },
-    banner: {
-        height: 180,
-        borderRadius: 16,
-        overflow: 'hidden',
-        marginBottom: 20,
+    proBadgeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        gap: 8,
     },
-    bannerImage: {
-        ...StyleSheet.absoluteFillObject,
-        width: '100%',
-        height: '100%',
-    },
-    bannerOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'flex-end',
-        padding: 20,
-    },
-    bannerTitle: {
-        fontSize: 28,
-        fontWeight: '800',
+    proBadgeTextName: {
         color: '#fff',
-        marginBottom: 4,
-    },
-    bannerSubtitle: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.8)',
-    },
-    statusCard: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 16,
-    },
-    statusLabel: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.5)',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 4,
-    },
-    statusValue: {
-        fontSize: 22,
-        fontWeight: '700',
-        color: '#fff',
-        marginBottom: 8,
-    },
-    statusHint: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.6)',
-        lineHeight: 20,
-    },
-    featuresCard: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
-    },
-    featuresTitle: {
         fontSize: 16,
+        fontWeight: '600',
+    },
+    premiumBadge: {
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    premiumBadgeText: {
+        color: '#000',
+        fontSize: 12,
         fontWeight: '700',
+    },
+    title: {
         color: '#fff',
-        marginBottom: 16,
+        fontSize: 34,
+        fontWeight: '800',
+        textAlign: 'center',
+        lineHeight: 42,
+    },
+    featuresList: {
+        marginBottom: 14,
     },
     featureRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        marginBottom: 12,
+        marginBottom: 10,
     },
     featureText: {
-        fontSize: 15,
         color: '#fff',
-        flex: 1,
+        fontSize: 15,
+        fontWeight: '500',
     },
-    planSelector: {
-        marginBottom: 20,
-        gap: 12,
-    },
-    planOption: {
+    pricingContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        gap: 12,
+        marginBottom: 24,
+    },
+    planCard: {
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         borderRadius: 16,
         padding: 16,
         borderWidth: 2,
         borderColor: 'transparent',
     },
-    planOptionSelected: {
-        borderColor: '#FF5D9D',
-        backgroundColor: 'rgba(255,93,157,0.1)',
+    planCardSelected: {
+        borderColor: '#2196F3',
+        backgroundColor: 'rgba(33, 150, 243, 0.15)',
     },
-    planContent: {
-        flex: 1,
-    },
-    planPeriod: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-        marginBottom: 4,
-    },
-    planPrice: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    planPricePerMonth: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.5)',
-        marginTop: 2,
-    },
-    savingsBadge: {
+    blueBadge: {
         position: 'absolute',
-        top: -8,
-        right: 16,
-        backgroundColor: '#FF5D9D',
-        paddingHorizontal: 10,
+        top: -12,
+        right: -4,
+        backgroundColor: '#2196F3',
+        paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
     },
-    savingsText: {
-        fontSize: 11,
-        fontWeight: '700',
+    blueBadgeText: {
         color: '#fff',
+        fontSize: 10,
+        fontWeight: '700',
     },
-    radioButton: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.4)',
-        alignItems: 'center',
-        justifyContent: 'center',
+    planName: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 8,
     },
-    radioButtonInner: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: '#FF5D9D',
+    planPrice: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '700',
+        marginBottom: 2,
     },
-    subscribeButton: {
+    planPeriod: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 12,
+        marginBottom: 4,
+    },
+    planSubDetail: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 11,
+    },
+    upgradeButton: {
+        borderRadius: 30,
+        overflow: 'hidden',
         marginBottom: 24,
+    },
+    upgradeButtonDisabled: {
+        opacity: 0.7,
+    },
+    upgradeButtonGradient: {
+        paddingVertical: 16,
+        alignItems: 'center',
+    },
+    upgradeButtonText: {
+        color: '#000',
+        fontSize: 18,
+        fontWeight: '700',
     },
     footerLinks: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 8,
+        gap: 12,
     },
     footerLink: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.5)',
+        color: '#fff',
+        fontSize: 12,
     },
-    footerDot: {
-        fontSize: 13,
+    footerSeparator: {
         color: 'rgba(255,255,255,0.3)',
+        fontSize: 12,
     },
 });
 
