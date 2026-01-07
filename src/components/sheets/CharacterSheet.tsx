@@ -54,12 +54,11 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   const { selectCharacter } = useSceneActions();
   const navigation = useNavigation<any>();
 
-  // Dynamic colors
+  // Dynamic colors - but force dark overlay on cards for readability
   const textColor = isDarkBackground ? '#fff' : '#000';
   const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
-  const overlayColors = isDarkBackground
-    ? ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const
-    : ['transparent', 'rgba(255,255,255,0.4)', 'rgba(255,255,255,0.85)'] as const;
+  // Always use dark gradient for card overlay to ensure text readability
+  const overlayColors = ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const;
   const actionButtonBg = isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // Expose present/dismiss via ref
@@ -271,9 +270,9 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
             locations={[0, 0.5, 1]}
           >
             <View style={styles.cardInfo}>
-              <Text style={[styles.cardName, { color: textColor }]} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
               {item?.data?.characteristics && (
-                <Text style={[styles.cardDescription, { color: secondaryTextColor }]} numberOfLines={1}>
+                <Text style={styles.cardDescription} numberOfLines={1}>
                   {item?.data?.characteristics}
                 </Text>
               )}

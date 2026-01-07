@@ -262,13 +262,13 @@ const styles = StyleSheet.create({
     width: '85%',
     paddingTop: 4,
     // Limit height to prevent pushing input out of view
-    maxHeight: 300, // Fixed max height instead of percentage
+    maxHeight: 450, // Increased to allow better scrolling
     // Ensure container is visible
     minHeight: 0,
   },
   scrollView: {
-    // Remove flex: 1, use maxHeight only
-    maxHeight: 300, // Match container maxHeight
+    // Allows content to scroll
+    flexGrow: 0,
     // Ensure scrollView is visible
     minHeight: 0,
   },

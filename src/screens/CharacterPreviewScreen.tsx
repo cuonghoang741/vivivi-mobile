@@ -11,12 +11,13 @@ import {
     useWindowDimensions,
     Alert,
     Animated,
+    ActivityIndicator,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CharacterItem } from '../repositories/CharacterRepository';
 import { brand } from '../styles/palette';
@@ -75,6 +76,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     // Store all video URLs in a map (loaded once)
     const [characterVideoUrls, setCharacterVideoUrls] = useState<Map<string, string | null>>(new Map());
     const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+    const [isSelectingCharacter, setIsSelectingCharacter] = useState(false);
     const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>(DEFAULT_BACKGROUND_URL);
     const [isDarkBackground, setIsDarkBackground] = useState(true);
     const insets = useSafeAreaInsets();
@@ -180,15 +182,36 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
         fetchBackground();
     }, [character?.background_default_id]);
 
-    const handleSelectCharacter = useCallback(() => {
-        if (character) {
-            if (props.onSelect) {
-                props.onSelect(character);
-            } else {
-                navigation.navigate('OnboardingV2', { selectedCharacterId: character.id });
+    // Reset loading state when screen gains focus (e.g. if navigation failed or user went back)
+    useFocusEffect(
+        useCallback(() => {
+            setIsSelectingCharacter(false);
+        }, [])
+    );
+
+    const handleSelectCharacter = useCallback(async () => {
+        if (character && !isSelectingCharacter) {
+            setIsSelectingCharacter(true);
+            try {
+                if (props.onSelect) {
+                    await props.onSelect(character);
+                    if (!isOnboardingFlow) {
+                        // Only reset if likely staying on this screen or if onSelect handles navigation synchronously (and returns)
+                        // But for safety in other flows, we might want to rely on useFocusEffect or reset here?
+                        // If we are waiting for a prop function, it's safer to reset after it's done unless we know it navigates away.
+                        setIsSelectingCharacter(false);
+                    }
+                } else {
+                    navigation.navigate('OnboardingV2', { selectedCharacterId: character.id });
+                    // Do NOT reset isSelectingCharacter here. Let it spin until unmount or screen blur.
+                    // The useFocusEffect will reset it if we come back.
+                }
+            } catch (error) {
+                console.error('Error selecting character:', error);
+                setIsSelectingCharacter(false);
             }
         }
-    }, [navigation, character, props.onSelect]);
+    }, [navigation, character, props.onSelect, isSelectingCharacter, isOnboardingFlow]);
 
     const handleUpgradeToPro = useCallback(() => {
         Alert.alert(
@@ -433,8 +456,16 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                 <View style={[styles.buttonContainer, { bottom: insets.bottom + 0 }]}>
                     {/* Onboarding flow: always show Continue */}
                     {isOnboardingFlow && (
-                        <TouchableOpacity style={styles.selectButton} onPress={handleSelectCharacter}>
-                            <Text style={styles.selectButtonText}>Continue</Text>
+                        <TouchableOpacity
+                            style={[styles.selectButton, isSelectingCharacter && styles.selectButtonDisabled]}
+                            onPress={handleSelectCharacter}
+                            disabled={isSelectingCharacter}
+                        >
+                            {isSelectingCharacter ? (
+                                <ActivityIndicator size="small" color="#000" />
+                            ) : (
+                                <Text style={styles.selectButtonText}>Continue</Text>
+                            )}
                         </TouchableOpacity>
                     )}
 
@@ -449,23 +480,33 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                     {/* Owned characters OR PRO users: show Select button */}
                     {!isOnboardingFlow && canSelect && (
                         <TouchableOpacity
-                            style={styles.selectButton}
+                            style={[styles.selectButton, isSelectingCharacter && styles.selectButtonDisabled]}
+                            disabled={isSelectingCharacter}
                             onPress={async () => {
-                                // Update global state directly
-                                setCurrentCharacterState(character);
-
-                                // Persist selection
+                                if (isSelectingCharacter) return;
+                                setIsSelectingCharacter(true);
                                 try {
+                                    // Update global state directly
+                                    setCurrentCharacterState(character);
+
+                                    // Persist selection
                                     await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {});
+
+                                    // Navigate back like a standard back action
+                                    navigation.goBack();
                                 } catch (e) {
                                     console.warn('Failed to save character preference:', e);
+                                    navigation.goBack();
+                                    setIsSelectingCharacter(false);
                                 }
-
-                                // Navigate back like a standard back action
-                                navigation.goBack();
+                                // No finally block here to keep spinner during goBack transition
                             }}
                         >
-                            <Text style={styles.selectButtonText}>Select</Text>
+                            {isSelectingCharacter ? (
+                                <ActivityIndicator size="small" color="#000" />
+                            ) : (
+                                <Text style={styles.selectButtonText}>Select</Text>
+                            )}
                         </TouchableOpacity>
                     )}
                 </View>
@@ -731,6 +772,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 8,
+    },
+    selectButtonDisabled: {
+        opacity: 0.7,
     },
     selectButtonText: {
         color: '#000',

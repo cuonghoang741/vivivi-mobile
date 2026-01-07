@@ -339,6 +339,17 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             Terms of Use
                         </LinkText>
                     </View>
+                    {isPro && (
+                        <Pressable
+                            style={styles.cancelButton}
+                            onPress={() => {
+                                // iTunes subscription management URL for iOS
+                                Linking.openURL('https://apps.apple.com/account/subscriptions');
+                            }}
+                        >
+                            <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
+                        </Pressable>
+                    )}
                 </ScrollView>
             </View>
         </Modal>
@@ -517,6 +528,16 @@ const styles = StyleSheet.create({
     footerSeparator: {
         color: 'rgba(255,255,255,0.3)',
         fontSize: 12,
+    },
+    cancelButton: {
+        marginTop: 20,
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    cancelButtonText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 13,
+        textDecorationLine: 'underline',
     },
 });
 

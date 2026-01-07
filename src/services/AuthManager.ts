@@ -254,8 +254,9 @@ export class AuthManager {
 
   /**
    * Delete account and local storage, mirroring Swift deleteAccountLocally()
+   * @param onBeforeLogout - Optional callback that runs after deletion is complete but before logout
    */
-  async deleteAccountLocally(): Promise<void> {
+  async deleteAccountLocally(onBeforeLogout?: () => void | Promise<void>): Promise<void> {
     if (this._isDeletingAccount) {
       return;
     }
@@ -267,6 +268,7 @@ export class AuthManager {
       if (!userId && !clientId) {
         // No identifiers, just logout
         await this.clearLocalStateAfterDeletion();
+        await onBeforeLogout?.();
         await this.logout();
         return;
       }
@@ -296,8 +298,9 @@ export class AuthManager {
         "user_notification_preferences",
         "spicy_content_notifications",
         "notification_counters",
+        "user_call_quota",
       ];
-      const tablesWithoutClientId = new Set(["api_characters", "subscriptions"]);
+      const tablesWithoutClientId = new Set(["api_characters", "subscriptions", "user_call_quota"]);
 
       for (const table of tablesToDelete) {
         try {
@@ -335,6 +338,10 @@ export class AuthManager {
       }
 
       await this.clearLocalStateAfterDeletion();
+
+      // Call callback before logout (so UI can respond before redirect)
+      await onBeforeLogout?.();
+
       await this.logout();
     } catch (error) {
       console.error("[AuthManager] deleteAccountLocally failed", error);

@@ -29,6 +29,10 @@ import {
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
 import StreakIcon from "../assets/icons/streak.svg";
+import GoProButton from "./GoProButton";
+import Button from "./Button";
+import DiamondIcon from "../assets/icons/diamond.svg";
+import { useSceneActions } from "../context/SceneActionsContext";
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -43,6 +47,7 @@ type VRMUIOverlayProps = ViewProps & {
   canClaimCalendar?: boolean;
   isBgmOn?: boolean;
   isInCall?: boolean; // Hide overlay and disable gestures during call
+  remainingQuotaSeconds?: number; // Show remaining call time when in call
 
   onBackgroundPress?: () => void;
   onCostumePress?: () => void;
@@ -67,6 +72,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   canClaimCalendar,
   isBgmOn = false,
   isInCall = false,
+  remainingQuotaSeconds = 0,
   onBackgroundPress,
   onCostumePress,
   onCalendarPress,
@@ -80,6 +86,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   ...rest
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const sceneActions = useSceneActions();
 
   // Animation values
   const expandAnimation = useRef(new Animated.Value(0)).current;
@@ -235,7 +242,14 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     // },
   ];
 
-  // Hide overlay UI during call (only keep swipe handler for consistent behavior)
+  // Format remaining time
+  const formatRemainingTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Show remaining time badge during call
   if (isInCall) {
     return (
       <View
@@ -243,7 +257,17 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
         {...panResponder.panHandlers}
         {...rest}
         pointerEvents="box-none"
-      />
+      >
+        {/* Remaining time badge in top right */}
+        <View style={styles.leftColumn} pointerEvents="box-none" />
+        <View style={styles.rightColumn} pointerEvents="box-none">
+          <View style={styles.remainingTimeBadge}>
+            <Text style={styles.remainingTimeText}>
+              {formatRemainingTime(remainingQuotaSeconds)} remaining
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   }
 
@@ -257,6 +281,16 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     >
       <View style={styles.leftColumn} pointerEvents="box-none">
         {/* Empty left column */}
+        <LiquidGlass
+          style={styles.goProButton}
+          onPress={() => sceneActions?.openSubscription()}
+        >
+          <DiamondIcon />
+          <Text style={{
+            color: isDarkBackground ? '#fff' : '#000',
+            fontWeight: '600',
+          }}>Go Pro</Text>
+        </LiquidGlass>
       </View>
 
       <View style={styles.rightColumn} pointerEvents="box-none">
@@ -492,5 +526,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 12,
+  },
+  remainingTimeBadge: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  remainingTimeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  goProButton: {
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 100,
+    ...LiquidGlass
   },
 });

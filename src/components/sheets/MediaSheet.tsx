@@ -67,10 +67,10 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   const [items, setItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<TabKey>('video');
+  const [selectedTab, setSelectedTab] = useState<TabKey>('photo');
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
 
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   // Dynamic colors (matching CharacterDetailSheet)
@@ -86,7 +86,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     dismiss: () => sheetRef.current?.dismiss(),
   }));
 
-  const mediaRepositoryRef = useRef<MediaRepository>();
+  const mediaRepositoryRef = useRef<MediaRepository | null>(null);
   if (!mediaRepositoryRef.current) {
     mediaRepositoryRef.current = new MediaRepository();
   }
@@ -144,9 +144,21 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     (item: MediaItem) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
-      const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+      // Free if tier is 'free' OR no price set
+      const isTierFree = item.tier?.toLowerCase() === 'free';
+      const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+      const isFreeItem = isTierFree || (hasNoPrice && item.tier !== 'pro');
 
-      if (isPro || isFree) {
+      console.log('[MediaSheet] handleSelect:', {
+        id: item.id,
+        tier: item.tier,
+        isFreeItem,
+        isPro,
+        price_vcoin: item.price_vcoin,
+        price_ruby: item.price_ruby
+      });
+
+      if (isPro || isFreeItem) {
         setPreviewItem(item);
       } else {
         // Not pro and not free -> Upsell
@@ -162,7 +174,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   const renderItem = useCallback(
     ({ item }: { item: MediaItem }) => {
       const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-      const isUnlocked = isPro || isFree;
+      const isUnlocked = isPro;
 
       const thumb = item.thumbnail || item.url;
       const cardWidth = (width - 40 - 12) / 2; // Matching CharacterDetailSheet spacing
@@ -210,7 +222,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
         onIsOpenedChange={onIsOpenedChange}
         title={characterName ? `${characterName}'s Media` : 'Media Gallery'}
         isDarkBackground={isDarkBackground}
-        detents={[0.5, 0.9]}
+        detents={[0.5, 0.95]}
       >
         {/* Tabs */}
         <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
@@ -265,15 +277,17 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={currentItems}
-            keyExtractor={item => item.id}
-            renderItem={renderItem}
-            numColumns={2}
-            columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
-            showsVerticalScrollIndicator={false}
-          />
+          <View style={{ flex: 1, maxHeight: height * 0.8 }}>
+            <FlatList
+              data={currentItems}
+              keyExtractor={item => item.id}
+              renderItem={renderItem}
+              numColumns={2}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
         )}
       </BottomSheet>
 
@@ -294,6 +308,7 @@ const MediaPreviewModal: React.FC<{
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    console.log('[MediaPreviewModal] item changed:', item?.id, item?.url);
     if (!item && videoRef.current) {
       videoRef.current.stopAsync().catch(() => undefined);
     }
@@ -304,7 +319,7 @@ const MediaPreviewModal: React.FC<{
   const isVideo = isVideoItem(item);
 
   return (
-    <Modal visible={!!item} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={true} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.lightboxContainer}>
         <Pressable
           style={[styles.lightboxCloseButton, { top: insets.top + 10 }]}
@@ -328,17 +343,28 @@ const MediaPreviewModal: React.FC<{
           />
         ) : (
           <ScrollView
-            style={{ width, height }}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-            maximumZoomScale={3}
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: width,
+              minHeight: height,
+            }}
+            maximumZoomScale={5}
             minimumZoomScale={1}
+            bouncesZoom
+            bounces
+            alwaysBounceHorizontal
+            alwaysBounceVertical
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
             centerContent
+            pinchGestureEnabled
           >
             <Image
               source={{ uri: item.url }}
-              style={{ width, height }}
+              style={{ width, height: height * 0.9 }}
               contentFit="contain"
             />
           </ScrollView>

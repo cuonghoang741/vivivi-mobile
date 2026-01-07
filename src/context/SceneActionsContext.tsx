@@ -7,6 +7,7 @@ export type SceneActions = {
   selectCharacter: (item: CharacterItem) => Promise<void>;
   selectBackground: (item: BackgroundItem) => Promise<void>;
   selectCostume: (item: CostumeItem) => Promise<void>;
+  openSubscription: () => void;
 };
 
 const SceneActionsContext = createContext<SceneActions | null>(null);

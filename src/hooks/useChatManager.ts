@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatService } from '../services/ChatService';
 import { streakService } from '../services/StreakService';
 import { actionDetectionService, DetectedAction } from '../services/ActionDetectionService';
+import { mediaRequestService } from '../services/MediaRequestService';
 import { ChatMessage, ChatViewState } from '../types/chat';
 import { QuestProgressTracker } from '../utils/QuestProgressTracker';
+import { MediaItem } from '../repositories/MediaRepository';
 
 const DEFAULT_STATE: ChatViewState = {
   messages: [],
@@ -22,9 +24,10 @@ const DEFAULT_STATE: ChatViewState = {
 type UseChatOptions = {
   onAgentReply?: (text: string) => void;
   onActionDetected?: (action: DetectedAction, userMessage: string) => void;
+  isPro?: boolean;
 };
 
-const OVERLAY_LIMIT = 3;
+const OVERLAY_LIMIT = 20;
 // Minimum confidence threshold to trigger an action
 const ACTION_CONFIDENCE_THRESHOLD = 0.7;
 
@@ -178,6 +181,30 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     [appendMessage, characterId]
   );
 
+  const addMediaMessage = useCallback(
+    (mediaItem: MediaItem, options?: { persist?: boolean }) => {
+      if (!mediaItem) return;
+      const message: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: { type: 'media', mediaItem },
+        isAgent: true,
+        createdAt: new Date().toISOString(),
+      };
+      appendMessage(message);
+
+      // Persist to DB
+      if (options?.persist !== false && characterId) {
+        chatService.persistConversationMessage({
+          text: 'Sent a media', // Backwards compatibility text
+          isAgent: true,
+          characterId,
+          mediaId: mediaItem.id
+        }).catch(err => console.warn('[useChatManager] persist media message failed', err));
+      }
+    },
+    [appendMessage, characterId]
+  );
+
   const sendText = useCallback(
     async (text: string) => {
       if (!characterId) return;
@@ -205,10 +232,28 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         if (detectedAction.action !== 'none' && detectedAction.confidence >= ACTION_CONFIDENCE_THRESHOLD) {
           console.log('[useChatManager] Action detected:', detectedAction);
           actionCallback?.(detectedAction, trimmed);
+
+          // Handle Media Requests
+          if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video') {
+            const type = detectedAction.action === 'send_photo' ? 'photo' : 'video';
+            const isPro = options?.isPro ?? false;
+
+            // Fetch accessible media
+            mediaRequestService.getAccessibleMedia(characterId, type, isPro)
+              .then(media => {
+                if (media) {
+                  // Add media message after a short natural delay
+                  setTimeout(() => {
+                    addMediaMessage(media);
+                  }, 1500);
+                }
+              })
+              .catch(err => console.warn('[useChatManager] Failed to fetch media request:', err));
+          }
         }
 
-        // Handle chat response
-        addAgentMessage(responseText, { persist: true });
+        // Handle chat response - Edge function persists it, so we only add locally
+        addAgentMessage(responseText, { persist: false });
         setState(prev => ({ ...prev, isTyping: false }));
         agentReplyCallback?.(responseText);
       } catch (error) {
@@ -221,7 +266,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         appendMessage(errorMessage);
       }
     },
-    [appendMessage, characterId, agentReplyCallback, actionCallback, addUserMessage, addAgentMessage]
+    [appendMessage, characterId, agentReplyCallback, actionCallback, addUserMessage, addAgentMessage, addMediaMessage, options?.isPro]
   );
 
   const toggleChatList = useCallback(() => {

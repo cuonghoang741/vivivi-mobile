@@ -9,6 +9,8 @@ import { getSupabaseClient } from './supabase';
 
 // Define all available actions the app can perform
 export type ActionType =
+    | 'send_photo'
+    | 'send_video'
     | 'change_background'
     | 'change_costume'
     | 'change_character'
@@ -74,6 +76,7 @@ class ActionDetectionService {
 
             // Validate action type
             const validActions: ActionType[] = [
+                'send_photo', 'send_video',
                 'change_background', 'change_costume', 'change_character',
                 'play_animation', 'start_voice_call', 'start_video_call',
                 'open_subscription', 'none'

@@ -1,33 +1,41 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native';
 import { mediaDevices, MediaStream } from '@livekit/react-native-webrtc';
 // @ts-ignore
 import { CharacterRepository } from '../repositories/CharacterRepository';
 import { analyticsService } from '../services/AnalyticsService';
 import { useVoiceConversation } from './useVoiceConversation';
+import { callQuotaService, CallQuotaService } from '../services/CallQuotaService';
 
 type UseAppVoiceCallOptions = {
     activeCharacterId: string | undefined;
     userId: string | null | undefined;
     voiceCallbacks: any;
     webBridgeRef: React.MutableRefObject<any>;
+    isPro: boolean;
+    onQuotaExhausted?: () => void;
 };
 
 export const useAppVoiceCall = ({
     activeCharacterId,
     userId,
     voiceCallbacks,
-    webBridgeRef
+    webBridgeRef,
+    isPro,
+    onQuotaExhausted
 }: UseAppVoiceCallOptions) => {
     // Separate states for voice mode vs camera mode
     const [isVoiceMode, setIsVoiceMode] = useState(false);  // Voice-only call (no zoom)
     const [isCameraMode, setIsCameraMode] = useState(false); // Video call (zoom to face + camera)
     const [showCameraPreview, setShowCameraPreview] = useState(false);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
     const [isProcessing, setIsProcessing] = useState(false);
+    const [remainingQuotaSeconds, setRemainingQuotaSeconds] = useState<number>(CallQuotaService.getDefaultQuota(isPro));
 
     const isSwitchingModeRef = useRef(false);
     const agentIdCacheRef = useRef<Map<string, string>>(new Map());
+    const remainingQuotaRef = useRef(remainingQuotaSeconds);
 
     // Initialize voice conversation
     const {
@@ -57,6 +65,19 @@ export const useAppVoiceCall = ({
         }
         return null;
     }, [activeCharacterId]);
+
+    // Fetch initial quota
+    useEffect(() => {
+        let mounted = true;
+        const fetchQuota = async () => {
+            const quota = await callQuotaService.fetchQuota(isPro);
+            if (mounted) setRemainingQuotaSeconds(quota);
+        };
+        fetchQuota();
+        return () => { mounted = false; };
+    }, [isPro]);
+
+
 
     const ensureCameraPermission = useCallback(async () => {
         if (Platform.OS === 'android') {
@@ -211,6 +232,60 @@ export const useAppVoiceCall = ({
         }
     }, [endVoiceConversation, stopCameraPreview, webBridgeRef]);
 
+    // Metering Logic - countdown and sync to DB
+    useEffect(() => {
+        if (!voiceState.isConnected || isProcessing) {
+            console.log('[useAppVoiceCall] Metering skipped - isConnected:', voiceState.isConnected, 'isProcessing:', isProcessing);
+            return;
+        }
+
+        console.log('[useAppVoiceCall] Starting metering, remainingQuotaSeconds:', remainingQuotaSeconds);
+
+        // Check if already exhausted when call starts
+        if (remainingQuotaSeconds <= 0) {
+            console.log('[useAppVoiceCall] Quota already exhausted, ending call');
+            endCall();
+            onQuotaExhausted?.();
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setRemainingQuotaSeconds(prev => {
+                const next = prev - 1;
+                remainingQuotaRef.current = next; // Keep ref in sync
+
+                console.log('[useAppVoiceCall] Countdown:', next);
+
+                if (next <= 0) {
+                    // Quota exhausted
+                    clearInterval(timer);
+                    // Update DB with 0
+                    callQuotaService.updateQuota(0).catch(console.error);
+                    // End call and notify
+                    endCall();
+                    onQuotaExhausted?.();
+                    return 0;
+                }
+
+                // Sync to DB every 5 seconds
+                if (next % 5 === 0) {
+                    callQuotaService.updateQuota(next).catch(console.error);
+                }
+
+                return next;
+            });
+        }, 1000);
+
+        return () => {
+            clearInterval(timer);
+            // Save remaining quota to DB when call ends/unmounts (use ref for latest value)
+            if (remainingQuotaRef.current > 0) {
+                console.log('[useAppVoiceCall] Saving quota on cleanup:', remainingQuotaRef.current);
+                callQuotaService.updateQuota(remainingQuotaRef.current).catch(console.error);
+            }
+        };
+    }, [voiceState.isConnected, isProcessing, endCall, onQuotaExhausted]);
+
     // Start ElevenLabs conversation if not already connected
     const ensureVoiceConnected = useCallback(async (): Promise<boolean> => {
         if (voiceState.isConnected) return true;
@@ -254,6 +329,12 @@ export const useAppVoiceCall = ({
         if (isSwitchingModeRef.current) return;
         if (voiceState.isBooting || voiceState.status === 'connecting') return;
 
+        // Check quota before starting (if not already in call)
+        if (!isPro && remainingQuotaSeconds <= 0 && !isCameraMode && !isVoiceMode) {
+            onQuotaExhausted?.();
+            return;
+        }
+
         isSwitchingModeRef.current = true;
         setIsProcessing(true);
 
@@ -285,16 +366,27 @@ export const useAppVoiceCall = ({
         voiceState.isBooting,
         voiceState.status,
         voiceState.isConnected,
+        isCameraMode,
+        isVoiceMode,
         endCall,
         ensureVoiceConnected,
         webBridgeRef,
-        activeCharacterId
+        activeCharacterId,
+        remainingQuotaSeconds,
+        isPro,
+        onQuotaExhausted
     ]);
 
     // Toggle Camera Mode (zoom to face + camera preview)
     const handleToggleCameraMode = useCallback(async () => {
         if (isSwitchingModeRef.current) return;
         if (voiceState.isBooting || voiceState.status === 'connecting') return;
+
+        // Check quota before starting (if not already in call)
+        if (!isPro && remainingQuotaSeconds <= 0 && !isCameraMode && !isVoiceMode) {
+            onQuotaExhausted?.();
+            return;
+        }
 
         isSwitchingModeRef.current = true;
         setIsProcessing(true);
@@ -428,6 +520,8 @@ export const useAppVoiceCall = ({
         ensureMicrophonePermission,
         stopCameraPreview,
         startCameraPreviewStream,
-        isProcessing
+
+        isProcessing,
+        remainingQuotaSeconds
     };
 };

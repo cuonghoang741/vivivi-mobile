@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Linking, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView, Pressable, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
@@ -25,6 +26,8 @@ import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
 import { useVoiceCall } from './src/hooks/useVoiceCall';
 import { DetectedAction } from './src/services/ActionDetectionService';
 import { VoiceLoadingOverlay } from './src/components/VoiceLoadingOverlay';
+import { CallEndedModal } from './src/components/CallEndedModal';
+import { CallQuotaService } from './src/services/CallQuotaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
@@ -94,6 +97,7 @@ const AppContent = () => {
   const lastBgmBeforeVoiceRef = useRef(false);
   const chatListWasVisibleBeforeCameraRef = useRef(false);
   const [showSwiftUIDemo, setShowSwiftUIDemo] = useState(false);
+  const [showCallEndedModal, setShowCallEndedModal] = useState(false);
   const [overlayFlags, setOverlayFlags] = useState({
     hasIncompleteQuests: true,
     canClaimCalendar: true,
@@ -415,6 +419,7 @@ const AppContent = () => {
   } = useChatManager(activeCharacterId ?? undefined, {
     onAgentReply: handleAgentReply,
     onActionDetected: handleActionDetected,
+    isPro: isPro,
   });
 
   // Memoize voice conversation callbacks to prevent recreation (like swift-version)
@@ -463,11 +468,16 @@ const AppContent = () => {
     ensureMicrophonePermission,
     stopCameraPreview,
     isProcessing: isVoiceProcessing,
+    remainingQuotaSeconds,
   } = useAppVoiceCall({
     activeCharacterId: activeCharacterId ?? undefined,
     userId: session?.user?.id ?? null,
     voiceCallbacks,
     webBridgeRef,
+    isPro,
+    onQuotaExhausted: useCallback(() => {
+      setShowCallEndedModal(true);
+    }, []),
   });
 
   // Process pending voice/video call actions
@@ -1413,6 +1423,7 @@ const AppContent = () => {
       selectCharacter: handleCharacterSelect,
       selectBackground: handleBackgroundSelect,
       selectCostume: handleCostumeSelect,
+      openSubscription: () => setShowSubscriptionSheet(true),
     }),
     [handleBackgroundSelect, handleCharacterSelect, handleCostumeSelect]
   );
@@ -1534,7 +1545,7 @@ const AppContent = () => {
       return;
     }
     try {
-      await Linking.openURL(target);
+      await WebBrowser.openBrowserAsync(target);
     } catch (error) {
       console.warn('❗ Unable to open legal document', doc, error);
     }
@@ -1917,14 +1928,19 @@ const AppContent = () => {
             isDarkBackground={isDarkBackground}
           />
         )}
-        <View style={styles.webViewWrapper} ref={snapshotViewRef} collapsable={false}>
+        <Pressable
+          style={styles.webViewWrapper}
+          ref={snapshotViewRef as any}
+          collapsable={false}
+          onPress={() => Keyboard.dismiss()}
+        >
           <VRMWebView
             ref={webViewRef}
             onModelReady={handleModelReady}
             onMessage={handleMessage}
             enableDebug={false}
           />
-        </View>
+        </Pressable>
         <VRMUIOverlay
           canClaimCalendar={overlayFlags.canClaimCalendar}
           hasMessages={overlayFlags.hasMessages}
@@ -1932,7 +1948,8 @@ const AppContent = () => {
           loginStreak={chatState.streakDays ?? 0}
           isDarkBackground={isDarkBackground}
           isBgmOn={isBgmOn}
-          isInCall={isCameraMode}
+          remainingQuotaSeconds={remainingQuotaSeconds}
+          isInCall={isCameraMode || voiceState.isConnected}
           onBackgroundPress={() => setShowBackgroundSheet(true)}
           onCostumePress={() => setShowCostumeSheet(true)}
           onCalendarPress={handleCalendarPress}
@@ -2120,6 +2137,17 @@ const AppContent = () => {
         <SubscriptionSheet
           isOpened={showSubscriptionSheet}
           onClose={() => setShowSubscriptionSheet(false)}
+        />
+        <CallEndedModal
+          visible={showCallEndedModal}
+          characterName={characterTitle}
+          characterAvatar={currentCharacter?.avatar || initialData?.character.avatar}
+          callDuration={CallQuotaService.formatRemainingTime(voiceState.lastCallDurationSeconds || 0)}
+          isPro={isPro}
+          onClose={() => setShowCallEndedModal(false)}
+          onUpgrade={() => {
+            setShowSubscriptionSheet(true);
+          }}
         />
       </View>
     );

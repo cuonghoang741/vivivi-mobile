@@ -1,6 +1,9 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { useSceneActions } from '../../context/SceneActionsContext';
+import { DiamondBadge } from '../../components/DiamondBadge';
 import type { ChatMessage } from '../../types/chat';
 
 type Props = {
@@ -20,19 +23,35 @@ export const ChatMessageBubble: React.FC<Props> = ({
   const isMedia = message.kind.type === 'media';
 
   const containerStyles = [
-    styles.bubble,
-    alignLeft ? styles.agentBubble : styles.userBubble,
-    variant === 'compact' && styles.compactBubble,
+    !isMedia && styles.bubble,
+    !isMedia && (alignLeft ? styles.agentBubble : styles.userBubble),
+    !isMedia && variant === 'compact' && styles.compactBubble,
+    isMedia && styles.mediaContainer,
   ];
+
+  const { isPro } = useSubscription();
+  const sceneActions = useSceneActions();
+
+  // Determine if media is locked
+  const mediaItem = isMedia ? message.kind.mediaItem : null;
+  const isLocked = isMedia && mediaItem?.tier === 'pro' && !isPro;
+
+  const handlePress = () => {
+    if (isMedia && isLocked) {
+      sceneActions.openSubscription();
+      return;
+    }
+    onPress?.(message);
+  };
 
   return (
     <View style={[styles.container, alignLeft ? styles.leftAlign : styles.rightAlign]}>
       <Pressable
         style={({ pressed }) => [...containerStyles, pressed && styles.bubblePressed]}
-        onPress={() => onPress?.(message)}
+        onPress={handlePress}
       >
         {isText ? renderTextContent(message, variant, alignLeft) : null}
-        {isMedia ? renderMediaContent(message, variant) : null}
+        {isMedia ? renderMediaContent(message, variant, isLocked) : null}
       </Pressable>
     </View>
   );
@@ -75,35 +94,43 @@ const renderTextContent = (
   );
 };
 
-const renderMediaContent = (message: ChatMessage, variant: 'compact' | 'full') => {
+const renderMediaContent = (message: ChatMessage, variant: 'compact' | 'full', isLocked: boolean = false) => {
   if (message.kind.type !== 'media') {
     return null;
   }
-  const url = message.kind.thumbnail || message.kind.url;
 
-  if (variant === 'compact') {
-    const isVideo =
-      message.kind.url.toLowerCase().endsWith('.mp4') ||
-      message.kind.url.toLowerCase().includes('video');
-    return (
-      <View style={styles.mediaCompactRow}>
-        <Ionicons
-          name={isVideo ? 'play-circle' : 'image'}
-          size={18}
-          color="#fff"
-          style={{ marginRight: 8 }}
-        />
-        <Text style={styles.mediaCompactText}>{isVideo ? 'Show Video' : 'Show Image'}</Text>
-      </View>
-    );
-  }
+  // Handle new mediaItem structure
+  const mediaItem = message.kind.mediaItem;
+  if (!mediaItem) return null;
+
+  const url = mediaItem.thumbnail || mediaItem.url;
+  const isVideo = mediaItem.content_type?.startsWith('video') ||
+    mediaItem.url?.toLowerCase().endsWith('.mp4') ||
+    mediaItem.media_type === 'video';
+
+  // Even in compact mode, we want to show the image cleanly without bubble
+  // But maybe smaller? User asked for "full width", assuming for the main chat view.
+  // Using same style for both for now based on "hien anh ra..." intent.
 
   return (
-    <View>
-      <Image source={{ uri: url }} style={styles.media} />
-      <View style={styles.mediaOverlay}>
-        <Ionicons name="play-circle" size={28} color="#fff" />
-      </View>
+    <View style={styles.mediaWrapper}>
+      <Image
+        source={{ uri: url }}
+        style={styles.mediaFull}
+        resizeMode="cover"
+        blurRadius={isLocked ? 40 : 0}
+      />
+      {isLocked && (
+        <View style={styles.mediaOverlay}>
+          <DiamondBadge size="lg" />
+          <Text style={styles.lockedText}>Unlock with Pro</Text>
+        </View>
+      )}
+      {isVideo && (
+        <View style={styles.mediaOverlay}>
+          <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+        </View>
+      )}
     </View>
   );
 };
@@ -124,6 +151,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 20,
     marginVertical: 4,
+  },
+  mediaContainer: {
+    marginVertical: 4,
+    // Remove padding and background for media
   },
   compactBubble: {
     maxWidth: '90%',
@@ -188,5 +219,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flexShrink: 1,
   },
+  mediaWrapper: {
+    width: 240, // Fixed width for nice display
+    aspectRatio: 3 / 4, // Portrait aspect ratio is common for character photos
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  mediaFull: {
+    width: '100%',
+    height: '100%',
+  },
+  lockedText: {
+    color: '#fff',
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
+  }
 });
 

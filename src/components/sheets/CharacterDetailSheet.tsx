@@ -109,8 +109,6 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
   const heightCm = characterData?.height_cm;
   const age = characterData?.old || characterData?.age;
 
-  console.log('[CharacterDetailSheet] Render info:', { heightCm, age, description });
-
   const renderInformationTab = () => (
     <ScrollView
       style={styles.tabContent}

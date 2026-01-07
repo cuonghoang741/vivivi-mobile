@@ -1,6 +1,6 @@
 export type ChatMessageKind =
   | { type: 'text'; text: string }
-  | { type: 'media'; url: string; thumbnail?: string | null }
+  | { type: 'media'; mediaItem: any } // Using any to avoid circular dependency
   | { type: 'system'; text: string };
 
 export type ChatMessage = {

@@ -1,4 +1,5 @@
 import { ChatMessage } from '../types/chat';
+import { MediaItem } from '../repositories/MediaRepository';
 import { getSupabaseClient, getAuthenticatedUserId } from './supabase';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { getTelegramUserInfo } from '../utils/telegramUserHelper';
@@ -9,6 +10,8 @@ type ConversationRow = {
   message: string;
   is_agent: boolean;
   created_at: string;
+  media_id?: string;
+  medias?: MediaItem | null; // Joined media data
 };
 
 type HistoryPart = {
@@ -27,7 +30,7 @@ class ChatService {
 
     let query = this.client
       .from('conversation')
-      .select('id,message,is_agent,created_at')
+      .select('id,message,is_agent,created_at,media_id,medias(*)')
       .eq('character_id', characterId)
       .order('created_at', { ascending: true })
       .limit(limit);
@@ -42,7 +45,12 @@ class ChatService {
     return data.map(mapRowToMessage);
   }
 
-  async persistConversationMessage(params: { text: string; isAgent: boolean; characterId: string }) {
+  async persistConversationMessage(params: {
+    text: string;
+    isAgent: boolean;
+    characterId: string;
+    mediaId?: string;
+  }) {
     if (!params.characterId || !params.text.trim()) return;
 
     const userId = await getAuthenticatedUserId();
@@ -52,6 +60,10 @@ class ChatService {
       character_id: params.characterId,
       user_id: userId,
     };
+
+    if (params.mediaId) {
+      payload.media_id = params.mediaId;
+    }
 
     const { error } = await this.client.from('conversation').insert(payload);
     if (error) {
@@ -79,7 +91,7 @@ class ChatService {
         params.text
       );
     }).catch(err => console.warn('[ChatService] Failed to send Telegram notification:', err));
-    
+
     // Track send message analytics
     analyticsService.logSendMessage(params.characterId, params.text.length);
 
@@ -115,7 +127,7 @@ class ChatService {
 
     let query = this.client
       .from('conversation')
-      .select('id,message,is_agent,created_at')
+      .select('id,message,is_agent,created_at,media_id,medias(*)')
       .eq('character_id', characterId)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -140,12 +152,25 @@ class ChatService {
   }
 }
 
-const mapRowToMessage = (row: ConversationRow): ChatMessage => ({
-  id: row.id,
-  kind: { type: 'text', text: row.message },
-  isAgent: row.is_agent,
-  createdAt: row.created_at,
-});
+const mapRowToMessage = (row: ConversationRow): ChatMessage => {
+  // If user has media_id and media details are fetched
+  if (row.media_id && row.medias) {
+    return {
+      id: row.id,
+      kind: { type: 'media', mediaItem: row.medias },
+      isAgent: row.is_agent,
+      createdAt: row.created_at,
+    };
+  }
+
+  // Fallback to text
+  return {
+    id: row.id,
+    kind: { type: 'text', text: row.message },
+    isAgent: row.is_agent,
+    createdAt: row.created_at,
+  };
+};
 
 const buildHistoryPayload = (messages: ChatMessage[]): HistoryPart[] => {
   const recent = messages.slice(-10);

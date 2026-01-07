@@ -117,16 +117,23 @@ export const ChatInputBar: React.FC<Props> = ({
             placeholder={placeholder}
             placeholderTextColor="rgba(255,255,255,0.6)"
             editable={!disabled}
-            multiline
+            returnKeyType="send"
+            onSubmitEditing={onSend}
           />
           {showSend && (
             <Pressable
+              style={({ pressed }) => [
+                styles.sendButton,
+                pressed && styles.iconPressed,
+                disabled && styles.iconDisabled
+              ]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               onPress={() => {
                 if (disabled) return;
                 onSend();
               }}
             >
-              <IconSend width={20} height={20} color="#FF6EA1" />
+              <IconSend width={20} height={20} color="#fff" />
             </Pressable>
           )}
         </View>
@@ -195,7 +202,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     marginRight: 12,
-    maxHeight: 90,
     paddingVertical: 4, // Ensure text is breathable
   },
   sendButton: {

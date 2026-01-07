@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { voiceCallService } from '../services/VoiceCallService';
+import { callQuotaService, CallQuotaService } from '../services/CallQuotaService';
 import { QuestProgressTracker } from '../utils/QuestProgressTracker';
 import { userStatsService } from '../services/UserStatsService';
 import { relationshipLevelService } from '../services/RelationshipLevelService';
 
-const COST_PER_SECOND = 50; // 50 vcoin per second
-const CURRENCY_SYNC_INTERVAL = 5000; // 5 seconds
+const QUOTA_SYNC_INTERVAL = 5000; // 5 seconds
 
 type UseVoiceCallOptions = {
   characterId: string | null;
   agentId: string | null;
-  getVcoinBalance: () => number; // Use callback to get latest balance
-  onVcoinChange: (newBalance: number) => void;
-  onOutOfFunds: () => void;
+  isPro: boolean;
+  getRemainingQuota: () => number;
+  onQuotaChange: (newQuota: number) => void;
+  onOutOfQuota: () => void;
   onQuestUpdate?: (questType: string, seconds: number, minutes: number) => Promise<void>;
   questTypeResolver?: () => 'voice_call' | 'video_call';
 };
@@ -21,29 +22,36 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
   const {
     characterId,
     agentId,
-    getVcoinBalance,
-    onVcoinChange,
-    onOutOfFunds,
+    isPro,
+    getRemainingQuota,
+    onQuotaChange,
+    onOutOfQuota,
     onQuestUpdate,
     questTypeResolver,
   } = options;
 
   const [callElapsedSeconds, setCallElapsedSeconds] = useState(0);
-  const [callVcoinSpent, setCallVcoinSpent] = useState(0);
   const [currentCallId, setCurrentCallId] = useState<string | null>(null);
   const [isCallActive, setIsCallActive] = useState(false);
 
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const callStartedAtRef = useRef<number | null>(null);
-  const lastCurrencySyncDateRef = useRef<number | null>(null);
-  const currencySyncTaskRef = useRef<Promise<void> | null>(null);
-  const pendingCurrencyBalanceRef = useRef<number | null>(null);
-
+  const lastQuotaSyncDateRef = useRef<number | null>(null);
+  const quotaSyncTaskRef = useRef<Promise<void> | null>(null);
+  const pendingQuotaRef = useRef<number | null>(null);
+  const totalSecondsUsedRef = useRef<number>(0);
 
   // MARK: - Call Metering
 
   const startCallMetering = useCallback(async () => {
     if (!characterId || !agentId) {
+      return;
+    }
+
+    // Check quota before starting
+    const currentQuota = getRemainingQuota();
+    if (currentQuota <= 0) {
+      onOutOfQuota();
       return;
     }
 
@@ -53,8 +61,8 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
     }
 
     callStartedAtRef.current = Date.now();
+    totalSecondsUsedRef.current = 0;
     setCallElapsedSeconds(0);
-    setCallVcoinSpent(0);
     setIsCallActive(true);
 
     // Create call row in database
@@ -67,31 +75,30 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
       console.error('[useVoiceCall] Failed to create call row:', error);
     }
 
-    // Start timer to deduct vcoin every second
+    // Start timer to deduct quota every second
     const timerId = setInterval(() => {
-      const currentBalance = getVcoinBalance();
-      
-      if (currentBalance < COST_PER_SECOND) {
-        // Out of funds: end call, show alert
+      const currentQuota = getRemainingQuota();
+
+      if (currentQuota <= 0) {
+        // Out of quota: end call
         clearInterval(timerId);
         callTimerRef.current = null;
         setIsCallActive(false);
-        onOutOfFunds();
-        // Note: stopCallMetering will be called from App.tsx when call ends
+        onOutOfQuota();
         return;
       }
 
-      const newBalance = Math.max(0, currentBalance - COST_PER_SECOND);
-      onVcoinChange(newBalance);
-      setCallVcoinSpent((prev) => prev + COST_PER_SECOND);
+      const newQuota = Math.max(0, currentQuota - 1);
+      onQuotaChange(newQuota);
+      totalSecondsUsedRef.current += 1;
       setCallElapsedSeconds((prev) => prev + 1);
-      
-      // Queue currency sync
-      queueCurrencySync(newBalance);
+
+      // Queue quota sync to database
+      queueQuotaSync(newQuota);
     }, 1000);
-    
+
     callTimerRef.current = timerId;
-  }, [characterId, agentId, getVcoinBalance, onVcoinChange, onOutOfFunds]);
+  }, [characterId, agentId, getRemainingQuota, onQuotaChange, onOutOfQuota]);
 
   const stopCallMetering = useCallback(
     async (finalize: boolean) => {
@@ -100,9 +107,9 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
         callTimerRef.current = null;
       }
       setIsCallActive(false);
-      finalizeCurrencySync();
+      finalizeQuotaSync();
 
-      if (finalize && callVcoinSpent > 0 && characterId) {
+      if (finalize && totalSecondsUsedRef.current > 0 && characterId) {
         const callSeconds = callElapsedSeconds;
         const callMinutes = Math.floor(callSeconds / 60);
 
@@ -131,20 +138,13 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
           }
         }
 
-        // Create transaction
-        try {
-          await voiceCallService.createVoiceCallTransaction(callVcoinSpent, characterId);
-        } catch (error) {
-          console.error('[useVoiceCall] Failed to create transaction:', error);
-        }
-
-        // Finalize call row
+        // Finalize call row (no longer tracking vcoin, just duration)
         if (currentCallId) {
           try {
             await voiceCallService.finalizeCallRow(
               currentCallId,
               callElapsedSeconds,
-              callVcoinSpent
+              0 // No vcoin spent anymore
             );
             setCurrentCallId(null);
           } catch (error) {
@@ -155,15 +155,15 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
 
       // Reset state
       setCallElapsedSeconds(0);
-      setCallVcoinSpent(0);
+      totalSecondsUsedRef.current = 0;
       callStartedAtRef.current = null;
     },
     [
       callElapsedSeconds,
-      callVcoinSpent,
       characterId,
       currentCallId,
       onQuestUpdate,
+      questTypeResolver,
     ]
   );
 
@@ -173,65 +173,65 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
       callTimerRef.current = null;
     }
     setCallElapsedSeconds(0);
-    setCallVcoinSpent(0);
+    totalSecondsUsedRef.current = 0;
     callStartedAtRef.current = null;
     setCurrentCallId(null);
     setIsCallActive(false);
-    currencySyncTaskRef.current = null;
-    pendingCurrencyBalanceRef.current = null;
-    lastCurrencySyncDateRef.current = null;
+    quotaSyncTaskRef.current = null;
+    pendingQuotaRef.current = null;
+    lastQuotaSyncDateRef.current = null;
   }, []);
 
-  // MARK: - Currency Sync
+  // MARK: - Quota Sync
 
-  const queueCurrencySync = useCallback((balance: number) => {
-    pendingCurrencyBalanceRef.current = balance;
+  const queueQuotaSync = useCallback((quota: number) => {
+    pendingQuotaRef.current = quota;
 
-    if (currencySyncTaskRef.current) {
+    if (quotaSyncTaskRef.current) {
       return;
     }
 
     const now = Date.now();
-    const lastSync = lastCurrencySyncDateRef.current ?? 0;
+    const lastSync = lastQuotaSyncDateRef.current ?? 0;
     const elapsed = now - lastSync;
 
-    if (elapsed >= CURRENCY_SYNC_INTERVAL) {
-      startCurrencySyncTask();
+    if (elapsed >= QUOTA_SYNC_INTERVAL) {
+      startQuotaSyncTask();
     } else {
-      const delay = Math.max(0, CURRENCY_SYNC_INTERVAL - elapsed);
-      currencySyncTaskRef.current = (async () => {
+      const delay = Math.max(0, QUOTA_SYNC_INTERVAL - elapsed);
+      quotaSyncTaskRef.current = (async () => {
         await new Promise((resolve) => setTimeout(resolve, delay));
-        await startCurrencySyncTask();
+        await startQuotaSyncTask();
       })();
     }
   }, []);
 
-  const startCurrencySyncTask = useCallback(async () => {
-    currencySyncTaskRef.current = null;
-    const balance = pendingCurrencyBalanceRef.current;
-    if (balance === null) {
+  const startQuotaSyncTask = useCallback(async () => {
+    quotaSyncTaskRef.current = null;
+    const quota = pendingQuotaRef.current;
+    if (quota === null) {
       return;
     }
 
-    pendingCurrencyBalanceRef.current = null;
-    lastCurrencySyncDateRef.current = Date.now();
+    pendingQuotaRef.current = null;
+    lastQuotaSyncDateRef.current = Date.now();
 
     try {
-      await voiceCallService.updateCurrencyBalance(balance);
+      // Use the current remaining seconds from state
+      await callQuotaService.deductQuota(0); // This will update to current quota
     } catch (error) {
-      console.error('[useVoiceCall] Failed to sync currency:', error);
+      console.error('[useVoiceCall] Failed to sync quota:', error);
     }
   }, []);
 
-  const finalizeCurrencySync = useCallback(async () => {
-    currencySyncTaskRef.current = null;
-    const pending = pendingCurrencyBalanceRef.current;
-    if (pending !== null) {
-      pendingCurrencyBalanceRef.current = null;
+  const finalizeQuotaSync = useCallback(async () => {
+    quotaSyncTaskRef.current = null;
+    const seconds = totalSecondsUsedRef.current;
+    if (seconds > 0) {
       try {
-        await voiceCallService.updateCurrencyBalance(pending);
+        await callQuotaService.deductQuota(seconds);
       } catch (error) {
-        console.error('[useVoiceCall] Failed to finalize currency sync:', error);
+        console.error('[useVoiceCall] Failed to finalize quota sync:', error);
       }
     }
   }, []);
@@ -247,12 +247,11 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
 
   return {
     callElapsedSeconds,
-    callVcoinSpent,
     currentCallId,
     isCallActive,
     startCallMetering,
     stopCallMetering,
     reset,
+    formatRemainingTime: CallQuotaService.formatRemainingTime,
   };
 };
-

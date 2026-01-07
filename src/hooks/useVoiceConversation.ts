@@ -31,6 +31,7 @@ export type VoiceConversationState = {
   isUserSpeaking: boolean;
   agentVolume: number;
   callDurationSeconds: number;
+  lastCallDurationSeconds: number;
 };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -74,6 +75,7 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
   const [isBooting, setIsBooting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
+  const [lastCallDurationSeconds, setLastCallDurationSeconds] = useState(0);
 
   // Use refs for frequently updated values to avoid re-renders
   const isSpeakingRef = useRef(false);
@@ -133,6 +135,13 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
           updateBooting(false);
         }
         if (status === 'disconnected') {
+          // Calculate final duration before resetting
+          if (callStartTimeRef.current) {
+            const finalDuration = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+            setLastCallDurationSeconds(finalDuration);
+            console.log('[Voice] Call ended, duration saved:', finalDuration);
+          }
+
           callStartTimeRef.current = null;
           setCallDurationSeconds(0);
           setIsMuted(false);
@@ -309,8 +318,9 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       isUserSpeaking,
       agentVolume,
       callDurationSeconds,
+      lastCallDurationSeconds,
     }),
-    [agentVolume, callDurationSeconds, connectionStatus, isBooting, isMuted, isSpeaking, isUserSpeaking]
+    [agentVolume, callDurationSeconds, lastCallDurationSeconds, connectionStatus, isBooting, isMuted, isSpeaking, isUserSpeaking]
   );
 
   return {

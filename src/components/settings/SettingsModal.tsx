@@ -528,7 +528,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
           />
         );
       case 'purchaseHistory':
-        return <PurchaseHistoryScreen />;
+        return <SubscriptionHistoryScreen />;
       case 'feedback':
         return <FeedbackFormScreen kind={currentScreen.kind} onSubmitted={popScreen} />;
       default:
@@ -556,6 +556,11 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
       detents={['large']}
       title={getTitle()}
       backgroundBlur='system-thick-material-dark'
+      headerLeft={!isRootScreen ? (
+        <Pressable onPress={popScreen} style={{ padding: 8 }}>
+          <Ionicons name="chevron-back" size={24} color="#fff" />
+        </Pressable>
+      ) : undefined}
     >
       <View style={[styles.container, { maxHeight: height }]}>
         {renderContent()}
@@ -643,11 +648,8 @@ const EditProfileScreen: React.FC<{
               style: 'destructive',
               onPress: async () => {
                 try {
-                  setTimeout(() => {
-                    onAccountDeleted();
-                  }, 4000);
-                  await authManager.deleteAccountLocally();
-                  // Close the sheet first so user sees it dismiss
+                  // Pass onAccountDeleted as callback - it will run after deletion but before logout
+                  await authManager.deleteAccountLocally(onAccountDeleted);
                 } catch (e: any) {
                   console.error('Delete account error:', e);
                   Alert.alert('Error', e?.message || 'Failed to delete account');
@@ -664,15 +666,119 @@ const EditProfileScreen: React.FC<{
   );
 };
 
-const PurchaseHistoryScreen: React.FC = () => {
-  // Keeping this simple placeholder to match requested scope
+
+import { SubscriptionRepository, type Subscription } from '../../repositories/SubscriptionRepository';
+
+const SubscriptionHistoryScreen: React.FC = () => {
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const { userId } = await getAuthIdentifier();
+        if (!userId) {
+          setError('Not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        const repo = new SubscriptionRepository();
+        const data = await repo.fetchSubscriptionHistory(userId);
+        setSubscriptions(data);
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load subscriptions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscriptions();
+  }, []);
+
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
+  const getStatusColor = (status?: string | null) => {
+    switch (status?.toLowerCase()) {
+      case 'active':
+      case 'trialing':
+        return '#4CAF50';
+      case 'canceled':
+      case 'cancelled':
+        return '#FFC107'; // Amber
+      case 'expired':
+      case 'past_due':
+      case 'unpaid':
+        return '#FF453A';
+      default:
+        return '#999';
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.placeholderContainer}>
+        <ActivityIndicator color="#fff" />
+        <Text style={[styles.placeholderText, { marginTop: 12 }]}>Loading subscriptions...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.placeholderContainer}>
+        <Text style={[styles.placeholderText, { color: '#FF453A' }]}>{error}</Text>
+      </View>
+    );
+  }
+
+  if (subscriptions.length === 0) {
+    return (
+      <View style={styles.placeholderContainer}>
+        <Text style={styles.placeholderText}>No subscription history</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.placeholderContainer}>
-      <Text style={styles.placeholderText}>Transaction history loading...</Text>
-    </View>
+    <ScrollView contentContainerStyle={styles.subScreenContent} showsVerticalScrollIndicator={false}>
+      {subscriptions.map((sub) => {
+        const statusColor = getStatusColor(sub.status);
+        const planName = sub.plan ? sub.plan.charAt(0).toUpperCase() + sub.plan.slice(1) : 'Unknown Plan';
+
+        return (
+          <View key={sub.id} style={styles.transactionRow}>
+            <View style={styles.transactionInfo}>
+              <Text style={styles.transactionType}>{planName}</Text>
+              <Text style={styles.transactionDate}>
+                {sub.current_period_end
+                  ? `Expires: ${formatDate(sub.current_period_end)}`
+                  : `Created: ${formatDate(sub.created_at)}`}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.transactionAmount, { color: statusColor, fontSize: 13 }]}>
+                {sub.status?.toUpperCase() ?? 'UNKNOWN'}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                {sub.tier === 'pro' ? 'Premium' : 'Free'}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </ScrollView>
   );
 };
-
 
 
 const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void }> = ({ kind, onSubmitted }) => {
@@ -691,7 +797,7 @@ const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void
         />
       </SettingsGroup>
       <View style={styles.actionButtonContainer}>
-        <Button fullWidth loading={submitting} onPress={async () => {
+        <Button size="lg" fullWidth loading={submitting} onPress={async () => {
           if (!text.trim()) return;
           setSubmitting(true);
           // Simulate submission
@@ -761,6 +867,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     marginRight: 8,
+    flexShrink: 1,
   },
   tierBadge: {
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -1006,11 +1113,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   textArea: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
     color: '#fff',
     fontSize: 16,
     minHeight: 120,
     padding: 16,
-  }
+  },
+  transactionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionType: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  transactionDate: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+  },
+  transactionAmount: {
+    color: '#FF6EA1',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
