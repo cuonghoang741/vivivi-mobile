@@ -259,10 +259,10 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     // Leave space on right for CharacterQuickSwitcher (about 80px)
-    width: '85%',
+    width: '70%',
     paddingTop: 4,
     // Limit height to prevent pushing input out of view
-    maxHeight: 450, // Increased to allow better scrolling
+    maxHeight: 280, // Compact height for overlay
     // Ensure container is visible
     minHeight: 0,
   },

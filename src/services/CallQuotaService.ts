@@ -200,27 +200,34 @@ export class CallQuotaService {
                 return PRO_USER_QUOTA_SECONDS;
             }
 
-            const url = `${SUPABASE_URL}/rest/v1/user_call_quota?user_id=eq.${userId}`;
+            // Use POST with upsert to handle both new and existing records
+            const url = `${SUPABASE_URL}/rest/v1/user_call_quota?on_conflict=user_id`;
             const body = {
+                user_id: userId,
                 remaining_seconds: PRO_USER_QUOTA_SECONDS,
                 last_reset_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             };
 
+            console.log('[CallQuotaService] Resetting PRO quota for user:', userId, 'to', PRO_USER_QUOTA_SECONDS);
+
             const response = await fetch(url, {
-                method: 'PATCH',
+                method: 'POST',
                 headers: {
                     ...headers,
                     'Content-Type': 'application/json',
+                    'Prefer': 'resolution=merge-duplicates',
                 },
                 body: JSON.stringify(body),
             });
 
             if (!response.ok) {
-                console.error('[CallQuotaService] Failed to reset pro quota:', response.status);
+                const errorText = await response.text();
+                console.error('[CallQuotaService] Failed to reset pro quota:', response.status, errorText);
                 return PRO_USER_QUOTA_SECONDS;
             }
 
+            console.log('[CallQuotaService] Successfully reset PRO quota to', PRO_USER_QUOTA_SECONDS);
             return PRO_USER_QUOTA_SECONDS;
         } catch (error) {
             console.error('[CallQuotaService] Error resetting pro quota:', error);

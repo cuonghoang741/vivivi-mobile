@@ -38,6 +38,12 @@ export class WebSceneBridge {
     this.evaluate(js);
   }
 
+  stopAction() {
+    // Stop any intense action (dance, etc) and return to idle
+    const js = "window.loadAnimationByName && window.loadAnimationByName('Idle Stand');";
+    this.evaluate(js);
+  }
+
   loadAnimationByName(animName: string) {
     const safeName = animName.replace(/'/g, "\\'");
     const js = `window.loadAnimationByName && window.loadAnimationByName('${safeName}');`;

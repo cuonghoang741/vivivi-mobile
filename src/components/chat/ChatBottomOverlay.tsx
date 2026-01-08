@@ -13,6 +13,7 @@ type Props = {
   onCapture: () => void;
   onSendPhoto: () => void;
   onDance: () => void;
+  isDancing?: boolean;
   isTyping?: boolean;
   onToggleMic?: () => void;
   onVideoCall?: () => void;
@@ -39,6 +40,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onCapture,
   onSendPhoto,
   onDance,
+  isDancing = false,
   isTyping,
   onToggleMic,
   onVideoCall,
@@ -98,6 +100,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
           onCapture={onCapture}
           onSendPhoto={onSendPhoto}
           onDance={onDance}
+          isDancing={isDancing}
         />
         <View style={styles.inputWrapper}>
           <ChatInputBar
@@ -107,6 +110,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
             onToggleMic={onToggleMic}
             onVideoCall={onVideoCall}
             isMicMuted={isVoiceCallActive}
+            isVoiceCallActive={isVoiceCallActive}
             isVideoCallActive={isVideoCallActive}
             isUserSpeaking={isUserSpeaking}
             placeholder={inputPlaceholder}

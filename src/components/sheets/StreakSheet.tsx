@@ -10,9 +10,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Animated } from 'react-native';
 import { TrueSheet } from '@lodev09/react-native-true-sheet';
 import StreakIcon from '../../assets/icons/streak.svg';
+import GiftIcon from '../../assets/icons/gift.svg';
 import { LiquidGlass } from '../LiquidGlass';
+import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
 
 type StreakSheetProps = {
     characterName?: string;
@@ -24,6 +27,8 @@ type StreakSheetProps = {
     onCheckin?: () => Promise<void>;
     onRefreshLoginRewards?: () => void;
     onDismiss?: () => void;
+    characterId?: string;
+    onClaimMilestone?: (costume: CostumeItem, isClaimed: boolean) => void;
 };
 
 export type StreakSheetRef = {
@@ -44,7 +49,21 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
     onCheckin,
     onRefreshLoginRewards,
     onDismiss,
+    characterId,
+    onClaimMilestone,
 }, ref) => {
+    const shakeAnimation = useRef(new Animated.Value(0)).current;
+
+    // Store all milestones
+    const [milestones, setMilestones] = React.useState<{ day: number, costume: any }[]>([]);
+    const [maxMilestoneDay, setMaxMilestoneDay] = React.useState(7);
+
+    // Current next target for text display (optional)
+    const [nextTarget, setNextTarget] = React.useState<number>(7);
+
+    // State to track expanded milestone info if needed, or just visual
+    const [loadingMilestones, setLoadingMilestones] = React.useState(true);
+    const [ownedCostumeIds, setOwnedCostumeIds] = React.useState<Set<string>>(new Set());
     const sheetRef = useRef<TrueSheet>(null);
     const insets = useSafeAreaInsets();
 
@@ -94,21 +113,107 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
 
     const dayStates = getDayStates();
 
-    // Calculate milestone progress (streak towards 7-day goal)
-    // Progress resets after each 7-day cycle
-    const milestoneTarget = 7;
+    React.useEffect(() => {
+        const fetchCostumeMilestones = async () => {
+            if (!characterId) {
+                setLoadingMilestones(false);
+                return;
+            }
 
-    // Calculate day within current 7-day cycle (1-7)
-    // If streakDays = 0, show Day 0
-    // If streakDays = 1-7, show Day 1-7 
-    // If streakDays = 8, show Day 1 (new cycle)
-    // If streakDays = 14, show Day 7 (completed second cycle)
-    const currentMilestoneDay = streakDays === 0
-        ? 0
-        : ((streakDays - 1) % milestoneTarget) + 1;
+            try {
+                const costumeRepo = new CostumeRepository();
+                const costumes = await costumeRepo.fetchCostumes(characterId);
 
-    // Progress bar: currentMilestoneDay / 7
-    const milestoneProgress = currentMilestoneDay / milestoneTarget;
+                // Get all streak milestones with costumes
+                const validMilestones = costumes
+                    .filter((c: any) => typeof c.streak_days === 'number' && c.streak_days > 0)
+                    .map((c: any) => ({
+                        day: c.streak_days,
+                        costume: c
+                    }))
+                    .sort((a, b) => a.day - b.day);
+
+                if (validMilestones.length > 0) {
+                    setMilestones(validMilestones);
+                    const maxDay = validMilestones[validMilestones.length - 1].day;
+                    // Ensure max day is at least 7 to look good if only day 1 exists? 
+                    // Or strictly follow max day.
+                    // If streak is higher than max day, maybe extend?
+                    // Let's settle on max(7, maxDay, currentStreak + some buffer)
+                    const calculatedMax = Math.max(7, maxDay, streakDays);
+                    setMaxMilestoneDay(calculatedMax);
+
+                    const next = validMilestones.find(m => m.day > streakDays);
+                    setNextTarget(next ? next.day : maxDay);
+                } else {
+                    setMilestones([]);
+                }
+
+                // Fetch owned costumes to check claimed status
+                const { data: ownedData } = await costumeRepo.client
+                    .from('user_costumes')
+                    .select('costume_id')
+                    .eq('user_id', costumeRepo.userId);
+
+                if (ownedData) {
+                    setOwnedCostumeIds(new Set(ownedData.map((i: any) => i.costume_id)));
+                }
+
+            } catch (error) {
+                console.warn('Failed to fetch costume milestones', error);
+            } finally {
+                setLoadingMilestones(false);
+            }
+        };
+
+        fetchCostumeMilestones();
+    }, [characterId, streakDays]);
+
+    // Animation for claimable rewards
+    // Find if there is any milestone that is reached (streakDays >= m.day) 
+    // AND traditionally we would check if claimed. 
+    // Here we assume "reached" essentially triggers the animation if it's the *latest* one or we just animate all reached ones? 
+    // "khi đủ ngày thì hộp quà rung lắc" -> usually implies the newly reached one.
+    // For simplicity, let's animate any milestone that matches streakDays (exact match) 
+    // or we can allow the user to claim.
+    // Since we don't have "claimed" status in this simple prop list yet, 
+    // let's animate the one that is exactly equal to streakDays or maybe all <= streakDays?
+    // Let's animate if streakDays >= day.
+
+    React.useEffect(() => {
+        // Animate only if there is a reachable milestone that is NOT owned
+        const hasUnclaimedReachable = milestones.some(m =>
+            streakDays >= m.day && !ownedCostumeIds.has(m.costume.id)
+        );
+
+        if (hasUnclaimedReachable) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(shakeAnimation, { toValue: 1, duration: 100, useNativeDriver: true }),
+                    Animated.timing(shakeAnimation, { toValue: -1, duration: 100, useNativeDriver: true }),
+                    Animated.timing(shakeAnimation, { toValue: 1, duration: 100, useNativeDriver: true }),
+                    Animated.timing(shakeAnimation, { toValue: 0, duration: 100, useNativeDriver: true }),
+                    Animated.delay(1000)
+                ])
+            ).start();
+        } else {
+            shakeAnimation.setValue(0);
+        }
+    }, [milestones, streakDays, shakeAnimation, ownedCostumeIds]);
+
+    const shakeRotate = shakeAnimation.interpolate({
+        inputRange: [-1, 1],
+        outputRange: ['-10deg', '10deg']
+    });
+
+    // Calculate progress (0 to 1) relative to maxMilestoneDay
+    // If streakDays > maxMilestoneDay, it caps at 1 implicitly by width styles or we handle it.
+    const overallProgress = maxMilestoneDay > 0
+        ? Math.min(1, streakDays / maxMilestoneDay)
+        : 0;
+
+    // Width for the fill bar
+    const fillWidthPercent = `${overallProgress * 100}%`;
 
     const handleDismiss = () => {
         sheetRef.current?.dismiss();
@@ -158,7 +263,7 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                     </View>
                     <Text style={styles.heroTitle}>Daily Streak</Text>
                     <Text style={styles.heroSubtitle}>
-                        Check in every day to keep your streak{'\n'}and earn a special costume every 7 days!
+                        Check in every day to keep your streak{'\n'}and earn a special costume at milestones!
                     </Text>
                 </View>
 
@@ -201,54 +306,103 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                 <View style={styles.milestoneSection}>
                     <View style={styles.milestoneTitleRow}>
                         <View>
-                            <Text style={styles.milestoneTitleText}>Next Costume Reward</Text>
+                            <Text style={styles.milestoneTitleText}>Costume Rewards</Text>
                             <Text style={styles.milestoneDescription}>
-                                Reach a 7-day streak to unlock{'\n'}a random costume for {characterName}
+                                Reach streak milestones to unlock{'\n'}special costumes for {characterName}
                             </Text>
-                        </View>
-                        <View style={styles.rewardIconContainer}>
-                            <Ionicons name="shirt-outline" size={28} color="rgba(255,255,255,0.4)" />
                         </View>
                     </View>
 
-                    <View style={styles.progressContainer}>
+                    {/* Progress Track */}
+                    <View style={styles.trackContainer}>
+                        {/* Background Bar */}
+                        <View style={styles.trackBackground} />
+
+                        {/* Fill Bar */}
                         <LinearGradient
                             colors={['#FF4639', '#FF8E86']}
                             start={{ x: 0, y: 0.5 }}
                             end={{ x: 1, y: 0.5 }}
-                            style={[styles.progressFill, { width: `${milestoneProgress * 100}%` }]}
+                            style={[styles.trackFill, { width: fillWidthPercent }]}
                         />
-                        <View style={[styles.progressThumb, { left: `${milestoneProgress * 100}%` }]}>
-                            <Ionicons name="flame" size={14} color="#fff" />
-                        </View>
-                    </View>
-                    <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabelText}>Day {currentMilestoneDay}</Text>
-                        <Text style={styles.progressLabelText}>Day {milestoneTarget}</Text>
-                    </View>
-                </View>
 
-                {/* Connection Section */}
-                <View style={styles.connectionSection}>
-                    <Text style={styles.connectionTitle}>Connection Level</Text>
-                    <Text style={styles.connectionDescription}>
-                        Chat to improve your connection
-                    </Text>
-
-                    <View style={styles.connectionProgressContainer}>
-                        <LinearGradient
-                            colors={['#FF579A', '#AE0045']}
-                            start={{ x: 0, y: 0.5 }}
-                            end={{ x: 1, y: 0.5 }}
-                            style={[styles.connectionProgressFill, { width: `${connectionProgress * 100}%` }]}
-                        />
-                        <View style={[styles.connectionThumb, { left: `${connectionProgress * 100}%` }]}>
-                            <Ionicons name="heart" size={14} color="#fff" />
+                        {/* Current Progress Thumb - Sliding */}
+                        <View style={[styles.currentThumb, { left: fillWidthPercent }]}>
+                            <Ionicons name="flame" size={12} color="#fff" />
                         </View>
+
+                        {/* Milestones */}
+                        {milestones.map((m, index) => {
+                            const positionPercent = (m.day / maxMilestoneDay) * 100;
+                            const isReached = streakDays >= m.day;
+                            const isNext = streakDays < m.day && (index === 0 || streakDays >= milestones[index - 1].day);
+
+                            // Determine content
+                            // If reached: Gift box or Costume Thumb?
+                            // User said: "display thumb of received costume"
+                            // If reached and claimable (for now handled as reached) -> Show thumb.
+                            // If box shakes: wrap in animated view.
+
+                            const isClaimed = ownedCostumeIds.has(m.costume.id);
+                            const shouldShake = isReached && !isClaimed; // Only shake if reached but not claimed
+
+                            return (
+                                <View
+                                    key={m.day}
+                                    style={[styles.milestoneMarkerContainer, { left: `${positionPercent}%` }]}
+                                >
+                                    {/* <View style={styles.milestoneLine} /> removed */}
+
+                                    <Pressable
+
+                                        style={styles.milestoneContent}
+                                    >
+                                        <View style={styles.markerLabelContainer}>
+                                            <Text style={styles.markerLabel}>
+                                                Day {m.day}
+                                            </Text>
+                                        </View>
+
+                                        {/* Gift content renders AFTER label in DOM but label is absolute positioned below */}
+
+                                        {isReached ? (
+                                            <Animated.View style={shouldShake ? { transform: [{ rotate: shakeRotate }] } : undefined}>
+                                                <LiquidGlass
+                                                    onPress={() => {
+                                                        if (isReached && onClaimMilestone) {
+                                                            // Dismiss sheet first, then show popup after a delay
+                                                            sheetRef.current?.dismiss();
+                                                            setTimeout(() => {
+                                                                onClaimMilestone(m.costume, isClaimed);
+                                                            }, 300);
+                                                        }
+                                                    }} style={styles.milestoneGiftBox}>
+                                                    <GiftIcon width={32} height={32} />
+                                                </LiquidGlass>
+                                                {/* Overlay checkmark if claimed */}
+                                                {isClaimed && (
+                                                    <View style={styles.checkBadge}>
+                                                        <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                                                    </View>
+                                                )}
+                                            </Animated.View>
+                                        ) : (
+                                            <View style={styles.milestoneLocked}>
+                                                <GiftIcon width={24} height={24} style={{ opacity: 0.3 }} />
+                                                <View style={styles.lockBadge}>
+                                                    <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.6)" />
+                                                </View>
+                                            </View>
+                                        )}
+                                    </Pressable>
+                                </View>
+                            );
+                        })}
                     </View>
+
                     <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabelText}>Level {connectionLevel}</Text>
-                        <Text style={styles.progressLabelText}>Level {(connectionLevel || 0) + 1}</Text>
+                        <Text style={styles.progressLabelText}>Start</Text>
+                        <Text style={styles.progressLabelText}>Day {maxMilestoneDay}</Text>
                     </View>
                 </View>
             </ScrollView>
@@ -429,29 +583,122 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 0,
         borderBottomRightRadius: 0,
     },
-    progressThumb: {
-        position: 'absolute',
-        top: 0,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#FF4639',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: -16,
-        shadowColor: '#FF4639',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.5,
-        shadowRadius: 4,
-    },
     progressLabels: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        marginTop: 40,
     },
     progressLabelText: {
         fontSize: 12,
         color: 'rgba(255,255,255,0.5)',
     },
+    trackContainer: {
+        height: 48,
+        marginTop: 20,
+        marginBottom: 8,
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    trackBackground: {
+        height: 24,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 12,
+        width: '100%',
+        position: 'absolute',
+    },
+    trackFill: {
+        height: 24,
+        borderRadius: 12,
+        position: 'absolute',
+        top: 12, // (48 - 24) / 2
+    },
+    currentThumb: {
+        position: 'absolute',
+        top: 4, // Center vertically: (48 - 40) / 2 = 4
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FF4639',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: -20,
+        borderWidth: 3,
+        borderColor: '#1a1a1a',
+        elevation: 4,
+        zIndex: 10,
+    },
+    milestoneMarkerContainer: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 1, // Point
+        overflow: 'visible',
+        zIndex: 11, // Above thumb
+    },
+    // milestoneLine removed as visual clutter with icons centered
+    milestoneContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 60,
+    },
+    markerLabelContainer: {
+        position: 'absolute',
+        bottom: -24,
+        alignItems: 'center',
+        width: 60,
+    },
+    markerLabel: {
+        fontSize: 12,
+        color: '#FFFFFF',
+        fontWeight: '600',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+    milestoneGiftBox: {
+        width: 42,
+        height: 42,
+        borderRadius: 12,
+        backgroundColor: '#1a1a1a', // Dark bg to stand out on track
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FF4639',
+    },
+    milestoneClaimed: {
+        // Wrapper for claimed state if needed, currently reusing GiftBox style inside
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    milestoneLocked: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: '#1a1a1a',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    checkBadge: {
+        position: 'absolute',
+        bottom: -4,
+        right: -4,
+        backgroundColor: '#1a1a1a',
+        borderRadius: 8,
+    },
+    lockBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        backgroundColor: '#1a1a1a',
+        borderRadius: 6,
+        padding: 1,
+    },
+    // Removed old style classes
+
     connectionSection: {
         marginBottom: 16,
     },

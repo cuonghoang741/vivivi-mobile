@@ -103,6 +103,45 @@ Return ONLY a JSON object with this exact format:
 For play_animation, always include parameters.animationName with one of the available animation names.
 For other actions, parameters can be empty {}.`;
 
+// Retry helper function for Gemini API calls
+async function fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    maxRetries: number = 5,
+    initialDelayMs: number = 1000
+): Promise<Response> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // If response is ok or it's a client error (4xx), don't retry
+            if (response.ok || (response.status >= 400 && response.status < 500)) {
+                return response;
+            }
+
+            // Server error (5xx) - retry
+            const errorText = await response.text();
+            lastError = new Error(`Gemini API error: ${response.status} - ${errorText}`);
+            console.log(`[gemini-suggest-action] Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
+        } catch (error) {
+            // Network error - retry
+            lastError = error instanceof Error ? error : new Error(String(error));
+            console.log(`[gemini-suggest-action] Attempt ${attempt}/${maxRetries} failed with error: ${lastError.message}`);
+        }
+
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+            const delay = initialDelayMs * Math.pow(2, attempt - 1);
+            console.log(`[gemini-suggest-action] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    throw lastError || new Error('All retry attempts failed');
+}
+
 serve(async (req: Request) => {
     // CORS headers
     const corsHeaders = {
@@ -128,8 +167,8 @@ serve(async (req: Request) => {
             );
         }
 
-        // Call Gemini API
-        const geminiResponse = await fetch(
+        // Call Gemini API with retry
+        const geminiResponse = await fetchWithRetry(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: "POST",

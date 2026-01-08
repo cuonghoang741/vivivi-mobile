@@ -7,18 +7,24 @@ type Props = {
   onCapture: () => void;
   onSendPhoto: () => void;
   onDance: () => void;
+  isDancing?: boolean;
 };
 
 export const ChatBottomActions: React.FC<Props> = ({
   onCapture,
   onSendPhoto,
   onDance,
+  isDancing = false,
 }) => {
   return (
     <View style={styles.container}>
       <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} />
       <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} />
-      <ActionButton icon="musical-notes-outline" label="Dance" onPress={onDance} />
+      <ActionButton
+        icon={isDancing ? "close" : "musical-notes-outline"}
+        label={isDancing ? "Stop" : "Dance"}
+        onPress={onDance}
+      />
     </View>
   );
 };

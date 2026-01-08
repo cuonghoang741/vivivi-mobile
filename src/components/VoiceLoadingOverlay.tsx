@@ -41,7 +41,7 @@ export const VoiceLoadingOverlay: React.FC<VoiceLoadingOverlayProps> = ({
 const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.85)', // Dark overlay to simulate blur/focus
+        backgroundColor: 'rgba(0, 0, 0, 0.25)', // Dark overlay to simulate blur/focus
         zIndex: 9999, // High z-index to cover everything
         alignItems: 'center',
         justifyContent: 'center',

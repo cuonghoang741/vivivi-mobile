@@ -7,6 +7,46 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-id',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
+
+// Retry helper function for Gemini API calls
+async function fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    maxRetries: number = 5,
+    initialDelayMs: number = 1000
+): Promise<Response> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // If response is ok or it's a client error (4xx), don't retry
+            if (response.ok || (response.status >= 400 && response.status < 500)) {
+                return response;
+            }
+
+            // Server error (5xx) - retry
+            const errorText = await response.text();
+            lastError = new Error(`Gemini API error: ${response.status} - ${errorText}`);
+            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
+        } catch (error) {
+            // Network error - retry
+            lastError = error instanceof Error ? error : new Error(String(error));
+            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries} failed with error: ${lastError.message}`);
+        }
+
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries) {
+            const delay = initialDelayMs * Math.pow(2, attempt - 1);
+            console.log(`[gemini-chat] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    throw lastError || new Error('All retry attempts failed');
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', {
@@ -88,7 +128,7 @@ serve(async (req) => {
                 }
             ]
         };
-        const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        const geminiResponse = await fetchWithRetry(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

@@ -205,6 +205,30 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     [appendMessage, characterId]
   );
 
+  const addSystemMessage = useCallback(
+    (text: string, options?: { persist?: boolean; isAgent?: boolean }) => {
+      const isAgent = options?.isAgent ?? true;
+      const message: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: { type: 'system', text },
+        isAgent,
+        createdAt: new Date().toISOString(),
+      };
+      appendMessage(message);
+
+      if (options?.persist !== false && characterId) {
+        chatService
+          .persistConversationMessage({
+            text,
+            isAgent,
+            characterId,
+          })
+          .catch(err => console.warn('[useChatManager] persist system message failed', err));
+      }
+    },
+    [appendMessage, characterId]
+  );
+
   const sendText = useCallback(
     async (text: string) => {
       if (!characterId) return;
@@ -356,6 +380,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
     addUserMessage,
     refreshStreak,
     performCheckIn,
+    addSystemMessage,
   };
 };
 

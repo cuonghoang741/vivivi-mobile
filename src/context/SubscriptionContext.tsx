@@ -3,10 +3,11 @@ import Purchases, { CustomerInfo, PurchasesPackage, PurchasesOffering } from 're
 import { Platform } from 'react-native';
 import { authManager } from '../services/AuthManager';
 import { getSupabaseClient } from '../services/supabase';
+import { callQuotaService } from '../services/CallQuotaService';
 
 // RevenueCat Public SDK Keys
-// const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
-const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
+const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+// const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 const REVENUECAT_API_KEY_ANDROID = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 
 type SubscriptionState = {
@@ -280,6 +281,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const activeEntitlements = Object.keys(customerInfo.entitlements.active);
             const isPro = activeEntitlements.length > 0;
 
+            // Reset call quota to PRO limits BEFORE updating state
+            // This ensures the DB has the new quota before the UI tries to fetch it
+            if (isPro) {
+                try {
+                    const newQuota = await callQuotaService.resetProQuota();
+                    console.log('[SubscriptionProvider] Call quota reset to PRO limits:', newQuota);
+                } catch (quotaError) {
+                    console.warn('[SubscriptionProvider] Failed to reset call quota:', quotaError);
+                }
+            }
+
+            // Now update state - this will trigger UI refresh which will fetch the new quota
             setState(prev => ({
                 ...prev,
                 isPro,
@@ -305,6 +318,17 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const activeEntitlements = Object.keys(customerInfo.entitlements.active);
             const isPro = activeEntitlements.length > 0;
 
+            // Reset call quota to PRO limits BEFORE updating state
+            if (isPro) {
+                try {
+                    const newQuota = await callQuotaService.resetProQuota();
+                    console.log('[SubscriptionProvider] Call quota reset to PRO limits after restore:', newQuota);
+                } catch (quotaError) {
+                    console.warn('[SubscriptionProvider] Failed to reset call quota:', quotaError);
+                }
+            }
+
+            // Now update state
             setState(prev => ({
                 ...prev,
                 isPro,

@@ -32,7 +32,7 @@ class ChatService {
       .from('conversation')
       .select('id,message,is_agent,created_at,media_id,medias(*)')
       .eq('character_id', characterId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     query = query.eq('user_id', userId);
@@ -42,7 +42,7 @@ class ChatService {
       throw new Error(error?.message || 'Failed to load conversation');
     }
 
-    return data.map(mapRowToMessage);
+    return (data as any).map(mapRowToMessage).reverse();
   }
 
   async persistConversationMessage(params: {
@@ -143,7 +143,7 @@ class ChatService {
       throw new Error(error?.message || 'Failed to load conversation history');
     }
 
-    const messagesDesc = data.map(mapRowToMessage);
+    const messagesDesc = (data as any).map(mapRowToMessage);
     const batch = messagesDesc.reverse();
     return {
       messages: batch,

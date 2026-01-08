@@ -17,6 +17,9 @@ import { GoProButton } from '../GoProButton';
 import { useSceneActions } from '../../context/SceneActionsContext';
 import { DiamondBadge } from '../DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { IconCarambolaFilled } from '@tabler/icons-react-native';
+import { LiquidGlass } from '../LiquidGlass';
+import Button from '../Button';
 
 interface BackgroundSheetProps {
   isOpened: boolean;
@@ -159,10 +162,24 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
           ) : null}
 
           {item.video_url && (
-            <View style={styles.videoIconContainer}>
-              <Ionicons name="videocam" size={14} color="rgba(255,255,255,0.9)" />
-            </View>
+            <Button variant='liquid'
+              style={[styles.videoIconContainer, {
+                backgroundColor: !isDarkBackground ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
+              }]}
+            >
+              <IconCarambolaFilled size={14}
+                color="rgba(255,255,255,0.9)"
+              />
+            </Button>
           )}
+
+          <Button variant='liquid' style={styles.themeIconContainer}>
+            <Ionicons
+              name={item.is_dark ? "moon" : "sunny"}
+              size={14}
+              color="rgba(255,255,255,0.9)"
+            />
+          </Button>
 
           {isLocked && (
             <View style={[styles.darkenOverlay, { width: itemWidth, height: itemWidth }]} />
@@ -353,14 +370,33 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
   },
   videoIconContainer: {
+    aspectRatio: 1,
     position: 'absolute',
     bottom: 4,
     left: 4,
+    borderRadius: 7,
+    padding: 3,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    width: 24,
+    height: 24,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeIconContainer: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 6,
+    borderRadius: 7,
     padding: 3,
     zIndex: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    width: 24,
+    height: 24,
   },
 });

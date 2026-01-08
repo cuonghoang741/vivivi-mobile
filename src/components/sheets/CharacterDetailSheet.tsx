@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   useWindowDimensions,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
@@ -156,29 +157,30 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
   );
 
   const renderGalleryTab = () => (
-    <ScrollView
-      style={styles.tabContent}
-      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      {media.length > 0 ? (
-        <View style={styles.galleryGrid}>
-          {media.map((item) => (
-            <View key={item.id} style={[styles.galleryItem, { backgroundColor: cardBgColor, width: (SCREEN_WIDTH - 40 - 12) / 2 }]}>
-              <ExpoImage
-                source={{ uri: item.thumbnail || item.url }}
-                style={styles.galleryImage}
-                contentFit="cover"
-              />
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Text style={[styles.emptyText, { color: tertiaryTextColor }]}>No media found</Text>
-        </View>
-      )}
-    </ScrollView>
+    <View style={{ flex: 1, maxHeight: SCREEN_HEIGHT * 0.9 }}>
+      <FlatList<MediaItem>
+        data={media}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        renderItem={({ item }) => (
+          <View style={[styles.galleryItem, { backgroundColor: cardBgColor, width: (SCREEN_WIDTH - 40 - 12) / 2 }]}>
+            <ExpoImage
+              source={{ uri: item.thumbnail || item.url }}
+              style={styles.galleryImage}
+              contentFit="cover"
+            />
+          </View>
+        )}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+        columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, { color: tertiaryTextColor }]}>No media found</Text>
+          </View>
+        }
+      />
+    </View>
   );
 
   return (

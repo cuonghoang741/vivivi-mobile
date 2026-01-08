@@ -25,6 +25,7 @@ import {
   IconMessageOff,
   IconMessageCircle,
   IconMessageCircleOff,
+  IconPhone,
 } from '@tabler/icons-react-native';
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
@@ -61,6 +62,7 @@ type VRMUIOverlayProps = ViewProps & {
   onSwipeCharacter?: (offset: number) => void;
   isChatScrolling?: boolean;
   canSwipeCharacter?: boolean;
+  isPro?: boolean;
 };
 
 export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
@@ -83,6 +85,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onSwipeCharacter,
   isChatScrolling = false,
   canSwipeCharacter = false,
+  isPro = false,
   ...rest
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -204,17 +207,11 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
 
   // Menu items configuration
   const menuItems = [
-    // {
-    //   key: 'streak',
-    //   label: 'Streak',
-    //   isStreakButton: true,
-    //   onPress: onCalendarPress,
-    // },
     {
-      key: 'messages',
-      label: showChatList ? 'Hide Chat' : 'Show Chat',
-      Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
-      onPress: onToggleChatList,
+      key: 'streak',
+      label: 'Streak',
+      isStreakButton: true,
+      onPress: onCalendarPress,
     },
     {
       key: 'outfit',
@@ -227,6 +224,12 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       label: 'Background',
       Icon: IconPhoto,
       onPress: onBackgroundPress,
+    },
+    {
+      key: 'messages',
+      label: showChatList ? 'Hide Chat' : 'Show Chat',
+      Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
+      onPress: onToggleChatList,
     },
     {
       key: 'music',
@@ -249,27 +252,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Show remaining time badge during call
-  if (isInCall) {
-    return (
-      <View
-        style={[styles.container, safeAreaPadding, style]}
-        {...panResponder.panHandlers}
-        {...rest}
-        pointerEvents="box-none"
-      >
-        {/* Remaining time badge in top right */}
-        <View style={styles.leftColumn} pointerEvents="box-none" />
-        <View style={styles.rightColumn} pointerEvents="box-none">
-          <View style={styles.remainingTimeBadge}>
-            <Text style={styles.remainingTimeText}>
-              {formatRemainingTime(remainingQuotaSeconds)} remaining
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  // Removed separate isInCall view - call quota button now shows remaining time for both states
 
   const ChevronIcon = isExpanded ? IconChevronDown : IconChevronUp;
 
@@ -280,17 +263,50 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       {...rest}
     >
       <View style={styles.leftColumn} pointerEvents="box-none">
-        {/* Empty left column */}
-        <LiquidGlass
-          style={styles.goProButton}
-          onPress={() => sceneActions?.openSubscription()}
-        >
-          <DiamondIcon />
-          <Text style={{
-            color: isDarkBackground ? '#fff' : '#000',
-            fontWeight: '600',
-          }}>Go Pro</Text>
-        </LiquidGlass>
+        {/* Go Pro button - only for non-Pro users */}
+        {!isPro && (
+          <View style={styles.menuItemRowLeft}>
+            <LiquidGlass
+              style={styles.goProButton}
+              onPress={() => sceneActions?.openSubscription()}
+            >
+              <DiamondIcon />
+              <Text style={{
+                color: isDarkBackground ? '#fff' : '#000',
+                fontWeight: '600',
+              }}>Go Pro</Text>
+            </LiquidGlass>
+            {isExpanded && (
+              <Animated.Text style={[
+                styles.menuLabel,
+                { opacity: expandAnimation }
+              ]}>
+                Upgrade
+              </Animated.Text>
+            )}
+          </View>
+        )}
+
+        {/* Always show remaining call time */}
+        <View style={styles.callQuotaRow}>
+          <LiquidGlass style={styles.callQuotaButton}>
+            <IconPhone size={18} color={iconColor} />
+            <Text style={[
+              styles.callQuotaText,
+              { color: isDarkBackground ? '#fff' : '#000' }
+            ]}>
+              {formatRemainingTime(remainingQuotaSeconds)}
+            </Text>
+          </LiquidGlass>
+          {isExpanded && (
+            <Animated.Text style={[
+              styles.menuLabel,
+              { opacity: isExpanded ? 1 : 0 }
+            ]}>
+              Call Time
+            </Animated.Text>
+          )}
+        </View>
       </View>
 
       <View style={styles.rightColumn} pointerEvents="box-none">
@@ -306,7 +322,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
               label={item.label}
               Icon={item.Icon}
               iconProps={item.iconProps}
-              // isStreakButton={item.isStreakButton}
+              isStreakButton={item.isStreakButton}
               streak={loginStreak}
               onPress={item.onPress}
               iconColor={iconColor}
@@ -508,7 +524,7 @@ const styles = StyleSheet.create({
     // Container for animated label
   },
   menuLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#fff",
     textShadowColor: 'rgba(0, 0, 0, 0.7)',
@@ -543,9 +559,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 6,
+    width: 100,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 100,
     ...LiquidGlass
+  },
+  callQuotaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 100,
+  },
+  callQuotaText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  callQuotaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  menuItemRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
 });

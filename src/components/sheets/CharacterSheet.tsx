@@ -8,8 +8,8 @@ import {
   useWindowDimensions,
   Animated,
 } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
@@ -25,6 +25,9 @@ import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 import { DiamondBadge } from '../DiamondBadge';
 import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
 import Button from '../Button';
+import { BlurView } from 'expo-blur';
+import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlassView } from '@callstack/liquid-glass';
 
 interface CharacterSheetProps {
   isOpened: boolean;
@@ -56,9 +59,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
   // Dynamic colors - but force dark overlay on cards for readability
   const textColor = isDarkBackground ? '#fff' : '#000';
-  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,1)';
   // Always use dark gradient for card overlay to ensure text readability
-  const overlayColors = ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const;
+  // const overlayColors = ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const;
+  const overlayColors = ['transparent', isDarkBackground ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.2)', isDarkBackground ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.55)'] as const;
   const actionButtonBg = isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // Expose present/dismiss via ref
@@ -96,7 +100,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       const characterRepository = new CharacterRepository();
       let loadedItems = await characterRepository.fetchAllCharacters();
 
-      loadedItems = loadedItems.filter((item) => item.available !== false);
+      // loadedItems = loadedItems.filter((item) => item.available !== false);
 
       // 3. Sort using the freshly fetched ownership
       const sortedItems = loadedItems.sort((char1, char2) => {
@@ -172,54 +176,59 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     const index = items.findIndex(c => c.id === item.id);
     const isOwned = ownedCharacterIds.has(item.id);
 
+    // Close sheet immediately
     onIsOpenedChange(false);
     sheetRef.current?.dismiss();
 
     if (isOwned) {
+      // Already owned - select immediately
       selectCharacter(item);
     } else if (isPro) {
-      // PRO user: Auto unlock and select immediately
-      try {
-        const assetRepository = new AssetRepository();
+      // PRO user: Select immediately, then unlock in background
+      selectCharacter(item);
 
-        // 1. Grant character ownership
-        await assetRepository.createAsset(item.id, 'character');
-        setOwnedCharacterIds(prev => new Set([...prev, item.id]));
+      // Do ownership operations in background (non-blocking)
+      (async () => {
+        try {
+          const assetRepository = new AssetRepository();
 
-        // 2. Handle default background
-        if (item.background_default_id) {
-          // Grant background ownership if needed
-          const ownedBg = await assetRepository.fetchOwnedAssets('background');
-          if (!ownedBg.has(item.background_default_id)) {
-            await assetRepository.createAsset(item.background_default_id, 'background');
-            console.log('[CharacterSheet] Granted ownership of default background:', item.background_default_id);
-          }
+          // 1. Grant character ownership
+          await assetRepository.createAsset(item.id, 'character');
+          setOwnedCharacterIds(prev => new Set([...prev, item.id]));
 
-          // Save preference
-          await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
-            current_background_id: item.background_default_id,
-          });
+          // 2. Handle default background
+          if (item.background_default_id) {
+            // Grant background ownership if needed
+            const ownedBg = await assetRepository.fetchOwnedAssets('background');
+            if (!ownedBg.has(item.background_default_id)) {
+              await assetRepository.createAsset(item.background_default_id, 'background');
+              console.log('[CharacterSheet] Granted ownership of default background:', item.background_default_id);
+            }
 
-          // Persist to local storage
-          const bgRepo = new BackgroundRepository();
-          const bg = await bgRepo.fetchBackground(item.background_default_id);
-          if (bg) {
-            await Persistence.setBackgroundURL(bg.image || '');
-            await Persistence.setBackgroundName(bg.name || '');
-            await Persistence.setCharacterBackgroundSelection(item.id, {
-              backgroundId: item.background_default_id,
-              backgroundURL: bg.image || '',
-              backgroundName: bg.name || '',
+            // Save preference
+            await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+              current_background_id: item.background_default_id,
             });
-          }
-        }
 
-        selectCharacter(item);
-      } catch (error) {
-        console.error('Failed to auto-unlock PRO character:', error);
-        selectCharacter(item);
-      }
+            // Persist to local storage
+            const bgRepo = new BackgroundRepository();
+            const bg = await bgRepo.fetchBackground(item.background_default_id);
+            if (bg) {
+              await Persistence.setBackgroundURL(bg.image || '');
+              await Persistence.setBackgroundName(bg.name || '');
+              await Persistence.setCharacterBackgroundSelection(item.id, {
+                backgroundId: item.background_default_id,
+                backgroundURL: bg.image || '',
+                backgroundName: bg.name || '',
+              });
+            }
+          }
+        } catch (error) {
+          console.error('[CharacterSheet] Failed to auto-unlock PRO character:', error);
+        }
+      })();
     } else {
+      // Non-PRO user trying to select unowned character
       setTimeout(() => {
         onOpenSubscription?.();
       }, 300);
@@ -228,15 +237,17 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
   const renderItem = ({ item }: { item: CharacterItem }) => {
     const isOwned = ownedCharacterIds.has(item.id);
+    const isComingSoon = item.available === false;
     const itemWidth = (width - 40 - 12) / 2;
 
     return (
       <Pressable
-        onPress={() => handleSelect(item)}
+        onPress={() => !isComingSoon && handleSelect(item)}
         style={({ pressed }) => [
           styles.cardContainer,
           { width: itemWidth },
-          pressed && styles.pressed,
+          pressed && !isComingSoon && styles.pressed,
+          isComingSoon && { opacity: 0.8 },
         ]}
       >
         <View style={styles.imageBackground}>
@@ -252,7 +263,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
           {item.thumbnail_url || item.avatar ? (
             <Image
               source={{ uri: item.thumbnail_url || item.avatar }}
-              style={styles.cardImage}
+              style={[styles.cardImage]}
               contentFit="cover"
               transition={200}
             />
@@ -260,34 +271,69 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
             <View style={styles.cardImagePlaceholder} />
           )}
 
-          {!isOwned && (
+          {!isOwned && !isComingSoon && (
             <DiamondBadge size="md" style={styles.diamondBadgeContainer} />
           )}
 
-          <LinearGradient
-            colors={overlayColors}
-            style={styles.cardContentOverlay}
-            locations={[0, 0.5, 1]}
-          >
+          {isComingSoon && (
+            <LiquidGlassView
+              style={styles.comingSoonBadge}
+            >
+              <Text style={{
+                color: textColor,
+                fontWeight: "bold"
+              }}>Coming soon</Text>
+            </LiquidGlassView>
+          )}
+
+
+
+          <View style={[styles.cardContentOverlay, {
+            height: isComingSoon ? '40%' : '65%',
+          }]}>
+            <MaskedView
+              style={StyleSheet.absoluteFill}
+              maskElement={
+                <LinearGradient
+                  colors={['transparent', !isDarkBackground ? '#fff' : '#000']}
+                  locations={[0, 0.5]}
+                  style={StyleSheet.absoluteFill}
+                />
+              }
+            >
+              <BlurView
+                intensity={10}
+                tint={isDarkBackground ? "dark" : "light"}
+                style={StyleSheet.absoluteFill}
+              />
+            </MaskedView>
+
+            <LinearGradient
+              colors={overlayColors}
+              style={StyleSheet.absoluteFill}
+              locations={[0, 0.5, 1]}
+            />
+
             <View style={styles.cardInfo}>
-              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+              <Text style={[styles.cardName, { color: textColor, textShadowColor: !isDarkBackground ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)' }]} numberOfLines={1}>{item.name}</Text>
               {item?.data?.characteristics && (
-                <Text style={styles.cardDescription} numberOfLines={1}>
+                <Text style={[styles.cardDescription, { color: secondaryTextColor, textShadowColor: !isDarkBackground ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)' }]} numberOfLines={1}>
                   {item?.data?.characteristics}
                 </Text>
               )}
             </View>
 
-            {isOwned && (
+            {!isComingSoon && (isOwned || isPro) && (
               <View style={styles.actionButtonsRow}>
                 <Button
                   variant='liquid'
                   size="lg"
                   style={[styles.actionButtonCircle, { backgroundColor: actionButtonBg }]}
                   onPress={() => {
-                    handlePreview(item);
+                    handleSelect(item);
                   }}
                   startIconName='chatbubble-outline'
+                  iconColor={!isDarkBackground ? '#fff' : '#000'}
                 >
                 </Button>
                 <Button
@@ -299,11 +345,11 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
                     handleSelect(item);
                   }}
                 >
-                  <VolumeMixedIcon width={24} height={24} fill="#000" />
+                  <VolumeMixedIcon width={24} height={24} fill={!isDarkBackground ? '#fff' : '#000'} />
                 </Button>
               </View>
             )}
-          </LinearGradient>
+          </View>
         </View>
       </Pressable>
     );
@@ -472,11 +518,17 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   cardDescription: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 13,
     textAlign: 'center',
+    textShadowColor: 'rgba(255, 255, 255, 0.4)',
+    textShadowOffset: { width: 0, height: 0.5 },
+    textShadowRadius: 0.5,
   },
   actionButtonsRow: {
     flexDirection: 'row',
@@ -486,8 +538,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28
   },
   actionButtonCircle: {
-    borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -518,5 +568,20 @@ const styles = StyleSheet.create({
     aspectRatio: 0.6,
     borderRadius: 24,
     backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  comingSoonBadge: {
+    opacity: 0.9,
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    backgroundColor: 'rgba(245, 98, 152, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

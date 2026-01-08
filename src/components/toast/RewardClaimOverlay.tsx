@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, Pressable, Animated } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Animated, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CurrencyIcon } from '../CurrencyIcon';
@@ -10,6 +10,43 @@ export type RewardItem = {
   amount: number;
   icon: string;
   color: string;
+  thumbnail?: string | null;
+};
+
+// ... (Props definition remains same)
+
+// RewardItemView update
+const RewardItemView: React.FC<{ reward: RewardItem }> = ({ reward }) => {
+  const getCurrencyType = (): 'vcoin' | 'ruby' | 'xp' | 'bp' | null => {
+    switch (reward.type) {
+      case 'vcoin': return 'vcoin';
+      case 'ruby': return 'ruby';
+      case 'xp': return 'xp';
+      case 'bp': return 'bp';
+      default: return null;
+    }
+  };
+
+  const currencyType = getCurrencyType();
+
+  return (
+    <View style={styles.rewardItem}>
+      <View style={styles.rewardIconContainer}>
+        {reward.thumbnail ? (
+          <Image
+            source={{ uri: reward.thumbnail }}
+            style={{ width: 80, height: 80, borderRadius: 12 }}
+            resizeMode="cover"
+          />
+        ) : currencyType ? (
+          <CurrencyIcon type={currencyType} size={60} />
+        ) : (
+          <Ionicons name={reward.icon as any} size={52} color="#FFFFFF" />
+        )}
+      </View>
+      <Text style={styles.rewardAmount}>+{reward.amount}</Text>
+    </View>
+  );
 };
 
 type Props = {
@@ -127,37 +164,7 @@ export const RewardClaimOverlay: React.FC<Props> = ({
   );
 };
 
-const RewardItemView: React.FC<{ reward: RewardItem }> = ({ reward }) => {
-  const getCurrencyType = (): 'vcoin' | 'ruby' | 'xp' | 'bp' | null => {
-    switch (reward.type) {
-      case 'vcoin':
-        return 'vcoin';
-      case 'ruby':
-        return 'ruby';
-      case 'xp':
-        return 'xp';
-      case 'bp':
-        return 'bp';
-      default:
-        return null;
-    }
-  };
 
-  const currencyType = getCurrencyType();
-
-  return (
-    <View style={styles.rewardItem}>
-      <View style={styles.rewardIconContainer}>
-        {currencyType ? (
-          <CurrencyIcon type={currencyType} size={60} />
-        ) : (
-          <Ionicons name={reward.icon as any} size={52} color="#FFFFFF" />
-        )}
-      </View>
-      <Text style={styles.rewardAmount}>+{reward.amount}</Text>
-    </View>
-  );
-};
 
 // MARK: - Helper Functions
 export const RewardClaimOverlayHelpers = {

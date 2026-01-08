@@ -1434,7 +1434,7 @@
                     const video = document.getElementById('bgVideo');
                     if (video) {
                         video.style.opacity = '0';
-                        setTimeout(() => { if (video.style.opacity === '0') { video.pause(); video.style.display = 'none'; } }, 400);
+                        setTimeout(() => { if (video.style.opacity === '0') { video.pause(); video.style.display = 'none'; } }, 500);
                     }
 
                     const overlay = document.getElementById('bgFadeOverlay');
@@ -1449,25 +1449,41 @@
                     img.crossOrigin = 'anonymous';
                     img.onload = () => {
                         if (myId !== bgTransitionId) return; // superseded
-                        overlay.style.transition = 'none';
-                        overlay.style.backgroundImage = `url('${url}')`;
-                        overlay.style.opacity = '0';
-                        void overlay.offsetWidth; // reflow
-                        overlay.style.transition = 'opacity 400ms ease';
+
+                        // Step 1: Quick fade to white/transparent (flash effect)
+                        overlay.style.transition = 'opacity 150ms ease-out';
+                        overlay.style.backgroundImage = 'none';
+                        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
                         overlay.style.opacity = '1';
+
+                        // Step 2: After flash, set new background and fade in
                         setTimeout(() => {
                             if (myId !== bgTransitionId) return;
-                            document.body.style.backgroundImage = `url('${url}')`;
-                            overlay.style.opacity = __callMode ? '1' : '0';
-                            // Ensure blur state persists after transition
-                            if (__callMode) {
-                                overlay.classList.add('call-blur');
-                            } else {
-                                overlay.classList.remove('call-blur');
-                            }
-                            // Mark background as ready after transition completes
-                            if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
-                        }, 420);
+                            overlay.style.transition = 'none';
+                            overlay.style.backgroundColor = 'transparent';
+                            overlay.style.backgroundImage = `url('${url}')`;
+                            overlay.style.opacity = '0';
+                            void overlay.offsetWidth; // reflow
+
+                            // Step 3: Smooth fade in of new background
+                            overlay.style.transition = 'opacity 350ms ease-in';
+                            overlay.style.opacity = '1';
+
+                            // Step 4: Complete transition
+                            setTimeout(() => {
+                                if (myId !== bgTransitionId) return;
+                                document.body.style.backgroundImage = `url('${url}')`;
+                                overlay.style.opacity = __callMode ? '1' : '0';
+                                // Ensure blur state persists after transition
+                                if (__callMode) {
+                                    overlay.classList.add('call-blur');
+                                } else {
+                                    overlay.classList.remove('call-blur');
+                                }
+                                // Mark background as ready after transition completes
+                                if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                            }, 380);
+                        }, 160);
                     };
                     img.onerror = () => {
                         if (myId !== bgTransitionId) return;
@@ -1496,6 +1512,14 @@
 
                     const myId = ++bgTransitionId;
 
+                    // Step 1: Show flash effect
+                    if (overlay) {
+                        overlay.style.transition = 'opacity 150ms ease-out';
+                        overlay.style.backgroundImage = 'none';
+                        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                        overlay.style.opacity = '1';
+                    }
+
                     // Reset video state
                     video.style.display = 'block';
                     video.style.opacity = '0';
@@ -1512,17 +1536,21 @@
                         // Start playing
                         video.play().catch(e => console.error('Video play error:', e));
 
-                        // Fade in video
-                        requestAnimationFrame(() => {
+                        // Step 2: Clear flash and fade in video
+                        setTimeout(() => {
+                            if (overlay) {
+                                overlay.style.transition = 'none';
+                                overlay.style.backgroundColor = 'transparent';
+                                overlay.style.backgroundImage = 'none';
+                                overlay.style.opacity = '0';
+                            }
+
+                            // Fade in video smoothly
+                            video.style.transition = 'opacity 350ms ease-in';
                             video.style.opacity = '1';
-                        });
 
-                        // Fade out overlay image
-                        if (overlay) {
-                            overlay.style.opacity = '0';
-                        }
-
-                        if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                            if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
+                        }, 160);
                     };
 
                     const onError = () => {
@@ -1531,6 +1559,10 @@
                         console.error('Video load error for:', url);
                         // Hide video on error
                         video.style.display = 'none';
+                        if (overlay) {
+                            overlay.style.backgroundColor = 'transparent';
+                            overlay.style.opacity = '0';
+                        }
                         if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
                     };
 

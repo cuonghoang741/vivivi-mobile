@@ -127,6 +127,9 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
               <Pressable
                 style={StyleSheet.absoluteFill}
                 onPress={() => {
+                  // Don't do anything if tapping on current character
+                  if (isSelected) return;
+
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   if (itemIndex !== -1) {
                     onCharacterTap(itemIndex);

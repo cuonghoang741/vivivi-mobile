@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView, Pressable, Linking } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView, Pressable, Linking, PanResponder, Animated } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,6 +21,7 @@ import { authManager } from './src/services/AuthManager';
 import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { SubscriptionSheet } from './src/components/sheets/SubscriptionSheet';
+import { StreakRewardPopup } from './src/components/StreakRewardPopup';
 import { useChatManager } from './src/hooks/useChatManager';
 import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
 import { useVoiceCall } from './src/hooks/useVoiceCall';
@@ -56,6 +57,7 @@ import { RewardClaimOverlay, RewardClaimOverlayHelpers, type RewardItem } from '
 import { Persistence } from './src/utils/persistence';
 import { oneSignalService } from './src/services/OneSignalService';
 import { analyticsService } from './src/services/AnalyticsService';
+import { OTAAutoUpdate } from './src/services/OTA-update/OTAAutoUpdate';
 
 type RootStackParamList = {
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
@@ -112,6 +114,8 @@ const AppContent = () => {
   const [showQuestSheet, setShowQuestSheet] = useState(false);
   const [questSheetTabRequest, setQuestSheetTabRequest] = useState<{ tab: 'daily' | 'level'; token: number } | null>(null);
   const [showEnergySheet, setShowEnergySheet] = useState(false);
+  const [streakRewardCostume, setStreakRewardCostume] = useState<CostumeItem | null>(null);
+  const [streakRewardIsClaimed, setStreakRewardIsClaimed] = useState(false);
   const [showLevelSheet, setShowLevelSheet] = useState(false);
   const streakSheetRef = useRef<StreakSheetRef>(null);
   const [showCharacterDetailSheet, setShowCharacterDetailSheet] = useState(false);
@@ -126,6 +130,7 @@ const AppContent = () => {
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
+  const [isDancing, setIsDancing] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
     title: string;
@@ -416,6 +421,7 @@ const AppContent = () => {
     addUserMessage,
     refreshStreak,
     performCheckIn,
+    addSystemMessage,
   } = useChatManager(activeCharacterId ?? undefined, {
     onAgentReply: handleAgentReply,
     onActionDetected: handleActionDetected,
@@ -469,6 +475,7 @@ const AppContent = () => {
     stopCameraPreview,
     isProcessing: isVoiceProcessing,
     remainingQuotaSeconds,
+    refreshQuota,
   } = useAppVoiceCall({
     activeCharacterId: activeCharacterId ?? undefined,
     userId: session?.user?.id ?? null,
@@ -493,6 +500,18 @@ const AppContent = () => {
       setPendingVoiceAction(null);
     }
   }, [pendingVoiceAction, handleToggleMic, handleToggleCameraMode]);
+
+  // Refresh call quota when subscription status changes
+  useEffect(() => {
+    if (isPro) {
+      console.log('[App] isPro changed to true, refreshing call quota...');
+      // Small delay to ensure isProRef is updated in useAppVoiceCall before fetching
+      const timer = setTimeout(() => {
+        refreshQuota();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isPro, refreshQuota]);
 
   // Voice call metering (like swift-version)
   const currentAgentIdRef = useRef<string | null>(null);
@@ -737,17 +756,26 @@ const AppContent = () => {
       return;
     }
     try {
-      webBridgeRef.current.triggerDance();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-      QuestProgressTracker.track('dance_character').catch(error =>
-        console.warn('[App] Failed to track dance quest progress:', error)
-      );
-      // Track dance analytics
-      analyticsService.logDanceTrigger(activeCharacterId || '');
+      if (isDancing) {
+        // Stop dancing
+        webBridgeRef.current.stopAction();
+        setIsDancing(false);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      } else {
+        // Start dancing
+        webBridgeRef.current.triggerDance();
+        setIsDancing(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+        QuestProgressTracker.track('dance_character').catch(error =>
+          console.warn('[App] Failed to track dance quest progress:', error)
+        );
+        // Track dance analytics
+        analyticsService.logDanceTrigger(activeCharacterId || '');
+      }
     } catch (error) {
       console.error('[App] Failed to trigger dance:', error);
     }
-  }, [ensureWebBridge]);
+  }, [ensureWebBridge, isDancing, activeCharacterId]);
 
   const characterTitle = useMemo(() => {
     if (currentCharacter?.name?.trim()) {
@@ -832,7 +860,21 @@ const AppContent = () => {
         const userPrefsService = new UserPreferencesService();
         await userPrefsService.saveCurrentCharacterId(item.id);
 
-        if (item.base_model_url) {
+        // Load cached preferences for this character
+        const cachedCostume = await Persistence.getCharacterCostumeSelection(item.id);
+        const cachedBackground = await Persistence.getCharacterBackgroundSelection(item.id);
+
+        // Apply cached or fallback costume
+        if (cachedCostume?.costumeId && cachedCostume.modelURL) {
+          // Use cached costume
+          await UserCharacterPreferenceService.applyCostumeById(
+            cachedCostume.costumeId,
+            webViewRef,
+            item.id
+          );
+          console.log('[App] Applied cached costume:', cachedCostume.modelName);
+        } else if (item.base_model_url) {
+          // No cached costume, use fallback
           await UserCharacterPreferenceService.loadFallbackModel(
             item.name,
             item.base_model_url,
@@ -841,108 +883,72 @@ const AppContent = () => {
           );
         }
 
-        // Handle default background
-        if (item.background_default_id) {
+        // Apply cached or default background
+        if (cachedBackground?.backgroundId && cachedBackground.backgroundURL) {
+          // Use cached background - apply immediately
+          const ownedBgs = await assetRepo.fetchOwnedAssets('background');
+          if (ownedBgs.has(cachedBackground.backgroundId)) {
+            await UserCharacterPreferenceService.applyBackgroundById(
+              cachedBackground.backgroundId,
+              webViewRef,
+              ownedBgs
+            );
+            setCurrentBackgroundId(cachedBackground.backgroundId);
+            console.log('[App] Applied cached background:', cachedBackground.backgroundName);
+          }
+        } else if (item.background_default_id) {
+          // No cached background, handle default
           try {
-            // Check/Grant ownership of the default background
             let ownedBgs = await assetRepo.fetchOwnedAssets('background');
             if (!ownedBgs.has(item.background_default_id)) {
               await assetRepo.createAsset(item.background_default_id, 'background');
-              ownedBgs.add(item.background_default_id); // Optimistically update set
+              ownedBgs.add(item.background_default_id);
               console.log('[App] Granted ownership of default background during switch:', item.background_default_id);
             }
 
-            // Save preference
+            // Apply default background
+            await UserCharacterPreferenceService.applyBackgroundById(
+              item.background_default_id,
+              webViewRef,
+              ownedBgs
+            );
+            setCurrentBackgroundId(item.background_default_id);
+
+            // Save as preference and cache
             await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
               current_background_id: item.background_default_id,
             });
-
-            // Apply immediately if this is the first time (or we just want to enforce default)
-            // However, UserCharacterPreferenceService.loadUserCharacterPreference will return the latest preference.
-            // If the user already has a preference, we might NOT want to overwrite it with default unless they have NO preference?
-            // But the request says "grant default ... and show it".
-            // For consistency with "new" character unlock, we should probably set it as current.
-            // But if the user ALREADY has a preference for this character, we ideally shouldn't reset it every time they select the character.
-            // Wait, the logic for `handleCharacterSelectionComplete` (new user/onboarding) sets it as current.
-            // For `handleCharacterSelect` (existing user switching), we should check if they already have a preference.
-
-            // Let's check existing preference first
-            const existingPref = await UserCharacterPreferenceService.loadUserCharacterPreference(item.id);
-
-            // If no background pref, apply default
-            if (!existingPref.backgroundId) {
-              await UserCharacterPreferenceService.applyBackgroundById(
-                item.background_default_id,
-                webViewRef,
-                ownedBgs
-              );
-              await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
-                current_background_id: item.background_default_id,
+            const bgRepo = new BackgroundRepository();
+            const bg = await bgRepo.fetchBackground(item.background_default_id);
+            if (bg) {
+              await Persistence.setCharacterBackgroundSelection(item.id, {
+                backgroundId: item.background_default_id,
+                backgroundURL: bg.image || '',
+                backgroundName: bg.name || '',
               });
-              setCurrentBackgroundId(item.background_default_id);
-
-              // Persist
-              const bgRepo = new BackgroundRepository();
-              const bg = await bgRepo.fetchBackground(item.background_default_id);
-              if (bg) {
-                await Persistence.setCharacterBackgroundSelection(item.id, {
-                  backgroundId: item.background_default_id,
-                  backgroundURL: bg.image || '',
-                  backgroundName: bg.name || '',
-                });
-              }
-            } else {
-              // Apply existing preference (handled by normal flow? No, normal flow relies on `refreshInitialData` or `useEffect`?
-              // Actually `refreshInitialData` loads `initialData` which contains `character` and `preference`.
-              // But switching character manually here might need manual application if we don't reload everything.
-              // `handleCharacterSelect` calls `refreshInitialData` (line 833).
-              // `ensureInitialModelApplied` is called in `useEffect` on `initialData`.
-              // So if we just ensure the preference exists in DB, `refreshInitialData` -> `useVRMContext` -> `useEffect` should handle application.
-              // BUT `handleCharacterSelect` also calls `UserCharacterPreferenceService.loadFallbackModel`.
-
-              // Let's just ensure assets are owned. The application of "default" should only happen if no current preference exists?
-              // User request: "lúc chọn nhân vật ... hiện cấp cho ng dùng nhân vật đó và background default ... giờ cấp thêm cả costume default"
-              // "When selecting ... grant user that character and default background ... now grant default costume too".
-              // This implies "Granting" (ownership).
-
-              // If I look at the previous `handleCharacterSelect` implementation, it didn't explicitly handle default background granting!
-              // It only handled it in `handleCharacterSelectionComplete` (onboarding).
-              // The logic for *switching* characters (handleCharacterSelect) relies on `UserCharacterPreferenceService.saveUserCharacterPreference`? 
-              // No, line 822 saves `saveCurrentCharacterId`.
-
-              // So if I own a character but never selected it, and I click it:
-              // 1. It saves current character ID.
-              // 2. It loads fallback model.
-              // 3. It refreshes initial data.
-
-              // If I have never set a background for this character, `initialData` preference will be empty?
-              // And `App.tsx` line 523: `if (initialData?.preference?.backgroundId) ... else if (ownedBackgrounds.length > 0) ...`
-
-              // The missing piece is GRANTING the default costume/background if the user bought the character but the defaults weren't bundled.
-              // So I should just add the "Ensure Ownership" logic here.
-
             }
           } catch (e) {
             console.warn('Error handling default background:', e);
           }
         }
 
-        // Handle default costume ownership
-        if (item.default_costume_id) {
+        // Handle default costume ownership (but don't override cached selection)
+        if (item.default_costume_id && !cachedCostume?.costumeId) {
           try {
             let ownedCostumes = await assetRepo.fetchOwnedAssets('character_costume');
             if (!ownedCostumes.has(item.default_costume_id)) {
               await assetRepo.createAsset(item.default_costume_id, 'character_costume');
               console.log('[App] Granted ownership of default costume during switch:', item.default_costume_id);
 
-              // If we just granted it, let's also set it as default preference if none exists?
-              const existingPref = await UserCharacterPreferenceService.loadUserCharacterPreference(item.id);
-              if (!existingPref.costumeId) {
-                await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
-                  current_costume_id: item.default_costume_id
-                });
-                // We don't need to apply it here because `refreshInitialData` will pick up the new preference
-              }
+              // Set as preference and apply
+              await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+                current_costume_id: item.default_costume_id
+              });
+              await UserCharacterPreferenceService.applyCostumeById(
+                item.default_costume_id,
+                webViewRef,
+                item.id
+              );
             }
           } catch (e) {
             console.warn('Error handling default costume:', e);
@@ -1296,19 +1302,11 @@ const AppContent = () => {
   }, [chatState.showChatList]);
 
   useEffect(() => {
-    if (showCameraPreview) {
-      // isCameraMode is now handled by useAppVoiceCall
-      chatListWasVisibleBeforeCameraRef.current = chatState.showChatList;
-      if (!voiceState.isConnected && chatState.showChatList) {
-        setShowChatList(false);
-      }
-    } else {
-      if (chatListWasVisibleBeforeCameraRef.current) {
-        setShowChatList(true);
-        chatListWasVisibleBeforeCameraRef.current = false;
-      }
+    // Show chat messages when call connects (voice or video)
+    if (voiceState.isConnected && !chatState.showChatList) {
+      setShowChatList(true);
     }
-  }, [showCameraPreview, chatState.showChatList, setShowChatList, voiceState.isConnected]);
+  }, [voiceState.isConnected, chatState.showChatList, setShowChatList]);
 
   useEffect(() => {
     return () => {
@@ -1330,28 +1328,40 @@ const AppContent = () => {
     const applyVoiceState = async () => {
       if (voiceState.isConnected) {
         if (!previousCallConnectedRef.current) {
-          // Call just started - start metering (like swift-version)
+          // Call just started - start metering and set call mode (like swift-version)
           if (activeCharacterId && currentAgentIdRef.current) {
             await startCallMetering();
           }
-        }
-        lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
-        // Zoom in for both voice and video modes
-        webBridgeRef.current?.setCallMode(true);
-        if (isBgmOnRef.current) {
-          try {
-            await backgroundMusicManager.pause();
-            if (!cancelled) {
-              setIsBgmOn(false);
+          // Only zoom in and stop animation once when call first connects
+          webBridgeRef.current?.setCallMode(true);
+          webBridgeRef.current?.stopAction();
+
+          // Store BGM state before pausing
+          lastBgmBeforeVoiceRef.current = isBgmOnRef.current;
+          if (isBgmOnRef.current) {
+            try {
+              await backgroundMusicManager.pause();
+              if (!cancelled) {
+                setIsBgmOn(false);
+              }
+            } catch (error) {
+              console.warn('[App] Failed to pause BGM for voice call:', error);
             }
-          } catch (error) {
-            console.warn('[App] Failed to pause BGM for voice call:', error);
           }
         }
       } else {
         // Call ended - stop metering and finalize (like swift-version)
         if (previousCallConnectedRef.current) {
           await stopCallMetering(true);
+
+          // Log call duration message
+          if (voiceState.lastCallDurationSeconds > 0 && currentCharacter?.name) {
+            const mins = Math.floor(voiceState.lastCallDurationSeconds / 60);
+            const secs = voiceState.lastCallDurationSeconds % 60;
+            const durationStr = `${mins}m${secs}s`;
+            // Call format: Call CharacterName 1m12s
+            addSystemMessage(`Call ${currentCharacter.name} ${durationStr}`, { isAgent: false });
+          }
         }
         // stopCameraPreview({ preserveVideoFlag: true });
         // isCameraMode is reset by useAppVoiceCall.endCall()
@@ -1375,7 +1385,7 @@ const AppContent = () => {
     return () => {
       cancelled = true;
     };
-  }, [voiceState.isConnected, activeCharacterId, startCallMetering, stopCallMetering, isBgmOn]);
+  }, [voiceState.isConnected, activeCharacterId, startCallMetering, stopCallMetering, isBgmOn, currentCharacter, addSystemMessage, voiceState.lastCallDurationSeconds]);
 
   useEffect(() => {
     // Calculate unclaimed quest count (completed but not claimed)
@@ -1915,19 +1925,16 @@ const AppContent = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        {/* Hide header correctly during video call only */}
-        {!isCameraMode && (
-          <SceneHeader
-            characterName={characterTitle}
-            relationshipName={currentCharacter?.relationshipName}
-            relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
-            avatarUri={currentCharacter?.avatar}
-            onCharacterCardPress={handleCharacterCardPress}
-            onSettingsPress={handleOpenSettings}
-            onCharacterMenuPress={() => setShowCharacterSheet(true)}
-            isDarkBackground={isDarkBackground}
-          />
-        )}
+        <SceneHeader
+          characterName={characterTitle}
+          relationshipName={currentCharacter?.relationshipName}
+          relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
+          avatarUri={currentCharacter?.avatar}
+          onCharacterCardPress={handleCharacterCardPress}
+          onSettingsPress={handleOpenSettings}
+          onCharacterMenuPress={() => setShowCharacterSheet(true)}
+          isDarkBackground={isDarkBackground}
+        />
         <Pressable
           style={styles.webViewWrapper}
           ref={snapshotViewRef as any}
@@ -1960,6 +1967,7 @@ const AppContent = () => {
           onSwipeCharacter={changeCharacter}
           isChatScrolling={isChatScrolling}
           canSwipeCharacter={allCharacters.length > 1}
+          isPro={isPro}
         />
         <CameraPreviewOverlay
           visible={showCameraPreview && !!cameraStream}
@@ -1985,6 +1993,7 @@ const AppContent = () => {
             onCapture={handleCapture}
             onSendPhoto={handleSendPhoto}
             onDance={handleDance}
+            isDancing={isDancing}
             isTyping={chatState.isTyping}
             onToggleMic={handleToggleMic}
             onVideoCall={handleToggleCameraMode}
@@ -2064,6 +2073,7 @@ const AppContent = () => {
         <StreakSheet
           ref={streakSheetRef}
           characterName={currentCharacter?.name ?? initialData?.character.name}
+          characterId={activeCharacterId ?? undefined}
           streakDays={chatState.streakDays ?? 0}
           connectionLevel={overlayStats.level}
           connectionProgress={overlayStats.nextLevelXp > 0
@@ -2101,6 +2111,10 @@ const AppContent = () => {
             }
           }}
           onRefreshLoginRewards={loadLoginRewards}
+          onClaimMilestone={(costume, isClaimed) => {
+            setStreakRewardCostume(costume);
+            setStreakRewardIsClaimed(isClaimed);
+          }}
         />
 
         <ToastStackView />
@@ -2131,12 +2145,51 @@ const AppContent = () => {
             }}
           />
         )}
+
+        <StreakRewardPopup
+          visible={!!streakRewardCostume}
+          costume={streakRewardCostume}
+          isClaimed={streakRewardIsClaimed}
+          onClaim={async () => {
+            if (!streakRewardCostume || !currentCharacter) return;
+
+            // 1. Grant costume to user
+            const assetRepo = new AssetRepository();
+            const success = await assetRepo.createAsset(streakRewardCostume.id, 'character_costume');
+            if (!success) {
+              throw new Error('Failed to grant costume');
+            }
+
+            // 2. Apply the costume
+            await UserCharacterPreferenceService.applyCostumeById(
+              streakRewardCostume.id,
+              webViewRef,
+              currentCharacter.id
+            );
+
+            // 3. Save preference
+            await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+              current_costume_id: streakRewardCostume.id,
+            });
+
+            // 4. Update state to mark as claimed
+            setStreakRewardIsClaimed(true);
+          }}
+          onClose={() => {
+            setStreakRewardCostume(null);
+            setStreakRewardIsClaimed(false);
+          }}
+        />
         <VoiceLoadingOverlay
           visible={voiceState.isBooting || voiceState.status === 'connecting'}
         />
         <SubscriptionSheet
           isOpened={showSubscriptionSheet}
           onClose={() => setShowSubscriptionSheet(false)}
+          onPurchaseSuccess={() => {
+            console.log('[App] Purchase success callback, refreshing quota...');
+            refreshQuota();
+          }}
         />
         <CallEndedModal
           visible={showCallEndedModal}
@@ -2284,6 +2337,7 @@ export default function App() {
                 />
               </Stack.Navigator>
             </NavigationContainer>
+            <OTAAutoUpdate />
           </PurchaseProvider>
         </SubscriptionProvider>
       </VRMProvider>
@@ -2298,26 +2352,85 @@ type CameraPreviewOverlayProps = {
 };
 
 const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, stream, onClose }) => {
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only start drag if moved more than a small threshold to avoid conflicts with taps
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event(
+        [
+          null,
+          { dx: pan.x, dy: pan.y }
+        ],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      }
+    })
+  ).current;
+
+  // Reset position when visibility changes (optional, but good for resetting if it gets lost)
+  // useEffect(() => {
+  //   if (visible) {
+  //     pan.setValue({ x: 0, y: 0 });
+  //     pan.setOffset({ x: 0, y: 0 });
+  //   }
+  // }, [visible]);
+
   if (!visible || !stream) {
     return null;
   }
   return (
     <View pointerEvents="box-none" style={styles.cameraOverlay}>
-      <TouchableOpacity
-        style={styles.cameraPreviewContainer}
-        onPress={onClose}
-        activeOpacity={0.9}
+      <Animated.View
+        style={[
+          styles.cameraPreviewContainer,
+          {
+            transform: [{ translateX: pan.x }, { translateY: pan.y }]
+          }
+        ]}
+        {...panResponder.panHandlers}
       >
-        <RTCView
-          streamURL={(stream as any).toURL()}
-          style={styles.cameraPreview}
-          objectFit="cover"
-          mirror
-        />
-        <View style={styles.cameraCloseButton}>
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          activeOpacity={1}
+          onPress={() => {
+            // Optional: If we want tap to do something else (like expand), handle here.
+            // For now, we removed the 'close on tap anywhere' behavior as it interferes with dragging.
+            // If user wants to just tap to close, they should use the close button.
+          }}
+        >
+          <RTCView
+            streamURL={(stream as any).toURL()}
+            style={styles.cameraPreview}
+            objectFit="cover"
+            mirror
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cameraCloseButton}
+          onPress={(e) => {
+            // Stop propagation not strictly needed in RN like web, but good to be explicit/direct
+            onClose();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="close" size={14} color="#fff" />
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 };

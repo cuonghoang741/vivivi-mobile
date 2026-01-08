@@ -12,6 +12,7 @@ import {
     Text,
     View,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Video, ResizeMode } from 'expo-av';
@@ -37,7 +38,7 @@ const SUBSCRIPTION_FEATURES = [
     { icon: Icon1, text: 'Unlimited messages, no daily limits' },
     { icon: Icon2, text: 'Access secreted photos and videos' },
     { icon: Icon3, text: '30 minutes of video calls each month' },
-    { icon: Icon4, text: 'Unlock all of 15+ girlfriends' },
+    { icon: Icon4, text: 'Unlock 15+ and all upcoming girlfriends' },
     { icon: Icon5, text: 'Unlimited outfits' },
     { icon: Icon6, text: 'Unlimited backgrounds' },
 ];
@@ -45,11 +46,13 @@ const SUBSCRIPTION_FEATURES = [
 interface SubscriptionSheetProps {
     isOpened: boolean;
     onClose: () => void;
+    onPurchaseSuccess?: () => void;
 }
 
 export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     isOpened,
     onClose,
+    onPurchaseSuccess,
 }) => {
     const insets = useSafeAreaInsets();
     const { currentCharacter } = useVRMContext();
@@ -126,19 +129,59 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     }, [customerInfo]);
 
     const handleSubscribe = async () => {
-        if (!selectedPackage) return;
-
         setIsProcessing(true);
-        console.log('[SubscriptionSheet] Purchase initialized', selectedPackage);
 
-        const result = await purchasePackage(selectedPackage);
+        let packageToPurchase: PurchasesPackage | null | undefined = selectedPackage;
+
+        // Fallback: If no package selected (e.g., iPad not showing packages), fetch and pick yearly
+        if (!packageToPurchase) {
+            console.log('[SubscriptionSheet] No package selected. Attempting to fetch offerings...');
+            try {
+                const { revenueCatManager } = await import('../../services/RevenueCatManager');
+                const offerings = await revenueCatManager.loadOfferings();
+
+                if (offerings && offerings.availablePackages.length > 0) {
+                    // Try to find yearly
+                    packageToPurchase = offerings.availablePackages.find(
+                        p => p.packageType === 'ANNUAL' ||
+                            p.identifier.toLowerCase().includes('year') ||
+                            p.identifier.toLowerCase().includes('annual')
+                    );
+
+                    // If no yearly, try monthly
+                    if (!packageToPurchase) {
+                        packageToPurchase = offerings.availablePackages.find(
+                            p => p.packageType === 'MONTHLY' ||
+                                p.identifier.toLowerCase().includes('month')
+                        );
+                    }
+
+                    // Finally, just take the first one
+                    if (!packageToPurchase) {
+                        packageToPurchase = offerings.availablePackages[0];
+                    }
+                }
+            } catch (e) {
+                console.error('[SubscriptionSheet] Failed to fetch offerings fallback:', e);
+            }
+        }
+
+        if (!packageToPurchase) {
+            Alert.alert('Error', 'No subscription packages available at the moment.');
+            setIsProcessing(false);
+            return;
+        }
+
+        console.log('[SubscriptionSheet] Purchase initialized', packageToPurchase);
+
+        const result = await purchasePackage(packageToPurchase);
 
         setIsProcessing(false);
 
         if (result.success) {
-            Alert.alert('Success', 'You are now a Pro member!', [
-                { text: 'OK', onPress: onClose }
-            ]);
+            // Notify parent of successful purchase
+            onPurchaseSuccess?.();
+            onClose()
         } else if (result.error && result.error !== 'cancelled') {
             Alert.alert('Purchase Failed', result.error || 'Unknown error occurred');
         }
@@ -152,6 +195,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         setIsProcessing(false);
 
         if (result.isPro) {
+            // Notify parent of successful restore
+            onPurchaseSuccess?.();
             Alert.alert('Success', 'Purchases restored successfully!', [
                 { text: 'OK', onPress: onClose }
             ]);
@@ -251,14 +296,16 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     </View>
                                 ))}
                                 <Text style={styles.planName}>Yearly</Text>
-                                <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
-                                <Text style={styles.planPeriod}>per year</Text>
-                                <Text style={styles.planSubDetail}>
-                                    {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
-                                        style: 'currency',
-                                        currency: yearlyPackage.product.currencyCode
-                                    })}/per month
-                                </Text>
+                                <View>
+                                    <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
+                                    <Text style={styles.planPeriod}>per year</Text>
+                                    <Text style={styles.planSubDetail}>
+                                        {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
+                                            style: 'currency',
+                                            currency: yearlyPackage.product.currencyCode
+                                        })}/per month
+                                    </Text>
+                                </View>
                             </Pressable>
                         )}
 
@@ -276,8 +323,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     </View>
                                 )}
                                 <Text style={styles.planName}>Monthly</Text>
-                                <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
-                                <Text style={styles.planPeriod}>per month</Text>
+                                <View>
+                                    <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
+                                    <Text style={styles.planPeriod}>per month</Text>
+                                </View>
                             </Pressable>
                         )}
 
@@ -329,13 +378,13 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     </Pressable>
 
                     <View style={styles.footerLinks}>
-                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
+                        <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
                             Privacy Policy
                         </LinkText>
                         <Text style={styles.footerSeparator}>|</Text>
                         <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                         <Text style={styles.footerSeparator}>|</Text>
-                        <LinkText onPress={() => Linking.openURL('https://roxie-terms-privacy-hub.lovable.app/terms')}>
+                        <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/terms')}>
                             Terms of Use
                         </LinkText>
                     </View>
@@ -458,6 +507,8 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 2,
         borderColor: 'transparent',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
     },
     planCardSelected: {
         borderColor: '#2196F3',

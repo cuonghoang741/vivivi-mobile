@@ -23,6 +23,7 @@ import { Video, ResizeMode } from 'expo-av';
 // Icons (imported as React components via react-native-svg-transformer)
 import AppleIcon from '../assets/icons/apple.svg';
 import GoogleIcon from '../assets/icons/google.svg';
+import { LiquidGlass } from '../components/LiquidGlass';
 
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
@@ -190,6 +191,13 @@ export const SignInScreen: React.FC<Props> = ({
 
         {/* Content section */}
         <View style={styles.contentSection}>
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <LiquidGlass onPress={() => { }} style={{
+              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 1000,
+            }}>
+              <Text style={{ color: '#ff44efff', fontWeight: 'semibold' }}>18 +</Text>
+            </LiquidGlass>
+          </View>
           <View style={styles.logoStack}>
             <View style={styles.logoTextBlock}>
               <Text style={styles.title}>Welcome, Master!</Text>

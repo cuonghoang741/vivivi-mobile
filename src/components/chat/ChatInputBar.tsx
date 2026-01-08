@@ -6,6 +6,9 @@ import {
   IconVideo,
   IconVideoOff,
   IconSend,
+  IconPhoneOff,
+  IconPhoneFilled,
+  IconPlayerStopFilled,
 } from '@tabler/icons-react-native';
 import { glassButtonStyle } from '../../styles/glass';
 import { LiquidGlass } from '../LiquidGlass';
@@ -19,6 +22,7 @@ type Props = {
   onToggleMic?: () => void;
   onVideoCall?: () => void;
   isVideoCallActive?: boolean;
+  isVoiceCallActive?: boolean;
   isMicMuted?: boolean;
   isUserSpeaking?: boolean;
   placeholder?: string;
@@ -33,6 +37,7 @@ export const ChatInputBar: React.FC<Props> = ({
   onToggleMic,
   onVideoCall,
   isVideoCallActive = false,
+  isVoiceCallActive = false,
   isMicMuted = false,
   isUserSpeaking = false,
   placeholder = 'Chat',
@@ -40,6 +45,7 @@ export const ChatInputBar: React.FC<Props> = ({
   voiceLoading,
 }) => {
   const showSend = useMemo(() => value.trim().length > 0, [value]);
+  const isCallActive = isVoiceCallActive || isVideoCallActive;
 
   // Pulsing animation for user speaking indicator
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -87,7 +93,7 @@ export const ChatInputBar: React.FC<Props> = ({
               isIconOnly
               onPress={onToggleMic}
               disabled={voiceLoading}
-              startIcon={isMicMuted ? IconMicrophoneOff : IconMicrophone}
+              startIcon={isMicMuted ? IconPlayerStopFilled : IconMicrophone}
               iconColor={isUserSpeaking ? '#4ADE80' : '#FF6EA1'}
             />
           </View>
@@ -120,22 +126,38 @@ export const ChatInputBar: React.FC<Props> = ({
             returnKeyType="send"
             onSubmitEditing={onSend}
           />
-          {showSend && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.sendButton,
-                pressed && styles.iconPressed,
-                disabled && styles.iconDisabled
-              ]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onPress={() => {
-                if (disabled) return;
-                onSend();
-              }}
-            >
-              <IconSend width={20} height={20} color="#fff" />
-            </Pressable>
-          )}
+          <View style={styles.rightActions}>
+            {showSend && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  pressed && styles.iconPressed,
+                  disabled && styles.iconDisabled
+                ]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={() => {
+                  if (disabled) return;
+                  onSend();
+                }}
+              >
+                <IconSend width={20} height={20} color="#fff" />
+              </Pressable>
+            )}
+
+            {/* End Call Button (Red Phone Icon) */}
+            {/* {!isCallActive && onToggleMic && (
+              <Pressable
+                style={({ pressed }) => [
+                  pressed && styles.iconPressed,
+                  disabled && styles.iconDisabled
+                ]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={onToggleMic} // Toggling mic during call ends it
+              >
+                <IconPhoneFilled width={24} height={24} color="#EF4444" />
+              </Pressable>
+            )} */}
+          </View>
         </View>
       </LiquidGlass>
     </View>
@@ -201,8 +223,13 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#fff',
     fontSize: 16,
-    marginRight: 12,
-    paddingVertical: 4, // Ensure text is breathable
+    marginRight: 8,
+    paddingVertical: 4,
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sendButton: {
     width: 36,
@@ -211,6 +238,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FF6EA1',
+  },
+  endCallButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444', // Red-500
   },
   iconPressed: {
     opacity: 0.8,

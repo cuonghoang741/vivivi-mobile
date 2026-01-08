@@ -19,7 +19,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
   onPress,
   variant = 'full',
 }) => {
-  const isText = message.kind.type === 'text';
+  const isText = message.kind.type === 'text' || message.kind.type === 'system';
   const isMedia = message.kind.type === 'media';
 
   const containerStyles = [
@@ -33,7 +33,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
   const sceneActions = useSceneActions();
 
   // Determine if media is locked
-  const mediaItem = isMedia ? message.kind.mediaItem : null;
+  const mediaItem = message.kind.type === 'media' ? message.kind.mediaItem : null;
   const isLocked = isMedia && mediaItem?.tier === 'pro' && !isPro;
 
   const handlePress = () => {
@@ -62,13 +62,13 @@ const renderTextContent = (
   variant: 'compact' | 'full',
   alignLeft: boolean
 ) => {
-  if (message.kind.type !== 'text') {
+  if (message.kind.type !== 'text' && message.kind.type !== 'system') {
     return null;
   }
 
   const text = message.kind.text;
   const isCallStarted = text === 'Call started';
-  const isCallEnded = text?.startsWith('Call ended');
+  const isCallEnded = text?.startsWith('Call ended') || text?.startsWith('Call ');
 
   return (
     <View style={styles.textRow}>

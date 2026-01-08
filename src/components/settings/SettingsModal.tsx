@@ -609,9 +609,9 @@ const EditProfileScreen: React.FC<{
       <View style={styles.editProfileHeader}>
         <View style={styles.largeAvatarContainer}>
           <Text style={styles.largeAvatarText}>{getAvatarLetter()}</Text>
-          <View style={styles.cameraIconBadge}>
+          {/* <View style={styles.cameraIconBadge}>
             <Ionicons name="camera" size={14} color="#000" />
-          </View>
+          </View> */}
         </View>
       </View>
 

@@ -36,6 +36,12 @@ export const useAppVoiceCall = ({
     const isSwitchingModeRef = useRef(false);
     const agentIdCacheRef = useRef<Map<string, string>>(new Map());
     const remainingQuotaRef = useRef(remainingQuotaSeconds);
+    const isProRef = useRef(isPro);
+
+    // Keep isProRef in sync with isPro prop
+    useEffect(() => {
+        isProRef.current = isPro;
+    }, [isPro]);
 
     // Initialize voice conversation
     const {
@@ -66,17 +72,31 @@ export const useAppVoiceCall = ({
         return null;
     }, [activeCharacterId]);
 
-    // Fetch initial quota
+    // Refresh quota function - uses ref to always get latest isPro value
+    const refreshQuota = useCallback(async () => {
+        const currentIsPro = isProRef.current;
+        console.log('[useAppVoiceCall] refreshQuota called, isPro:', currentIsPro);
+        const quota = await callQuotaService.fetchQuota(currentIsPro);
+        setRemainingQuotaSeconds(quota);
+        remainingQuotaRef.current = quota;
+        console.log('[useAppVoiceCall] Quota refreshed:', quota, 'isPro:', currentIsPro);
+    }, []); // No dependencies - uses ref
+
+    // Fetch initial quota and refetch when isPro changes
     useEffect(() => {
         let mounted = true;
         const fetchQuota = async () => {
+            console.log('[useAppVoiceCall] useEffect triggered, isPro changed to:', isPro);
             const quota = await callQuotaService.fetchQuota(isPro);
-            if (mounted) setRemainingQuotaSeconds(quota);
+            if (mounted) {
+                setRemainingQuotaSeconds(quota);
+                remainingQuotaRef.current = quota;
+                console.log('[useAppVoiceCall] Quota fetched via useEffect:', quota, 'isPro:', isPro);
+            }
         };
         fetchQuota();
         return () => { mounted = false; };
     }, [isPro]);
-
 
 
     const ensureCameraPermission = useCallback(async () => {
@@ -324,7 +344,7 @@ export const useAppVoiceCall = ({
         userId
     ]);
 
-    // Toggle Voice Mode (no zoom, no camera)
+    // Toggle Voice Mode (no zoom, no camera) -> NOW ZOOM IN (User Preference)
     const handleToggleVoiceMode = useCallback(async () => {
         if (isSwitchingModeRef.current) return;
         if (voiceState.isBooting || voiceState.status === 'connecting') return;
@@ -338,6 +358,11 @@ export const useAppVoiceCall = ({
         isSwitchingModeRef.current = true;
         setIsProcessing(true);
 
+        // Immediate Zoom In for feedback
+        if (webBridgeRef.current) {
+            webBridgeRef.current.setCallMode(true);
+        }
+
         try {
             // If already in any call mode, end it
             if (voiceState.isConnected) {
@@ -345,17 +370,19 @@ export const useAppVoiceCall = ({
                 return;
             }
 
-            // Start voice call (no zoom)
+            // Start voice call
             const connected = await ensureVoiceConnected();
             if (connected) {
                 setIsVoiceMode(true);
                 setIsCameraMode(false);
-                // Voice mode: NO zoom to face
-                if (webBridgeRef.current) {
-                    webBridgeRef.current.setCallMode(false);
-                }
+                // Keep Call Mode (Zoom In) active
                 if (activeCharacterId) {
                     analyticsService.logVoiceCallStart(activeCharacterId);
+                }
+            } else {
+                // Formatting revert if failed
+                if (webBridgeRef.current) {
+                    webBridgeRef.current.setCallMode(false);
                 }
             }
         } finally {
@@ -399,15 +426,18 @@ export const useAppVoiceCall = ({
                 stopCameraPreview();
                 setIsCameraMode(false);
 
-                if (webBridgeRef.current) {
-                    webBridgeRef.current.setCallMode(false);
-                }
-
                 // If voice was active before camera, keep voice running
                 if (isVoiceMode || voiceState.isConnected) {
                     setIsVoiceMode(true);
-                    console.log('[useAppVoiceCall] Switched from camera mode to voice mode');
+                    console.log('[useAppVoiceCall] Switched from camera mode to voice mode, keeping Call Mode active');
+                    // Ensure Call Mode (Zoom In) stays active
+                    if (webBridgeRef.current) {
+                        webBridgeRef.current.setCallMode(true);
+                    }
                 } else {
+                    if (webBridgeRef.current) {
+                        webBridgeRef.current.setCallMode(false);
+                    }
                     await endCall();
                 }
                 return;
@@ -522,6 +552,7 @@ export const useAppVoiceCall = ({
         startCameraPreviewStream,
 
         isProcessing,
-        remainingQuotaSeconds
+        remainingQuotaSeconds,
+        refreshQuota,
     };
 };
