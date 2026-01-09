@@ -67,9 +67,6 @@ export const VRMWebView = React.forwardRef<WebView, VRMWebViewProps>(({
   useEffect(() => {
     const prepareConfiguration = async () => {
       try {
-        console.log('🔧 [VRMWebView] Preparing configuration...');
-
-        // Generate file list JSON (similar to Swift's FileDiscovery.generateFileListJSON())
         const fileListJSON = await FileDiscovery.generateFileListJSON();
         console.log('📁 [VRMWebView] File list JSON:', fileListJSON);
         const script = `window.__isReactNativeShell = true;

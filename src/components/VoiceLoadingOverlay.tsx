@@ -31,7 +31,7 @@ export const VoiceLoadingOverlay: React.FC<VoiceLoadingOverlayProps> = ({
             ]}
         >
             <View style={styles.content}>
-                <ActivityIndicator size="large" color="#FF2F71" />
+                {/* <ActivityIndicator size="large" color="#FF2F71" /> */}
                 <Text style={styles.text}>{message}</Text>
             </View>
         </Animated.View>
