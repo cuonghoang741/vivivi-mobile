@@ -94,7 +94,7 @@ export const ChatInputBar: React.FC<Props> = ({
               onPress={onToggleMic}
               disabled={voiceLoading}
               startIcon={isMicMuted ? IconPlayerStopFilled : IconMicrophone}
-              iconColor={isUserSpeaking ? '#4ADE80' : '#FF6EA1'}
+              iconColor={isMicMuted ? '#FF6EA1' : 'white'}
             />
           </View>
         )}
@@ -108,7 +108,7 @@ export const ChatInputBar: React.FC<Props> = ({
             isIconOnly
             onPress={onVideoCall}
             startIcon={isVideoCallActive ? IconVideoOff : IconVideo}
-            iconColor={"#FF6EA1"}
+            iconColor={isVideoCallActive ? "#FF6EA1" : "white"}
           />
         )}
       </View>

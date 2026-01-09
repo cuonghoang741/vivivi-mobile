@@ -55,7 +55,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     onPurchaseSuccess,
 }) => {
     const insets = useSafeAreaInsets();
-    const { currentCharacter } = useVRMContext();
+    const { currentCharacter, currentCostume } = useVRMContext();
     const {
         isPro,
         isLoading: contextLoading,
@@ -85,29 +85,19 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         p.product.title.toLowerCase().includes('month')
     );
 
-    // Load background video
+    // Load background video - prioritize costume video over character video
     useEffect(() => {
-        if (!isOpened || !currentCharacter) return;
+        if (!isOpened) return;
 
-        const loadVideo = async () => {
-            try {
-                const prefs = await UserCharacterPreferenceService.loadUserCharacterPreference(currentCharacter.id);
-                const costumeId = prefs?.costumeId || (currentCharacter as any).default_costume_id;
-
-                if (costumeId) {
-                    const costumeRepo = new CostumeRepository();
-                    const costume = await costumeRepo.fetchCostumeById(costumeId);
-                    if (costume?.video_url) {
-                        setBackgroundVideo(costume.video_url);
-                    }
-                }
-            } catch (e) {
-                console.warn('[SubscriptionSheet] Failed to load character costume video:', e);
-            }
-        };
-
-        loadVideo();
-    }, [isOpened, currentCharacter]);
+        // Prioritize costume video over character video
+        if (currentCostume?.video_url) {
+            setBackgroundVideo(currentCostume.video_url);
+        } else if (currentCharacter?.video_url) {
+            setBackgroundVideo(currentCharacter.video_url);
+        } else {
+            setBackgroundVideo(null);
+        }
+    }, [isOpened, currentCostume, currentCharacter]);
 
     // Set default selected package
     useEffect(() => {
@@ -250,7 +240,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 
                 <ScrollView
                     style={styles.scrollView}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.heroContent}>
@@ -276,7 +266,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             </View>
                         ))}
                     </View>
+                </ScrollView>
 
+                <View style={[styles.bottomContainer, { paddingBottom: 10 }]}>
                     <View style={styles.pricingContainer}>
                         {yearlyPackage && (
                             <Pressable
@@ -399,7 +391,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
                         </Pressable>
                     )}
-                </ScrollView>
+                </View>
             </View>
         </Modal>
     );
@@ -420,7 +412,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 0,
         width: '100%',
-        height: '50%',
+        height: '55%',
     },
     backgroundVideo: {
         width: '100%',
@@ -443,6 +435,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 20,
         paddingTop: height * 0.1,
         paddingBottom: 40,
@@ -494,6 +487,10 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: '500',
+    },
+    bottomContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
     },
     pricingContainer: {
         flexDirection: 'row',
@@ -581,7 +578,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     cancelButton: {
-        marginTop: 20,
+        marginTop: 5,
         alignItems: 'center',
         paddingVertical: 12,
     },

@@ -10,8 +10,9 @@ import type { Session } from '@supabase/supabase-js';
 import { authManager } from '../services/AuthManager';
 import {
   CharacterRepository,
-  type CharacterItem,
+  CharacterItem,
 } from '../repositories/CharacterRepository';
+import { CostumeRepository, type CostumeItem } from '../repositories/CostumeRepository';
 import AssetRepository from '../repositories/AssetRepository';
 import { UserPreferencesService } from '../services/UserPreferencesService';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
@@ -37,6 +38,7 @@ type CharacterState = {
   relationshipName?: string;
   relationshipProgress?: number;
   relationshipIconUri?: string | null;
+  video_url?: string;
 };
 
 type AuthState = {
@@ -55,6 +57,8 @@ type VRMContextValue = {
   ensureInitialModelApplied: (webViewRef: React.MutableRefObject<any>) => Promise<void>;
   currentCharacter: CharacterState | null;
   setCurrentCharacterState: React.Dispatch<React.SetStateAction<CharacterState | null>>;
+  currentCostume: CostumeItem | null;
+  setCurrentCostume: React.Dispatch<React.SetStateAction<CostumeItem | null>>;
 };
 
 const VRMContext = createContext<VRMContextValue | undefined>(undefined);
@@ -80,6 +84,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentCharacterState, setCurrentCharacterState] = useState<CharacterState | null>(
     null
   );
+  const [currentCostume, setCurrentCostume] = useState<CostumeItem | null>(null);
   const [hasAppliedInitialModel, setHasAppliedInitialModel] = useState(false);
 
   useEffect(() => {
@@ -349,6 +354,12 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               webViewRef,
               character.id
             );
+
+            // Optimize: Fetch and store costume details in context
+            const costumeRepo = new CostumeRepository();
+            const costumeDetails = await costumeRepo.fetchCostumeById(costumeIdToApply);
+            setCurrentCostume(costumeDetails);
+
             costumeApplied = true;
           } catch (error) {
             console.warn('[VRMProvider] Failed to apply saved costume, will fallback', error);
@@ -385,6 +396,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           avatar: character.avatar || character.thumbnail_url,
           relationshipName: 'Stranger',
           relationshipProgress: 0,
+          video_url: character.video_url,
         });
 
         setHasAppliedInitialModel(true);
@@ -428,6 +440,8 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ensureInitialModelApplied,
       currentCharacter: currentCharacterState,
       setCurrentCharacterState,
+      currentCostume,
+      setCurrentCostume,
     }),
     [
       authSnapshot,
@@ -437,6 +451,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshInitialData,
       ensureInitialModelApplied,
       currentCharacterState,
+      currentCostume,
     ]
   );
 

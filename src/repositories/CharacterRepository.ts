@@ -21,6 +21,7 @@ export interface CharacterItem {
   description?: string;
   thumbnail_url?: string;
   avatar?: string;
+  video_url?: string;
   base_model_url?: string;
   agent_elevenlabs_id?: string;
   tier?: string;
@@ -46,7 +47,7 @@ export class CharacterRepository extends BaseRepository {
     try {
       const { data, error } = await this.client
         .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
+        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
         .eq('is_public', true)
         .order('order', { ascending: true });
       // .eq('available', true); // Allow unavailable characters to show as Coming Soon
@@ -65,7 +66,7 @@ export class CharacterRepository extends BaseRepository {
           const { executeSupabaseRequest } = await import('../utils/supabaseHelpers');
 
           const queryItems: Record<string, string> = {
-            select: 'id,name,description,thumbnail_url,avatar,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)',
+            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)',
             is_public: 'is.true',
             order: 'order.asc',
             // available: 'is.true', // Allow unavailable characters
@@ -108,7 +109,7 @@ export class CharacterRepository extends BaseRepository {
   async fetchCharacter(id: string): Promise<CharacterItem | null> {
     const { data, error } = await this.client
       .from('characters')
-      .select('id,name,description,thumbnail_url,avatar,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
+      .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
       .eq('id', id)
       .eq('available', true)
       .single();

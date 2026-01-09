@@ -30,6 +30,7 @@ type Props = {
   onOpenHistory?: () => void;
   onChatScrollStateChange?: (isScrolling: boolean) => void;
   onToggleChatList?: () => void;
+  isInCall?: boolean;
 };
 
 export const ChatBottomOverlay: React.FC<Props> = ({
@@ -57,6 +58,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onOpenHistory,
   onChatScrollStateChange,
   onToggleChatList,
+  isInCall = false,
 }) => {
   const [inputValue, setInputValue] = useState('');
 
@@ -93,6 +95,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
           showStreakConfetti={showStreakConfetti}
           onStreakTap={onStreakTap}
           onScrollStateChange={onChatScrollStateChange}
+          onToggleChatList={onToggleChatList}
         />
       </View>
       <View style={styles.inputSection}>
@@ -101,6 +104,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
           onSendPhoto={onSendPhoto}
           onDance={onDance}
           isDancing={isDancing}
+          isInCall={isInCall}
         />
         <View style={styles.inputWrapper}>
           <ChatInputBar

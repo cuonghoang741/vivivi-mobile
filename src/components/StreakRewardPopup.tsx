@@ -1,8 +1,169 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Image, Animated } from 'react-native';
+import React, { useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, Image, Animated, ImageBackground, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CostumeItem } from '../repositories/CostumeRepository';
+
+// Import particle SVGs
+import Particle1 from '../assets/icons/particles/1.svg';
+import Particle2 from '../assets/icons/particles/2.svg';
+import Particle3 from '../assets/icons/particles/3.svg';
+import Particle5 from '../assets/icons/particles/5.svg';
+import Particle6 from '../assets/icons/particles/6.svg';
+
+const BACKGROUND_IMAGE = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/iosHq5VnHsYbT4Xn9CfmSWLbWh7fuyqORtAC9Q2k.png';
+
+// Particle components array
+const PARTICLE_COMPONENTS = [Particle1, Particle2, Particle3, Particle5, Particle6];
+
+interface SparkleData {
+    id: number;
+    particleIndex: number;
+    size: number;
+    angle: number;
+    distance: number;
+    delay: number;
+    duration: number;
+    rotation: number;
+    shouldStay: boolean; // If true, particle stays visible after animation
+}
+
+// Generate sparkle particles
+const generateSparkles = (count: number): SparkleData[] => {
+    // Most particles stay visible (around 18)
+    const stayCount = Math.floor(Math.random() * 3) + 17; // 17-19
+    const stayIndices = new Set<number>();
+    while (stayIndices.size < Math.min(stayCount, count)) {
+        stayIndices.add(Math.floor(Math.random() * count));
+    }
+
+    return Array.from({ length: count }, (_, i) => {
+        const shouldStay = stayIndices.has(i);
+        return {
+            id: i,
+            particleIndex: Math.floor(Math.random() * PARTICLE_COMPONENTS.length),
+            size: Math.random() * 20 + 20, // 20-40px
+            angle: (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5,
+            // Staying particles are closer (60-120px), others go further (100-250px)
+            distance: shouldStay
+                ? Math.random() * 60 + 60  // 60-120px for staying
+                : Math.random() * 150 + 100, // 100-250px for fading
+            delay: Math.random() * 300,
+            duration: Math.random() * 600 + 1000, // 1000-1600ms
+            rotation: Math.random() * 360, // Random initial rotation
+            shouldStay,
+        };
+    });
+};
+
+// Sparkle component
+const Sparkle: React.FC<{ data: SparkleData; startAnimation: boolean }> = ({ data, startAnimation }) => {
+    const animValue = useRef(new Animated.Value(0)).current;
+    const opacityValue = useRef(new Animated.Value(0)).current;
+    const rotateValue = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (startAnimation) {
+            animValue.setValue(0);
+            opacityValue.setValue(0);
+            rotateValue.setValue(0);
+
+            setTimeout(() => {
+                Animated.parallel([
+                    Animated.timing(animValue, {
+                        toValue: 1,
+                        duration: data.duration,
+                        useNativeDriver: true,
+                    }),
+                    // If shouldStay, fade in and stay; otherwise fade in then out
+                    data.shouldStay
+                        ? Animated.timing(opacityValue, {
+                            toValue: 0.7, // Stay at 70% opacity
+                            duration: 300,
+                            useNativeDriver: true,
+                        })
+                        : Animated.sequence([
+                            Animated.timing(opacityValue, {
+                                toValue: 1,
+                                duration: 200,
+                                useNativeDriver: true,
+                            }),
+                            Animated.timing(opacityValue, {
+                                toValue: 0,
+                                duration: data.duration - 200,
+                                useNativeDriver: true,
+                            }),
+                        ]),
+                    Animated.timing(rotateValue, {
+                        toValue: 1,
+                        duration: data.duration,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
+            }, data.delay);
+        }
+    }, [startAnimation]);
+
+    const translateX = animValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, Math.cos(data.angle) * data.distance],
+    });
+
+    const translateY = animValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, Math.sin(data.angle) * data.distance],
+    });
+
+    const scale = animValue.interpolate({
+        inputRange: [0, 0.3, 1],
+        outputRange: [0, 1.3, data.shouldStay ? 0.8 : 0.5], // Staying particles are a bit bigger
+    });
+
+    const rotate = rotateValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [`${data.rotation}deg`, `${data.rotation + 180}deg`],
+    });
+
+    const ParticleComponent = PARTICLE_COMPONENTS[data.particleIndex];
+
+    return (
+        <Animated.View
+            style={[
+                styles.sparkle,
+                {
+                    opacity: opacityValue,
+                    transform: [{ translateX }, { translateY }, { scale }, { rotate }],
+                },
+            ]}
+        >
+            <ParticleComponent width={data.size} height={data.size} />
+        </Animated.View>
+    );
+};
+
+// Sparkles container
+const SparklesEffect: React.FC<{ visible: boolean }> = ({ visible }) => {
+    const sparkles = useMemo(() => generateSparkles(24), []);
+    const [startAnimation, setStartAnimation] = React.useState(false);
+
+    useEffect(() => {
+        if (visible) {
+            setStartAnimation(false);
+            // Small delay to ensure component is mounted
+            setTimeout(() => setStartAnimation(true), 100);
+        }
+    }, [visible]);
+
+    if (!visible) return null;
+
+    return (
+        <View style={styles.sparklesContainer} pointerEvents="none">
+            {sparkles.map((sparkle) => (
+                <Sparkle key={sparkle.id} data={sparkle} startAnimation={startAnimation} />
+            ))}
+        </View>
+    );
+};
 
 interface StreakRewardPopupProps {
     visible: boolean;
@@ -49,95 +210,87 @@ export const StreakRewardPopup: React.FC<StreakRewardPopupProps> = ({
     return (
         <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
             <View style={styles.overlay}>
+                {/* Sparkles Effect */}
+                <SparklesEffect visible={visible && !isClaimed} />
+
                 <Animated.View style={[styles.container, { opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
-                    {/* Close Button */}
-                    <Pressable style={styles.closeButton} onPress={onClose}>
-                        <Ionicons name="close" size={24} color="#fff" />
-                    </Pressable>
+                    <ImageBackground
+                        source={{ uri: BACKGROUND_IMAGE }}
+                        style={styles.backgroundImage}
+                        resizeMode="contain"
+                    >
+                        {/* Close Button */}
+                        <Pressable style={styles.closeButton} onPress={onClose}>
+                            <View style={styles.closeButtonCircle}>
+                                <Ionicons name="close" size={20} color="#fff" />
+                            </View>
+                        </Pressable>
 
-                    {/* Top Gift Box Image - Placeholder or Asset */}
-                    <View style={styles.giftBoxContainer}>
-                        {/* Using a nice 3D gift box image URL here would be ideal. 
-                            For now, using a large icon with a glow background. */}
-                        <View style={styles.giftGlow} />
-                        <Ionicons name="gift" size={80} color="#FFD700" style={styles.giftIcon} />
-                    </View>
+                        {/* Costume Image - Centered */}
 
-                    {/* Ribbon Header (Simulated) */}
-                    <View style={styles.ribbonContainer}>
-                        <LinearGradient
-                            colors={['#FF5FA1', '#FF247C']}
-                            start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
-                            style={styles.ribbon}
-                        >
-                            <Ionicons name="sparkles" size={16} color="#fff" style={styles.ribbonStarLeft} />
-                            <Ionicons name="sparkles" size={16} color="#fff" style={styles.ribbonStarRight} />
-                        </LinearGradient>
-                    </View>
-
-                    {/* Card Content */}
-                    <View style={styles.card}>
-                        <View style={styles.contentSpacer} />
-
-                        {/* Costume Image */}
-                        <View style={styles.costumeContainer}>
-                            {costume.thumbnail ? (
-                                <Image
-                                    source={{ uri: costume.thumbnail }}
-                                    style={styles.costumeImage}
-                                    resizeMode="contain"
-                                />
-                            ) : (
-                                <View style={styles.placeholderCostume}>
-                                    <Ionicons name="shirt" size={60} color="#ccc" />
-                                </View>
-                            )}
+                        <View style={{
+                            flex: 1,
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end'
+                        }}>
+                            <View style={styles.costumeContainer}>
+                                {costume.thumbnail ? (
+                                    <Image
+                                        source={{ uri: costume.thumbnail }}
+                                        style={styles.costumeImage}
+                                        resizeMode="contain"
+                                    />
+                                ) : (
+                                    <View style={styles.placeholderCostume}>
+                                        <Ionicons name="shirt" size={60} color="#ccc" />
+                                    </View>
+                                )}
+                            </View>
                         </View>
 
-                        {/* Sparkles around costume */}
-                        <Ionicons name="star" size={24} color="#FFD700" style={[styles.sparkle, styles.sparkle1]} />
-                        <Ionicons name="star" size={16} color="#FFD700" style={[styles.sparkle, styles.sparkle2]} />
-
-                        {/* Title/Subtitle */}
-                        <Text style={styles.rewardTitle}>New Costume!</Text>
-                        <Text style={styles.rewardName}>{costume.costume_name}</Text>
-
-                        {/* Claim Button */}
-                        <Pressable
-                            style={[styles.claimButton, (isClaimed || isClaiming) && styles.claimButtonDisabled]}
-                            onPress={async () => {
-                                if (isClaimed) {
-                                    onClose();
-                                    return;
-                                }
-                                setIsClaiming(true);
-                                try {
-                                    await onClaim();
-                                    onClose();
-                                } catch (error) {
-                                    console.error('Failed to claim costume:', error);
-                                } finally {
-                                    setIsClaiming(false);
-                                }
-                            }}
-                            disabled={isClaiming}
-                        >
-                            <LinearGradient
-                                colors={isClaimed ? ['#999', '#777'] : ['#FF5FA1', '#FF247C']}
-                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                style={styles.claimButtonGradient}
+                        {/* Bottom Section: Title + Button */}
+                        <View style={styles.bottomSection}>
+                            {/* Claim Button */}
+                            <Pressable
+                                style={[styles.claimButton, (isClaimed || isClaiming) && styles.claimButtonDisabled]}
+                                onPress={async () => {
+                                    if (isClaimed) {
+                                        onClose();
+                                        return;
+                                    }
+                                    setIsClaiming(true);
+                                    try {
+                                        await onClaim();
+                                        onClose();
+                                    } catch (error) {
+                                        console.error('Failed to claim costume:', error);
+                                    } finally {
+                                        setIsClaiming(false);
+                                    }
+                                }}
+                                disabled={isClaiming}
                             >
-                                <Text style={styles.claimButtonText}>
-                                    {isClaiming ? 'Claiming...' : isClaimed ? 'Claimed' : 'Claim Gift'}
-                                </Text>
-                            </LinearGradient>
-                        </Pressable>
-                    </View>
+                                <LinearGradient
+                                    colors={isClaimed ? ['#999', '#777'] : ['#FF5FA1', '#FF247C']}
+                                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                                    style={styles.claimButtonGradient}
+                                >
+                                    <Text style={styles.claimButtonText}>
+                                        {isClaiming ? 'Claiming...' : isClaimed ? 'Claimed' : 'Claim Gift'}
+                                    </Text>
+                                </LinearGradient>
+                            </Pressable>
+                        </View>
+                    </ImageBackground>
                 </Animated.View>
             </View>
         </Modal>
     );
 };
+
+const { width: screenWidth } = Dimensions.get('window');
+const popupWidth = Math.min(screenWidth * 0.95, 380);
+const popupHeight = popupWidth * 1.4; // Maintain aspect ratio based on background image
 
 const styles = StyleSheet.create({
     overlay: {
@@ -147,120 +300,81 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     container: {
-        width: 300,
-        alignItems: 'center',
-        position: 'relative',
+        width: popupWidth,
+        height: popupHeight,
+    },
+    backgroundImage: {
+        flex: 1,
+        width: '100%',
+        height: '100%',
     },
     closeButton: {
         position: 'absolute',
-        top: -40,
-        right: 0,
+        top: 16,
+        right: 16,
         zIndex: 20,
-        padding: 8,
     },
-    giftBoxContainer: {
-        zIndex: 10,
-        alignItems: 'center',
-        marginBottom: -40, // Overlap deeply
-    },
-    giftIcon: {
-        zIndex: 11,
-        textShadowColor: 'rgba(0,0,0,0.3)',
-        textShadowOffset: { width: 0, height: 4 },
-        textShadowRadius: 8,
-    },
-    giftGlow: {
-        position: 'absolute',
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255, 215, 0, 0.3)',
-        top: -10,
-    },
-    ribbonContainer: {
-        zIndex: 5,
-        width: '110%',
-        alignItems: 'center',
-        marginBottom: -10,
-    },
-    ribbon: {
-        width: '100%',
-        height: 40,
+    closeButtonCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 8,
-        // Fancy ribbon shape not fully implemented, just a bar for now
-    },
-    ribbonStarLeft: {
-        position: 'absolute',
-        left: 20,
-    },
-    ribbonStarRight: {
-        position: 'absolute',
-        right: 20,
-    },
-    card: {
-        backgroundColor: '#fff',
-        width: '100%',
-        borderRadius: 24,
-        padding: 20,
-        alignItems: 'center',
-        paddingTop: 50, // Space for gift/ribbon overlap
-    },
-    contentSpacer: {
-        height: 10,
     },
     costumeContainer: {
-        width: 160,
-        height: 200, // Tall for full body
-        marginBottom: 20,
+        height: '60%',
         justifyContent: 'center',
         alignItems: 'center',
+        paddingBottom: 20,
+        paddingHorizontal: 40,
     },
     costumeImage: {
         width: '100%',
         height: '100%',
+        maxWidth: 200,
+        maxHeight: 260,
     },
     placeholderCostume: {
-        width: 100,
-        height: 100,
+        width: 120,
+        height: 160,
         borderRadius: 20,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    sparkle: {
-        position: 'absolute',
-    },
-    sparkle1: {
-        top: 80,
-        left: 10,
-    },
-    sparkle2: {
-        top: 100,
-        right: 10,
+    bottomSection: {
+        paddingHorizontal: 24,
+        paddingBottom: 28,
+        alignItems: 'center',
     },
     rewardTitle: {
         fontSize: 14,
-        color: '#888',
+        color: 'rgba(255,255,255,0.7)',
         fontWeight: '600',
         marginBottom: 4,
         textTransform: 'uppercase',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     rewardName: {
-        fontSize: 20,
-        color: '#333',
+        fontSize: 22,
+        color: '#fff',
         fontWeight: '800',
-        marginBottom: 24,
+        marginBottom: 16,
         textAlign: 'center',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
     },
     claimButton: {
-        width: '100%',
+        width: '90%',
         borderRadius: 999,
         overflow: 'hidden',
         shadowColor: '#FF247C',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.5,
         shadowRadius: 8,
         elevation: 6,
     },
@@ -276,5 +390,20 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 18,
         fontWeight: '700',
+    },
+    sparklesContainer: {
+        position: 'absolute',
+        top: '35%',
+        left: '50%',
+        width: 0,
+        height: 0,
+        zIndex: 100,
+    },
+    sparkle: {
+        position: 'absolute',
+        shadowColor: '#fff',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 4,
     },
 });

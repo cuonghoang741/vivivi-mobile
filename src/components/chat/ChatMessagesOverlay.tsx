@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, ScrollView, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ChatMessage } from '../../types/chat';
@@ -18,6 +18,7 @@ type Props = {
   showStreakConfetti?: boolean;
   onStreakTap?: () => void;
   onScrollStateChange?: (isScrolling: boolean) => void;
+  onToggleChatList?: () => void;
 };
 
 // Spring animation config matching Swift version
@@ -108,6 +109,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   showStreakConfetti,
   onStreakTap,
   onScrollStateChange,
+  onToggleChatList,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const isUserScrollingRef = useRef(false);
@@ -115,6 +117,40 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   const opacityAnim = useRef(new Animated.Value(showChatList ? 1 : 0)).current;
   const translateXAnim = useRef(new Animated.Value(showChatList ? 0 : 200)).current;
   const typingOpacityAnim = useRef(new Animated.Value(isTyping ? 1 : 0)).current;
+
+  // PanResponder for swipe left/right to toggle chat
+  const SWIPE_THRESHOLD = 50; // Minimum swipe distance to trigger toggle
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to horizontal swipes (not vertical scrolling)
+        const isHorizontalSwipe = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+        const hasMinimumMovement = Math.abs(gestureState.dx) > 10;
+        return isHorizontalSwipe && hasMinimumMovement;
+      },
+      onPanResponderGrant: () => {
+        // Pause scrolling when swipe gesture starts
+        isUserScrollingRef.current = true;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        isUserScrollingRef.current = false;
+
+        // Swipe left (negative dx) - hide chat if currently shown
+        if (gestureState.dx < -SWIPE_THRESHOLD && showChatList) {
+          onToggleChatList?.();
+        }
+        // Swipe right (positive dx) - show chat if currently hidden
+        else if (gestureState.dx > SWIPE_THRESHOLD && !showChatList) {
+          onToggleChatList?.();
+        }
+      },
+      onPanResponderTerminate: () => {
+        isUserScrollingRef.current = false;
+      },
+    })
+  ).current;
 
   // Show all messages (not just last 3) to allow scrolling (like swift-version)
   const displayedMessages = useMemo(() => messages, [messages]);
@@ -182,11 +218,12 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         },
       ]}
       pointerEvents="box-none"
+      {...panResponder.panHandlers}
     >
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.overlayContent, { paddingBottom: bottomInset }]}
+        contentContainerStyle={[styles.overlayContent]}
         showsVerticalScrollIndicator={false}
         bounces={true}
         nestedScrollEnabled={true}
@@ -259,10 +296,10 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     // Leave space on right for CharacterQuickSwitcher (about 80px)
-    width: '70%',
+    width: '77%',
     paddingTop: 4,
     // Limit height to prevent pushing input out of view
-    maxHeight: 280, // Compact height for overlay
+    maxHeight: 200, // Compact height for overlay
     // Ensure container is visible
     minHeight: 0,
   },

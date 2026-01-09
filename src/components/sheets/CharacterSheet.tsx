@@ -28,6 +28,7 @@ import Button from '../Button';
 import { BlurView } from 'expo-blur';
 import { LiquidGlass } from '../LiquidGlass';
 import { LiquidGlassView } from '@callstack/liquid-glass';
+import { useVideoPreloader } from '../../hooks/useVideoPreloader';
 
 interface CharacterSheetProps {
   isOpened: boolean;
@@ -64,6 +65,13 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   // const overlayColors = ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const;
   const overlayColors = ['transparent', isDarkBackground ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.2)', isDarkBackground ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.55)'] as const;
   const actionButtonBg = isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+
+  // Preload character videos in background when sheet is opened
+  // This ensures videos are cached before user opens CharacterPreviewScreen
+  useVideoPreloader({
+    characters: items,
+    autoStart: isOpened && items.length > 0,
+  });
 
   // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
@@ -271,7 +279,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
             <View style={styles.cardImagePlaceholder} />
           )}
 
-          {!isOwned && !isComingSoon && (
+          {!isOwned && !isComingSoon && !isPro && (
             <DiamondBadge size="md" style={styles.diamondBadgeContainer} />
           )}
 

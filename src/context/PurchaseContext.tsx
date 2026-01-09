@@ -27,17 +27,17 @@ import type { BackgroundItem } from "../repositories/BackgroundRepository";
 
 type PendingPurchase =
   | {
-      type: "character";
-      item: CharacterItem;
-      useVcoin: boolean;
-      useRuby: boolean;
-    }
+    type: "character";
+    item: CharacterItem;
+    useVcoin: boolean;
+    useRuby: boolean;
+  }
   | {
-      type: "background";
-      item: BackgroundItem;
-      useVcoin: boolean;
-      useRuby: boolean;
-    }
+    type: "background";
+    item: BackgroundItem;
+    useVcoin: boolean;
+    useRuby: boolean;
+  }
   | { type: "costume"; item: CostumeItem; useVcoin: boolean; useRuby: boolean };
 
 type PurchaseContextValue = {
@@ -75,7 +75,7 @@ type PurchaseContextValue = {
     itemType: string;
     priceVcoin?: number;
     priceRuby?: number;
-      autoCloseOnSuccess?: boolean;
+    autoCloseOnSuccess?: boolean;
   }) => Promise<void>;
   handlePurchaseError: (error: unknown) => void;
   resumePendingPurchase: () => Promise<{
@@ -332,9 +332,9 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
     (
       callback:
         | ((payload: {
-            vcoinAdded: number;
-            rubyAdded: number;
-          }) => Promise<void>)
+          vcoinAdded: number;
+          rubyAdded: number;
+        }) => Promise<void>)
         | undefined
     ) => {
       purchaseCompleteCallbackRef.current = callback;
@@ -379,148 +379,27 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({
     (
       costume: CostumeItem
     ): Promise<{ useVcoin: boolean; useRuby: boolean } | null> =>
-      new Promise((resolve) => {
-        const priceVcoin = costume.price_vcoin ?? 0;
-        const priceRuby = costume.price_ruby ?? 0;
-        const hasVcoinPrice = priceVcoin > 0;
-        const hasRubyPrice = priceRuby > 0;
-
-        if (!hasVcoinPrice && !hasRubyPrice) {
-          resolve(null);
-          return;
-        }
-
-        const request: ConfirmPurchaseType = {
-          type: 'currency-choice',
-          title: 'Purchase Costume',
-          itemName: costume.costume_name,
-          priceVcoin,
-          priceRuby,
-          balanceVcoin: balance.vcoin,
-          balanceRuby: balance.ruby,
-          previewImage: costume.thumbnail ?? undefined,
-          autoCloseOnSuccess: false,
-          onConfirm: (choice) => resolve(choice),
-          onCancel: () => resolve(null),
-          onTopUp: (choice) => {
-            console.log('🔄 [PurchaseContext] Top Up pressed', choice);
-
-            setShowBackgroundSheet(false);
-            setShowCharacterSheet(false);
-            setShowCostumeSheet(false);
-
-            // Save pending purchase (like Swift version)
-            setPendingPurchase({
-              type: 'costume',
-              item: costume,
-              useVcoin: choice.useVcoin,
-              useRuby: choice.useRuby,
-            });
-            setShowPurchaseSheet(true);
-            resolve(null);
-          },
-        };
-        setConfirmPurchaseRequest(request);
-      }),
-    [balance, setShowPurchaseSheet]
+      // Currency purchase flow disabled
+      Promise.resolve(null),
+    []
   );
 
   const confirmCharacterPurchase = useCallback(
     (
       character: CharacterItem
     ): Promise<{ useVcoin: boolean; useRuby: boolean } | null> =>
-      new Promise(resolve => {
-        const priceVcoin = character.price_vcoin ?? 0;
-        const priceRuby = character.price_ruby ?? 0;
-        const hasVcoinPrice = priceVcoin > 0;
-        const hasRubyPrice = priceRuby > 0;
-
-        if (!hasVcoinPrice && !hasRubyPrice) {
-          resolve(null);
-          return;
-        }
-
-        const request: ConfirmPurchaseType = {
-          type: 'currency-choice',
-          title: 'Purchase Character',
-          itemName: character.name,
-          priceVcoin,
-          priceRuby,
-          balanceVcoin: balance.vcoin,
-          balanceRuby: balance.ruby,
-          previewImage: character.thumbnail_url ?? character.avatar ?? undefined,
-          autoCloseOnSuccess: false,
-          onConfirm: choice => resolve(choice),
-          onCancel: () => resolve(null),
-          onTopUp: choice => {
-            console.log('🔄 [PurchaseContext] Character Top Up pressed', choice);
-            setShowBackgroundSheet(false);
-            setShowCharacterSheet(false);
-            setShowCostumeSheet(false);
-
-            setPendingPurchase({
-              type: 'character',
-              item: character,
-              useVcoin: choice.useVcoin,
-              useRuby: choice.useRuby,
-            });
-            setShowPurchaseSheet(true);
-            resolve(null);
-          },
-        };
-        setConfirmPurchaseRequest(request);
-      }),
-    [balance, setShowPurchaseSheet]
+      // Currency purchase flow disabled
+      Promise.resolve(null),
+    []
   );
 
   const confirmBackgroundPurchase = useCallback(
     (
       background: BackgroundItem
     ): Promise<{ useVcoin: boolean; useRuby: boolean } | null> =>
-      new Promise((resolve) => {
-        const priceVcoin = background.price_vcoin ?? 0;
-        const priceRuby = background.price_ruby ?? 0;
-        const hasVcoinPrice = priceVcoin > 0;
-        const hasRubyPrice = priceRuby > 0;
-
-        if (!hasVcoinPrice && !hasRubyPrice) {
-          resolve(null);
-          return;
-        }
-
-        const request: ConfirmPurchaseType = {
-          type: 'currency-choice',
-          title: 'Purchase Background',
-          itemName: background.name,
-          priceVcoin,
-          priceRuby,
-          balanceVcoin: balance.vcoin,
-          balanceRuby: balance.ruby,
-          previewImage: background.thumbnail ?? background.image ?? undefined,
-          autoCloseOnSuccess: false,
-          onConfirm: (choice) => resolve(choice),
-          onCancel: () => resolve(null),
-          onTopUp: (choice) => {
-            console.log('🔄 [PurchaseContext] Top Up pressed', choice);
-
-            setShowBackgroundSheet(false);
-            setShowCharacterSheet(false);
-            setShowCostumeSheet(false);
-
-            // Save pending purchase (like Swift version)
-            setPendingPurchase({
-              type: 'background',
-              item: background,
-              useVcoin: choice.useVcoin,
-              useRuby: choice.useRuby,
-            });
-            setShowPurchaseSheet(true);
-            resolve(null);
-          },
-        };
-        setConfirmPurchaseRequest(request);
-      }),
-    [balance, setShowPurchaseSheet]
+      // Currency purchase flow disabled
+      Promise.resolve(null),
+    []
   );
 
   const handlePurchaseError = useCallback(

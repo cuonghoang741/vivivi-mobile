@@ -18,6 +18,7 @@ import AssetRepository from '../../repositories/AssetRepository';
 import { useSceneActions } from '../../context/SceneActionsContext';
 import { DiamondBadge } from '../DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { LiquidGlass } from '../LiquidGlass';
 
 interface CostumeSheetProps {
   isOpened: boolean;
@@ -158,18 +159,12 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;
 
-      const borderColor = !isDarkBackground ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
-
       return (
-        <Pressable
-          onPress={() => handleSelect(item)}
-          style={({ pressed }) => [
-            styles.itemContainer,
-            { width: itemWidth },
-            pressed && styles.pressed,
-          ]}
-        >
-          <View style={[styles.imageContainer, { width: itemWidth, height: itemHeight, borderColor }]}>
+        <View style={[styles.itemContainer, { width: itemWidth }]}>
+          <LiquidGlass
+            onPress={() => handleSelect(item)}
+            style={[styles.imageContainer, { width: itemWidth, height: itemHeight }]}
+          >
             <View style={[styles.placeholder, { width: itemWidth, height: itemHeight }]} />
 
             {item.thumbnail ? (
@@ -213,14 +208,14 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
                 )}
               </View>
             ) : null}
-          </View>
+          </LiquidGlass>
           <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
             {item.costume_name}
           </Text>
-        </Pressable>
+        </View>
       );
     },
-    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground]
+    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays]
   );
 
   const renderContent = () => {

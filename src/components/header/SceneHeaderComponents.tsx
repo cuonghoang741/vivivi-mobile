@@ -147,9 +147,6 @@ const styles = StyleSheet.create({
   characterName: {
     fontSize: 16,
     fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.35)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
   },
   relationshipRow: {
     flexDirection: "row",

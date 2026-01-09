@@ -6,8 +6,8 @@ import { getSupabaseClient } from '../services/supabase';
 import { callQuotaService } from '../services/CallQuotaService';
 
 // RevenueCat Public SDK Keys
-const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
-// const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
+// const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 const REVENUECAT_API_KEY_ANDROID = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 
 type SubscriptionState = {

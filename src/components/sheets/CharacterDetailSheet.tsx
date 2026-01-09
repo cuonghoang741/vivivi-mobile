@@ -7,14 +7,18 @@ import {
   Pressable,
   useWindowDimensions,
   FlatList,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
+import { Video } from 'expo-av';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
-import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
+import { MediaItem } from '../../repositories/MediaRepository';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { DiamondBadge } from '../DiamondBadge';
+import { getSupabaseClient, getAuthenticatedUserId } from '../../services/supabase';
 
 
 
@@ -27,11 +31,26 @@ type CharacterDetailSheetProps = {
   characterDescription?: string | null;
   isDarkBackground?: boolean;
   onDismiss?: () => void;
+  isPro?: boolean;
+  onOpenSubscription?: () => void;
 };
 
 export type CharacterDetailSheetRef = BottomSheetRef;
 
 type Tab = 'information' | 'gallery';
+
+type GalleryMediaItem = MediaItem & {
+  conversationId: string;
+};
+
+const isVideoItem = (item: GalleryMediaItem) => {
+  const mediaType = item.media_type?.toLowerCase();
+  if (mediaType) {
+    return mediaType === 'video' || mediaType === 'dance';
+  }
+  const url = item.url.toLowerCase();
+  return url.endsWith('.mp4') || url.includes('video');
+};
 
 export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, CharacterDetailSheetProps>(({
   isOpened,
@@ -41,6 +60,8 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
   characterDescription,
   isDarkBackground = true,
   onDismiss,
+  isPro = false,
+  onOpenSubscription,
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const insets = useSafeAreaInsets();
@@ -48,8 +69,9 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
 
   const [character, setCharacter] = useState<CharacterItem | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('information');
-  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [media, setMedia] = useState<GalleryMediaItem[]>([]);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [previewItem, setPreviewItem] = useState<GalleryMediaItem | null>(null);
 
   // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
@@ -76,14 +98,40 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
     }
   }, [characterId]);
 
+  // Fetch media from conversation table - only media sent by the character (is_agent = true)
   const loadMedia = useCallback(async () => {
     setIsLoadingMedia(true);
     try {
-      const mediaRepo = new MediaRepository();
-      const fetched = await mediaRepo.fetchAllMedia(characterId);
-      setMedia(fetched);
+      const client = getSupabaseClient();
+      const userId = await getAuthenticatedUserId();
+
+      const { data, error } = await client
+        .from('conversation')
+        .select('id, media_id, medias(*)')
+        .eq('character_id', characterId)
+        .eq('user_id', userId)
+        .eq('is_agent', true)
+        .not('media_id', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('[CharacterDetailSheet] Failed to load media from conversation', error);
+        setMedia([]);
+        return;
+      }
+
+      // Map conversation rows to GalleryMediaItem
+      const mediaItems: GalleryMediaItem[] = (data || [])
+        .filter((row: any) => row.medias) // Only rows with valid media
+        .map((row: any) => ({
+          ...row.medias,
+          conversationId: row.id,
+        }));
+
+      setMedia(mediaItems);
     } catch (error) {
       console.warn('[CharacterDetailSheet] Failed to load media', error);
+      setMedia([]);
     } finally {
       setIsLoadingMedia(false);
     }
@@ -93,6 +141,8 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
     if (isOpened) {
       loadCharacter();
       loadMedia();
+    } else {
+      setPreviewItem(null);
     }
   }, [isOpened, loadCharacter, loadMedia]);
 
@@ -100,6 +150,20 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
     Haptics.selectionAsync();
     setActiveTab(tab);
   };
+
+  const handleMediaSelect = useCallback((item: GalleryMediaItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+
+    if (isPro) {
+      setPreviewItem(item);
+    } else {
+      // Not pro -> Upsell
+      sheetRef.current?.dismiss();
+      setTimeout(() => {
+        onOpenSubscription?.();
+      }, 300);
+    }
+  }, [isPro, onOpenSubscription]);
 
   // Parse data if it's a string (though it should be an object from Supabase)
   const characterData = typeof character?.data === 'string'
@@ -156,27 +220,56 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
     </ScrollView>
   );
 
-  const renderGalleryTab = () => (
-    <View style={{ flex: 1, maxHeight: SCREEN_HEIGHT * 0.9 }}>
-      <FlatList<MediaItem>
-        data={media}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        renderItem={({ item }) => (
-          <View style={[styles.galleryItem, { backgroundColor: cardBgColor, width: (SCREEN_WIDTH - 40 - 12) / 2 }]}>
-            <ExpoImage
-              source={{ uri: item.thumbnail || item.url }}
-              style={styles.galleryImage}
-              contentFit="cover"
-            />
+  const renderGalleryItem = useCallback(({ item }: { item: GalleryMediaItem }) => {
+    const isUnlocked = isPro;
+    const thumb = item.thumbnail || item.url;
+    const cardWidth = (SCREEN_WIDTH - 40 - 12) / 2;
+
+    return (
+      <Pressable
+        onPress={() => handleMediaSelect(item)}
+        style={[styles.galleryItem, { backgroundColor: cardBgColor, width: cardWidth }]}
+      >
+        <ExpoImage
+          source={{ uri: thumb }}
+          style={styles.galleryImage}
+          contentFit="cover"
+          blurRadius={!isUnlocked ? 50 : 0}
+        />
+
+        {!isUnlocked && (
+          <View style={styles.lockOverlay}>
+            <DiamondBadge size="md" />
           </View>
         )}
+
+        {isVideoItem(item) && isUnlocked && (
+          <View style={styles.videoIndicator}>
+            <Ionicons name="play-circle" size={24} color="#fff" />
+          </View>
+        )}
+      </Pressable>
+    );
+  }, [isPro, SCREEN_WIDTH, handleMediaSelect, cardBgColor]);
+
+  const renderGalleryTab = () => (
+    <View style={{ flex: 1, maxHeight: SCREEN_HEIGHT * 0.9 }}>
+      <FlatList<GalleryMediaItem>
+        data={media}
+        keyExtractor={(item) => item.conversationId}
+        numColumns={2}
+        renderItem={renderGalleryItem}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: tertiaryTextColor }]}>No media found</Text>
+            <Text style={[styles.emptyText, { color: tertiaryTextColor }]}>
+              {isLoadingMedia ? 'Loading...' : 'No media received yet'}
+            </Text>
+            <Text style={[styles.emptySubtext, { color: tertiaryTextColor }]}>
+              Chat with {characterName} to receive photos and videos
+            </Text>
           </View>
         }
       />
@@ -184,52 +277,130 @@ export const CharacterDetailSheet = forwardRef<CharacterDetailSheetRef, Characte
   );
 
   return (
-    <BottomSheet
-      ref={sheetRef}
-      isOpened={isOpened}
-      onIsOpenedChange={onIsOpenedChange}
-      onDismiss={onDismiss}
-      title={characterName || character?.name || 'Character'}
-      isDarkBackground={isDarkBackground}
-      detents={[0.45, 0.75]}
-    >
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
-        <Pressable
-          style={[
-            styles.tabButton,
-            activeTab === 'information' && { backgroundColor: activeTabBgColor }
-          ]}
-          onPress={() => handleTabChange('information')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'information' ? textColor : secondaryTextColor }
-          ]}>
-            Information
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tabButton,
-            activeTab === 'gallery' && { backgroundColor: activeTabBgColor }
-          ]}
-          onPress={() => handleTabChange('gallery')}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === 'gallery' ? textColor : secondaryTextColor }
-          ]}>
-            Gallery
-          </Text>
-        </Pressable>
-      </View>
+    <>
+      <BottomSheet
+        ref={sheetRef}
+        isOpened={isOpened}
+        onIsOpenedChange={onIsOpenedChange}
+        onDismiss={onDismiss}
+        title={characterName || character?.name || 'Character'}
+        isDarkBackground={isDarkBackground}
+        detents={[0.45, 0.75]}
+      >
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
+          <Pressable
+            style={[
+              styles.tabButton,
+              activeTab === 'information' && { backgroundColor: activeTabBgColor }
+            ]}
+            onPress={() => handleTabChange('information')}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === 'information' ? textColor : secondaryTextColor }
+            ]}>
+              Information
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.tabButton,
+              activeTab === 'gallery' && { backgroundColor: activeTabBgColor }
+            ]}
+            onPress={() => handleTabChange('gallery')}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === 'gallery' ? textColor : secondaryTextColor }
+            ]}>
+              Gallery
+            </Text>
+          </Pressable>
+        </View>
 
-      {/* Content */}
-      {activeTab === 'information' ? renderInformationTab() : renderGalleryTab()}
-    </BottomSheet>
+        {/* Content */}
+        {activeTab === 'information' ? renderInformationTab() : renderGalleryTab()}
+      </BottomSheet>
+
+      <MediaPreviewModal
+        item={previewItem}
+        onClose={() => setPreviewItem(null)}
+      />
+    </>
   );
 });
+
+// Media Preview Modal
+const MediaPreviewModal: React.FC<{
+  item: GalleryMediaItem | null;
+  onClose: () => void;
+}> = ({ item, onClose }) => {
+  const videoRef = useRef<Video | null>(null);
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!item && videoRef.current) {
+      videoRef.current.stopAsync().catch(() => undefined);
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const isVideo = isVideoItem(item);
+
+  return (
+    <Modal visible={true} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.lightboxContainer}>
+        <Pressable
+          style={[styles.lightboxCloseButton, { top: insets.top + 10 }]}
+          onPress={onClose}
+          hitSlop={20}
+        >
+          <Ionicons name="close" size={28} color="#fff" />
+        </Pressable>
+
+        {isVideo ? (
+          <Video
+            ref={ref => {
+              videoRef.current = ref;
+            }}
+            style={{ width, height: height * 0.8 }}
+            source={{ uri: item.url }}
+            useNativeControls
+            resizeMode="contain"
+            shouldPlay
+            isLooping
+          />
+        ) : (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: width,
+              minHeight: height,
+            }}
+            maximumZoomScale={5}
+            minimumZoomScale={1}
+            bouncesZoom
+            bounces
+            centerContent
+            pinchGestureEnabled
+          >
+            <ExpoImage
+              source={{ uri: item.url }}
+              style={{ width, height: height * 0.9 }}
+              contentFit="contain"
+            />
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   tabsContainer: {
@@ -295,19 +466,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
   },
-  galleryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
   galleryItem: {
     aspectRatio: 3 / 4,
     borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
   },
   galleryImage: {
     width: '100%',
     height: '100%',
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12,
+    padding: 4,
   },
   emptyState: {
     padding: 40,
@@ -315,5 +496,24 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  lightboxContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lightboxCloseButton: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
   },
 });

@@ -8,6 +8,7 @@ type Props = {
   onSendPhoto: () => void;
   onDance: () => void;
   isDancing?: boolean;
+  isInCall?: boolean;
 };
 
 export const ChatBottomActions: React.FC<Props> = ({
@@ -15,14 +16,20 @@ export const ChatBottomActions: React.FC<Props> = ({
   onSendPhoto,
   onDance,
   isDancing = false,
+  isInCall = false,
 }) => {
+  // When in call mode, hide all action buttons
+  if (isInCall) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} />
       <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} />
       <ActionButton
         icon={isDancing ? "close" : "musical-notes-outline"}
-        label={isDancing ? "Stop" : "Dance"}
+        label={isDancing ? "Dance" : "Dance"}
         onPress={onDance}
       />
     </View>

@@ -86,6 +86,7 @@ const AppContent = () => {
     ensureInitialModelApplied,
     currentCharacter,
     setCurrentCharacterState,
+    setCurrentCostume,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
   const userId = session?.user?.id ?? null;
@@ -596,6 +597,8 @@ const AppContent = () => {
             await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
               current_costume_id: costume.id,
             });
+
+            setCurrentCostume(costume);
             setShowCostumeSheet(false);
             console.log('✅ [App] Costume applied after resume purchase');
           }
@@ -864,7 +867,8 @@ const AppContent = () => {
         const cachedCostume = await Persistence.getCharacterCostumeSelection(item.id);
         const cachedBackground = await Persistence.getCharacterBackgroundSelection(item.id);
 
-        // Apply cached or fallback costume
+        // Apply cached or fallback costume and update currentCostume state
+        let appliedCostumeId: string | null = null;
         if (cachedCostume?.costumeId && cachedCostume.modelURL) {
           // Use cached costume
           await UserCharacterPreferenceService.applyCostumeById(
@@ -872,7 +876,11 @@ const AppContent = () => {
             webViewRef,
             item.id
           );
+          appliedCostumeId = cachedCostume.costumeId;
           console.log('[App] Applied cached costume:', cachedCostume.modelName);
+        } else if (item.default_costume_id) {
+          // Use default costume
+          appliedCostumeId = item.default_costume_id;
         } else if (item.base_model_url) {
           // No cached costume, use fallback
           await UserCharacterPreferenceService.loadFallbackModel(
@@ -881,6 +889,22 @@ const AppContent = () => {
             webViewRef,
             item.id
           );
+        }
+
+        // Update currentCostume in VRMContext for SubscriptionSheet video
+        if (appliedCostumeId) {
+          try {
+            const costumeRepo = new CostumeRepository();
+            const costumeDetails = await costumeRepo.fetchCostumeById(appliedCostumeId);
+            if (costumeDetails) {
+              setCurrentCostume(costumeDetails);
+              console.log('[App] Updated currentCostume:', costumeDetails.costume_name);
+            }
+          } catch (e) {
+            console.warn('[App] Failed to fetch costume details:', e);
+          }
+        } else {
+          setCurrentCostume(null);
         }
 
         // Apply cached or default background
@@ -1226,6 +1250,7 @@ const AppContent = () => {
           await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
             current_costume_id: item.id,
           });
+          setCurrentCostume(item);
           setShowCostumeSheet(false);
         };
 
@@ -1948,27 +1973,30 @@ const AppContent = () => {
             enableDebug={false}
           />
         </Pressable>
-        <VRMUIOverlay
-          canClaimCalendar={overlayFlags.canClaimCalendar}
-          hasMessages={overlayFlags.hasMessages}
-          showChatList={overlayFlags.showChatList}
-          loginStreak={chatState.streakDays ?? 0}
-          isDarkBackground={isDarkBackground}
-          isBgmOn={isBgmOn}
-          remainingQuotaSeconds={remainingQuotaSeconds}
-          isInCall={isCameraMode || voiceState.isConnected}
-          onBackgroundPress={() => setShowBackgroundSheet(true)}
-          onCostumePress={() => setShowCostumeSheet(true)}
-          onCalendarPress={handleCalendarPress}
-          onSettingsPress={handleOpenSettings}
-          onSpeakerPress={handleToggleBgm}
-          onToggleChatList={toggleChatListInternal}
-          onSwipeBackground={advanceBackground}
-          onSwipeCharacter={changeCharacter}
-          isChatScrolling={isChatScrolling}
-          canSwipeCharacter={allCharacters.length > 1}
-          isPro={isPro}
-        />
+        {/* Hide VRMUIOverlay when in call mode */}
+        {!(isCameraMode || voiceState.isConnected) && (
+          <VRMUIOverlay
+            canClaimCalendar={overlayFlags.canClaimCalendar}
+            hasMessages={overlayFlags.hasMessages}
+            showChatList={overlayFlags.showChatList}
+            loginStreak={chatState.streakDays ?? 0}
+            isDarkBackground={isDarkBackground}
+            isBgmOn={isBgmOn}
+            remainingQuotaSeconds={remainingQuotaSeconds}
+            isInCall={isCameraMode || voiceState.isConnected}
+            onBackgroundPress={() => setShowBackgroundSheet(true)}
+            onCostumePress={() => setShowCostumeSheet(true)}
+            onCalendarPress={handleCalendarPress}
+            onSettingsPress={handleOpenSettings}
+            onSpeakerPress={handleToggleBgm}
+            onToggleChatList={toggleChatListInternal}
+            onSwipeBackground={advanceBackground}
+            onSwipeCharacter={changeCharacter}
+            isChatScrolling={isChatScrolling}
+            canSwipeCharacter={allCharacters.length > 1}
+            isPro={isPro}
+          />
+        )}
         <CameraPreviewOverlay
           visible={showCameraPreview && !!cameraStream}
           stream={cameraStream}
@@ -2016,17 +2044,21 @@ const AppContent = () => {
             onOpenHistory={openHistory}
             onChatScrollStateChange={setIsChatScrolling}
             onToggleChatList={toggleChatListInternal}
+            isInCall={isCameraMode || voiceState.isConnected}
           />
         </View>
-        <CharacterQuickSwitcher
-          characters={allCharacters}
-          currentIndex={currentCharacterIndex}
-          onCharacterTap={handleCharacterSelectByIndex}
-          onAddCharacter={() => setShowCharacterSheet(true)}
-          isInputActive={isKeyboardVisible || chatState.showChatList}
-          keyboardHeight={0}
-          isModelLoading={false}
-        />
+        {/* Hide CharacterQuickSwitcher when in call mode */}
+        {!(isCameraMode || voiceState.isConnected) && (
+          <CharacterQuickSwitcher
+            characters={allCharacters}
+            currentIndex={currentCharacterIndex}
+            onCharacterTap={handleCharacterSelectByIndex}
+            onAddCharacter={() => setShowCharacterSheet(true)}
+            isInputActive={isKeyboardVisible || chatState.showChatList}
+            keyboardHeight={0}
+            isModelLoading={false}
+          />
+        )}
         <AppSheets
           showQuestSheet={showQuestSheet}
           setShowQuestSheet={setShowQuestSheet}
@@ -2082,6 +2114,7 @@ const AppContent = () => {
           }
           friendshipDays={loginRewardState.currentDay}
           canCheckin={chatState.canCheckIn ?? false}
+          isDarkBackground={isDarkBackground}
           onCheckin={async () => {
             if (!activeCharacterId) return;
             try {
@@ -2153,26 +2186,34 @@ const AppContent = () => {
           onClaim={async () => {
             if (!streakRewardCostume || !currentCharacter) return;
 
-            // 1. Grant costume to user
             const assetRepo = new AssetRepository();
-            const success = await assetRepo.createAsset(streakRewardCostume.id, 'character_costume');
-            if (!success) {
-              throw new Error('Failed to grant costume');
+
+            // Check if user already owns this costume
+            const ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+            const alreadyOwned = ownedCostumeIds.has(streakRewardCostume.id);
+
+            // Only grant costume if not already owned
+            if (!alreadyOwned) {
+              const success = await assetRepo.createAsset(streakRewardCostume.id, 'character_costume');
+              if (!success) {
+                throw new Error('Failed to grant costume');
+              }
             }
 
-            // 2. Apply the costume
+            // Apply the costume
             await UserCharacterPreferenceService.applyCostumeById(
               streakRewardCostume.id,
               webViewRef,
               currentCharacter.id
             );
 
-            // 3. Save preference
+            // Save preference
             await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
               current_costume_id: streakRewardCostume.id,
             });
+            setCurrentCostume(streakRewardCostume);
 
-            // 4. Update state to mark as claimed
+            // Update state to mark as claimed
             setStreakRewardIsClaimed(true);
           }}
           onClose={() => {
@@ -2420,16 +2461,7 @@ const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, st
           />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.cameraCloseButton}
-          onPress={(e) => {
-            // Stop propagation not strictly needed in RN like web, but good to be explicit/direct
-            onClose();
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={14} color="#fff" />
-        </TouchableOpacity>
+
       </Animated.View>
     </View>
   );
@@ -2499,11 +2531,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#000',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowOffset: { width: 0, height: 6 },
     shadowRadius: 12,
     elevation: 12,
   },

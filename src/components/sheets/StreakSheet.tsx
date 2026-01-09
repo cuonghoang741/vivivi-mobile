@@ -11,11 +11,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Animated } from 'react-native';
-import { TrueSheet } from '@lodev09/react-native-true-sheet';
 import StreakIcon from '../../assets/icons/streak.svg';
 import GiftIcon from '../../assets/icons/gift.svg';
 import { LiquidGlass } from '../LiquidGlass';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
+import AssetRepository from '../../repositories/AssetRepository';
+import { IconHearts } from '@tabler/icons-react-native';
+import { BottomSheet, BottomSheetRef } from '../BottomSheet';
 
 type StreakSheetProps = {
     characterName?: string;
@@ -29,6 +31,7 @@ type StreakSheetProps = {
     onDismiss?: () => void;
     characterId?: string;
     onClaimMilestone?: (costume: CostumeItem, isClaimed: boolean) => void;
+    isDarkBackground?: boolean;
 };
 
 export type StreakSheetRef = {
@@ -51,7 +54,9 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
     onDismiss,
     characterId,
     onClaimMilestone,
+    isDarkBackground = true,
 }, ref) => {
+    const sheetRef = useRef<BottomSheetRef>(null);
     const shakeAnimation = useRef(new Animated.Value(0)).current;
 
     // Store all milestones
@@ -64,7 +69,6 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
     // State to track expanded milestone info if needed, or just visual
     const [loadingMilestones, setLoadingMilestones] = React.useState(true);
     const [ownedCostumeIds, setOwnedCostumeIds] = React.useState<Set<string>>(new Set());
-    const sheetRef = useRef<TrueSheet>(null);
     const insets = useSafeAreaInsets();
 
     // Expose present/dismiss methods via ref
@@ -87,11 +91,16 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
 
         const states: DayState[] = [];
 
+        // Calculate how many previous days should be checked
+        // If user has checked in today, then streakDays includes today
+        // So we need to check (streakDays - 1) previous days (if already checked in today)
+        const previousDaysToCheck = canCheckin ? streakDays : streakDays - 1;
+
         for (let i = 0; i < 7; i++) {
             if (i < mondayBasedToday) {
                 // Past days - check if within streak
                 const daysAgo = mondayBasedToday - i;
-                if (daysAgo <= streakDays) {
+                if (daysAgo <= previousDaysToCheck) {
                     states.push('checked');
                 } else {
                     states.push('past');
@@ -149,15 +158,10 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                     setMilestones([]);
                 }
 
-                // Fetch owned costumes to check claimed status
-                const { data: ownedData } = await costumeRepo.client
-                    .from('user_costumes')
-                    .select('costume_id')
-                    .eq('user_id', costumeRepo.userId);
-
-                if (ownedData) {
-                    setOwnedCostumeIds(new Set(ownedData.map((i: any) => i.costume_id)));
-                }
+                // Fetch owned costumes to check claimed status using AssetRepository
+                const assetRepo = new AssetRepository();
+                const ownedIds = await assetRepo.fetchOwnedAssets('character_costume');
+                setOwnedCostumeIds(ownedIds);
 
             } catch (error) {
                 console.warn('Failed to fetch costume milestones', error);
@@ -220,14 +224,31 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
         onDismiss?.();
     };
 
+    // Dynamic colors based on theme
+    const textColor = isDarkBackground ? '#fff' : '#000';
+    const subtextColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
+    const weekdayLabelColor = isDarkBackground ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
+    const trackBgColor = isDarkBackground ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const lockedBgColor = isDarkBackground ? 'rgba(53, 52, 52, 0.8)' : 'rgba(209, 209, 209, 0.92)';
+    const progressLabelColor = isDarkBackground ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)';
+    const liquidTintColor = isDarkBackground ? '#fff' : '#00000096';
+
+    // Weekday circle colors
+    const circleBgColor = isDarkBackground ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+    const circleTodayBg = isDarkBackground ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+    const circleTodayBorder = isDarkBackground ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)';
+    const circleFutureBg = isDarkBackground ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+    const circlePastBg = isDarkBackground ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+
+
     return (
-        <TrueSheet
+        <BottomSheet
             ref={sheetRef}
             detents={['auto', 0.95]}
             cornerRadius={24}
             grabber={true}
-            backgroundColor="#1a1a1a"
-            onDidDismiss={onDismiss}
+            isDarkBackground={isDarkBackground}
+            onDismiss={onDismiss}
         >
             <ScrollView
                 style={styles.scrollView}
@@ -236,16 +257,11 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerTitle}>{characterName}</Text>
-                        <View style={styles.friendshipRow}>
-                            <Ionicons name="flame" size={16} color="#FF4639" />
-                            <Text style={styles.friendshipText}>{streakDays} streak day{streakDays !== 1 ? 's' : ''}</Text>
-                        </View>
+                    <Text style={[styles.headerTitle, { color: textColor }]}>{characterName}</Text>
+                    <View style={styles.friendshipRow}>
+                        <IconHearts size={16} color={subtextColor} />
+                        <Text style={[styles.friendshipText, { color: subtextColor }]}>{streakDays} streak day{streakDays !== 1 ? 's' : ''}</Text>
                     </View>
-                    <LiquidGlass style={styles.closeButton} onPress={handleDismiss}>
-                        <Ionicons name="close" size={20} color="#fff" />
-                    </LiquidGlass>
                 </View>
 
                 {/* Streak Hero Section */}
@@ -256,13 +272,12 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                             source={{ uri: 'https://d1j8r0kxyu9tj8.cloudfront.net/files/56KM6ztUz4iI9nIGqmNvypBstLupr8UxilTbBZv3.png' }}
                             style={styles.glowImage}
                         />
-                        <StreakIcon width={100} height={100} />
                         <View style={styles.streakBadge}>
-                            <Text style={styles.streakBadgeText}>{streakDays}</Text>
+                            <Text style={[styles.streakBadgeText, { color: textColor }]}>{streakDays}</Text>
                         </View>
                     </View>
-                    <Text style={styles.heroTitle}>Daily Streak</Text>
-                    <Text style={styles.heroSubtitle}>
+                    <Text style={[styles.heroTitle, { color: textColor }]}>Daily Streak</Text>
+                    <Text style={[styles.heroSubtitle, { color: subtextColor }]}>
                         Check in every day to keep your streak{'\n'}and earn a special costume at milestones!
                     </Text>
                 </View>
@@ -271,43 +286,49 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                 <View style={styles.weekdayRow}>
                     {WEEKDAYS.map((day, index) => {
                         const state = dayStates[index];
+                        const isToday = state === 'today';
+                        const canClickToCheckin = isToday && canCheckin;
+
                         return (
                             <View key={index} style={styles.weekdayItem}>
-                                <Text style={styles.weekdayLabel}>{day}</Text>
-                                <View style={[
-                                    styles.weekdayCircle,
-                                    state === 'checked' && styles.weekdayCircleChecked,
-                                    state === 'today' && styles.weekdayCircleToday,
-                                    state === 'future' && styles.weekdayCircleFuture,
-                                    state === 'past' && styles.weekdayCirclePast
-                                ]}>
-                                    {state === 'checked' && (
-                                        <Ionicons name="checkmark" size={16} color="#fff" />
-                                    )}
-                                </View>
+                                <Text style={[styles.weekdayLabel, { color: weekdayLabelColor }]}>{day}</Text>
+                                {canClickToCheckin ? (
+                                    <Pressable
+                                        onPress={onCheckin}
+                                        style={[
+                                            styles.weekdayCircle,
+                                            {
+                                                backgroundColor: circleTodayBg,
+                                                borderWidth: 2,
+                                                borderColor: circleTodayBorder
+                                            },
+                                        ]}>
+                                    </Pressable>
+                                ) : (
+                                    <View
+                                        style={[
+                                            styles.weekdayCircle,
+                                            { backgroundColor: circleBgColor },
+                                            state === 'checked' && styles.weekdayCircleChecked,
+                                            state === 'future' && { backgroundColor: circleFutureBg },
+                                            state === 'past' && { backgroundColor: circlePastBg },
+                                        ]}>
+                                        {state === 'checked' && (
+                                            <Ionicons name="checkmark" size={16} color="#fff" />
+                                        )}
+                                    </View>
+                                )}
                             </View>
                         );
                     })}
                 </View>
 
-                {/* Check-in Button */}
-                {canCheckin ? (
-                    <Pressable style={styles.checkinButton} onPress={onCheckin}>
-                        <Text style={styles.checkinButtonText}>Check In</Text>
-                    </Pressable>
-                ) : (
-                    <View style={styles.checkedInContainer}>
-                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                        <Text style={styles.checkedInText}>You've checked in today!</Text>
-                    </View>
-                )}
-
                 {/* Milestone Section */}
                 <View style={styles.milestoneSection}>
                     <View style={styles.milestoneTitleRow}>
                         <View>
-                            <Text style={styles.milestoneTitleText}>Costume Rewards</Text>
-                            <Text style={styles.milestoneDescription}>
+                            <Text style={[styles.milestoneTitleText, { color: textColor }]}>Costume Rewards</Text>
+                            <Text style={[styles.milestoneDescription, { color: subtextColor }]}>
                                 Reach streak milestones to unlock{'\n'}special costumes for {characterName}
                             </Text>
                         </View>
@@ -316,32 +337,25 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                     {/* Progress Track */}
                     <View style={styles.trackContainer}>
                         {/* Background Bar */}
-                        <View style={styles.trackBackground} />
+                        <View style={[styles.trackBackground, { backgroundColor: trackBgColor }]} />
 
                         {/* Fill Bar */}
                         <LinearGradient
                             colors={['#FF4639', '#FF8E86']}
                             start={{ x: 0, y: 0.5 }}
                             end={{ x: 1, y: 0.5 }}
-                            style={[styles.trackFill, { width: fillWidthPercent }]}
+                            style={[styles.trackFill, { width: fillWidthPercent as `${number}%` }]}
                         />
 
                         {/* Current Progress Thumb - Sliding */}
-                        <View style={[styles.currentThumb, { left: fillWidthPercent }]}>
-                            <Ionicons name="flame" size={12} color="#fff" />
+                        <View style={[styles.currentThumb, { left: fillWidthPercent as `${number}%` }]}>
+                            <Ionicons name="flame" size={16} color="#fff" />
                         </View>
 
                         {/* Milestones */}
-                        {milestones.map((m, index) => {
+                        {milestones.map((m) => {
                             const positionPercent = (m.day / maxMilestoneDay) * 100;
                             const isReached = streakDays >= m.day;
-                            const isNext = streakDays < m.day && (index === 0 || streakDays >= milestones[index - 1].day);
-
-                            // Determine content
-                            // If reached: Gift box or Costume Thumb?
-                            // User said: "display thumb of received costume"
-                            // If reached and claimable (for now handled as reached) -> Show thumb.
-                            // If box shakes: wrap in animated view.
 
                             const isClaimed = ownedCostumeIds.has(m.costume.id);
                             const shouldShake = isReached && !isClaimed; // Only shake if reached but not claimed
@@ -349,49 +363,78 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                             return (
                                 <View
                                     key={m.day}
-                                    style={[styles.milestoneMarkerContainer, { left: `${positionPercent}%` }]}
+                                    style={[styles.milestoneMarkerContainer, { left: `${positionPercent}%` as `${number}%` }]}
                                 >
-                                    {/* <View style={styles.milestoneLine} /> removed */}
-
                                     <Pressable
 
                                         style={styles.milestoneContent}
                                     >
                                         <View style={styles.markerLabelContainer}>
-                                            <Text style={styles.markerLabel}>
+                                            <Text style={[styles.markerLabel, { color: textColor }]}>
                                                 Day {m.day}
                                             </Text>
                                         </View>
 
-                                        {/* Gift content renders AFTER label in DOM but label is absolute positioned below */}
-
                                         {isReached ? (
-                                            <Animated.View style={shouldShake ? { transform: [{ rotate: shakeRotate }] } : undefined}>
-                                                <LiquidGlass
-                                                    onPress={() => {
-                                                        if (isReached && onClaimMilestone) {
-                                                            // Dismiss sheet first, then show popup after a delay
-                                                            sheetRef.current?.dismiss();
-                                                            setTimeout(() => {
-                                                                onClaimMilestone(m.costume, isClaimed);
-                                                            }, 300);
-                                                        }
-                                                    }} style={styles.milestoneGiftBox}>
-                                                    <GiftIcon width={32} height={32} />
-                                                </LiquidGlass>
-                                                {/* Overlay checkmark if claimed */}
-                                                {isClaimed && (
-                                                    <View style={styles.checkBadge}>
-                                                        <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
-                                                    </View>
-                                                )}
-                                            </Animated.View>
-                                        ) : (
-                                            <View style={styles.milestoneLocked}>
-                                                <GiftIcon width={24} height={24} style={{ opacity: 0.3 }} />
-                                                <View style={styles.lockBadge}>
-                                                    <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.6)" />
+                                            shouldShake ? (
+                                                <Animated.View style={{ transform: [{ rotate: shakeRotate }] }}>
+                                                    <LiquidGlass
+                                                        onPress={() => {
+                                                            if (isReached && onClaimMilestone) {
+                                                                // Dismiss sheet first, then show popup after a delay
+                                                                sheetRef.current?.dismiss();
+                                                                setTimeout(() => {
+                                                                    onClaimMilestone(m.costume, isClaimed);
+                                                                }, 300);
+                                                            }
+                                                        }}
+                                                        tintColor={liquidTintColor}
+                                                        style={styles.milestoneGiftBox}>
+                                                        <View style={styles.giftIconWrapper}>
+                                                            <GiftIcon width={28} height={28} />
+                                                        </View>
+                                                    </LiquidGlass>
+                                                </Animated.View>
+                                            ) : (
+                                                <View>
+                                                    <LiquidGlass
+                                                        onPress={() => {
+                                                            if (isReached && onClaimMilestone) {
+                                                                // Dismiss sheet first, then show popup after a delay
+                                                                sheetRef.current?.dismiss();
+                                                                setTimeout(() => {
+                                                                    onClaimMilestone(m.costume, isClaimed);
+                                                                }, 300);
+                                                            }
+                                                        }}
+                                                        tintColor={liquidTintColor}
+                                                        style={styles.milestoneGiftBox}
+                                                    >
+                                                        <View style={[
+                                                            styles.giftIconWrapper,
+                                                        ]}>
+                                                            <GiftIcon width={28} height={28} />
+                                                        </View>
+                                                    </LiquidGlass>
+                                                    {/* Overlay checkmark if claimed */}
+                                                    {isClaimed && (
+                                                        <View style={styles.checkBadge}>
+                                                            <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                                                        </View>
+                                                    )}
                                                 </View>
+                                            )
+                                        ) : (
+                                            <View style={[
+                                                styles.milestoneLocked,
+                                                {
+                                                    backgroundColor: lockedBgColor,
+                                                }
+                                            ]}>
+                                                <GiftIcon width={24} height={24} style={{ opacity: 0.3 }} />
+                                                {/* <View style={styles.lockBadge}>
+                                                    <Ionicons name="lock-closed" size={10} color={subtextColor} />
+                                                </View> */}
                                             </View>
                                         )}
                                     </Pressable>
@@ -399,14 +442,9 @@ export const StreakSheet = forwardRef<StreakSheetRef, StreakSheetProps>(({
                             );
                         })}
                     </View>
-
-                    <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabelText}>Start</Text>
-                        <Text style={styles.progressLabelText}>Day {maxMilestoneDay}</Text>
-                    </View>
                 </View>
             </ScrollView>
-        </TrueSheet>
+        </BottomSheet>
     );
 });
 
@@ -416,24 +454,23 @@ const styles = StyleSheet.create({
     },
     sheetContent: {
         paddingHorizontal: 24,
-        paddingTop: 20,
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
         marginBottom: 24,
     },
     headerTitle: {
         fontSize: 22,
         fontWeight: '700',
         color: '#fff',
+        textAlign: 'center',
     },
     friendshipRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
         marginTop: 4,
+
     },
     friendshipText: {
         fontSize: 14,
@@ -475,9 +512,6 @@ const styles = StyleSheet.create({
         fontSize: 32,
         fontWeight: '800',
         color: '#fff',
-        textShadowColor: 'rgba(0,0,0,0.5)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 4,
     },
     heroTitle: {
         fontSize: 24,
@@ -622,8 +656,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginLeft: -20,
-        borderWidth: 3,
-        borderColor: '#1a1a1a',
         elevation: 4,
         zIndex: 10,
     },
@@ -653,19 +685,18 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#FFFFFF',
         fontWeight: '600',
-        textShadowColor: 'rgba(0,0,0,0.5)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
     },
     milestoneGiftBox: {
         width: 42,
         height: 42,
         borderRadius: 12,
-        backgroundColor: '#1a1a1a', // Dark bg to stand out on track
+    },
+    giftIconWrapper: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FF4639',
+        width: '100%',
+        height: '100%',
     },
     milestoneClaimed: {
         // Wrapper for claimed state if needed, currently reusing GiftBox style inside
@@ -676,7 +707,6 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 10,
-        backgroundColor: '#1a1a1a',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,

@@ -16,7 +16,6 @@ import {
   Text,
   View,
   useWindowDimensions,
-  Platform,
   ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -24,8 +23,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { Video } from 'expo-av';
 
-import Button from '../Button';
-import AssetRepository from '../../repositories/AssetRepository';
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 import { DiamondBadge } from '../DiamondBadge';
@@ -191,7 +188,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                 style={styles.thumbnail}
                 contentFit="cover"
                 transition={200}
-                blurRadius={!isUnlocked ? 50 : 0}
+                blurRadius={!isUnlocked ? 40 : 0}
               />
             ) : (
               <View style={[styles.thumbnail, styles.thumbnailFallback]}>
@@ -447,7 +444,7 @@ const styles = StyleSheet.create({
   },
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },

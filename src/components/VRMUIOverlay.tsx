@@ -312,7 +312,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       <View style={styles.rightColumn} pointerEvents="box-none">
         {menuItems.map((item, index) => {
           // Show only first 2 items when collapsed
-          const shouldShow = isExpanded || index < 2;
+          const shouldShow = isExpanded || index < 3;
 
           if (!shouldShow) return null;
 

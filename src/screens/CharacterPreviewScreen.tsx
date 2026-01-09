@@ -29,6 +29,10 @@ import { DiamondBadge } from '../components/DiamondBadge';
 import DiamondIcon from '../assets/icons/diamond.svg';
 import { useVRMContext } from '../context/VRMContext';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
+import { VideoCacheService } from '../services/VideoCacheService';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 const DIAMOND_ICON_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/gHCihrZqs0a7K0rms5qSXE1TRs8FuWwPWaEeLIey.png';
 
@@ -75,6 +79,8 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
 
     // Store all video URLs in a map (loaded once)
     const [characterVideoUrls, setCharacterVideoUrls] = useState<Map<string, string | null>>(new Map());
+    // Store cached local URIs for instant playback
+    const [cachedVideoUris, setCachedVideoUris] = useState<Map<string, string | null>>(new Map());
     const [isLoadingVideos, setIsLoadingVideos] = useState(true);
     const [isSelectingCharacter, setIsSelectingCharacter] = useState(false);
     const [backgroundImageUrl, setBackgroundImageUrl] = useState<string>(DEFAULT_BACKGROUND_URL);
@@ -90,7 +96,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const lowestSnapHeight = screenHeight * 0.25;
     const thumbnailsBottomPosition = !isOnboardingFlow ? lowestSnapHeight + 20 : insets.bottom + 60;
 
-    // Load all character videos once on mount
+    // Load all character videos once on mount and preload to cache
     useEffect(() => {
         const loadAllVideos = async () => {
             if (characters.length === 0) return;
@@ -99,20 +105,26 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
             const costumeRepo = new CostumeRepository();
             const videoMap = new Map<string, string | null>();
 
+            // Step 1: Collect all video URLs
             await Promise.all(
                 characters.map(async (char) => {
                     try {
                         let targetVideoUrl: string | null = null;
 
-                        // 1. Try default costume first
-                        if (char.default_costume_id) {
+                        // 1. Try character video first (NEW)
+                        if (char.video_url) {
+                            targetVideoUrl = char.video_url;
+                        }
+
+                        // 2. If no character video, try default costume
+                        if (!targetVideoUrl && char.default_costume_id) {
                             const defaultCostume = await costumeRepo.fetchCostumeById(char.default_costume_id);
                             if (defaultCostume?.video_url) {
                                 targetVideoUrl = defaultCostume.video_url;
                             }
                         }
 
-                        // 2. If no default costume video, try fetching all costumes
+                        // 3. Fallback: try fetching all costumes
                         if (!targetVideoUrl) {
                             const costumes = await costumeRepo.fetchCostumes(char.id);
                             const costumeWithVideo = costumes.find(c => c.video_url);
@@ -130,15 +142,50 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
             );
 
             setCharacterVideoUrls(videoMap);
+            console.log('[CharacterPreview] Loaded video URLs for', videoMap.size, 'characters');
+
+            // Step 2: Preload and cache all videos in background
+            const videoUrls = [...videoMap.values()].filter((url): url is string => !!url);
+            if (videoUrls.length > 0) {
+                console.log('[CharacterPreview] Starting video preload for', videoUrls.length, 'videos');
+
+                // Preload videos and update cached URIs
+                VideoCacheService.preloadVideos(videoUrls).then((cachedResults) => {
+                    const newCachedUris = new Map<string, string | null>();
+
+                    // Map character IDs to their cached local URIs
+                    for (const [charId, remoteUrl] of videoMap.entries()) {
+                        if (remoteUrl) {
+                            const localUri = cachedResults.get(remoteUrl) || null;
+                            newCachedUris.set(charId, localUri);
+                        }
+                    }
+
+                    setCachedVideoUris(newCachedUris);
+                    console.log('[CharacterPreview] Video caching complete. Cached:', newCachedUris.size, 'videos');
+                });
+            }
+
             setIsLoadingVideos(false);
-            console.log('[CharacterPreview] Loaded videos for', videoMap.size, 'characters');
         };
 
         loadAllVideos();
     }, [characters]);
 
-    // Get current video URL from preloaded map
-    const currentVideoUrl = character ? characterVideoUrls.get(character.id) : null;
+    // Get current video source - prefer cached local URI for instant playback
+    const currentVideoUrl = useMemo(() => {
+        if (!character) return null;
+
+        // First, check if we have a cached local URI
+        const cachedUri = cachedVideoUris.get(character.id);
+        if (cachedUri) {
+            console.log('[CharacterPreview] Using cached video for', character.name);
+            return cachedUri;
+        }
+
+        // Fall back to remote URL (will stream while caching in background)
+        return characterVideoUrls.get(character.id) ?? null;
+    }, [character, cachedVideoUris, characterVideoUrls]);
 
     // Fade animation when switching characters
     useEffect(() => {
@@ -283,41 +330,37 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
             </View>
 
 
-            {/* Floating Prev/Next Navigation Buttons */}
-            {characters.length > 1 && (
-                <>
-                    {currentIndex > 0 && (
-                        <View
-                            style={[styles.floatingNavButton, styles.floatingNavButtonLeft]}
-                        >
-                            <Button
-                                onPress={() => setCurrentIndex(currentIndex - 1)}
-                                variant='liquid'
-                                startIconName='chevron-back'
-                                iconColor={isDarkBackground ? 'white' : 'black'}
-                                isIconOnly
-                                size='lg'
-                            >
-                            </Button>
-                        </View>
-                    )}
-                    {currentIndex < characters.length - 1 && (
-                        <View
-                            style={[styles.floatingNavButton, styles.floatingNavButtonRight]}
-                        >
-                            <Button
-                                onPress={() => setCurrentIndex(currentIndex + 1)}
-                                variant='liquid'
-                                startIconName='chevron-forward'
-                                iconColor={isDarkBackground ? 'white' : 'black'}
-                                isIconOnly
-                                size='lg'
-                            >
-                            </Button>
-                        </View>
-                    )}
-                </>
-            )}
+            {/* Floating Prev/Next Navigation Buttons - Hidden */}
+            {/* Navigation is handled via thumbnail row at bottom */}
+
+            {/* Bottom Blur Overlay - always dark */}
+            <View style={styles.bottomBlurOverlay} pointerEvents="none">
+                <MaskedView
+                    style={StyleSheet.absoluteFill}
+                    maskElement={
+                        <LinearGradient
+                            colors={['transparent', '#000']}
+                            locations={[0, 0.6]}
+                            style={StyleSheet.absoluteFill}
+                        />
+                    }
+                >
+                    <BlurView
+                        intensity={15}
+                        tint="dark"
+                        style={StyleSheet.absoluteFill}
+                    />
+                </MaskedView>
+                <LinearGradient
+                    colors={[
+                        'transparent',
+                        'rgba(0,0,0,0.3)',
+                        'rgba(0,0,0,0.7)'
+                    ]}
+                    locations={[0, 0.4, 1]}
+                    style={StyleSheet.absoluteFill}
+                />
+            </View>
 
 
             {/* Custom Bottom Sheet - Hide for onboarding flow */}
@@ -522,6 +565,14 @@ const styles = StyleSheet.create({
     },
     webViewContainer: {
         ...StyleSheet.absoluteFillObject,
+    },
+    bottomBlurOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '45%',
+        zIndex: 5,
     },
     floatingNavButton: {
         position: 'absolute',
