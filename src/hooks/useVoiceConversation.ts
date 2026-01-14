@@ -103,6 +103,9 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
     []
   );
 
+  // Track disconnecting state to prevent race conditions during rapid restart
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
   // Memoize conversation callbacks to prevent recreation (like swift-version)
   const conversationCallbacks = useMemo(
     () => ({
@@ -174,6 +177,8 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       },
       onError: (message: string) => {
         updateBooting(false);
+        // Ensure disconnecting state is cleared on error
+        setIsDisconnecting(false);
         callbacksRef.current.onError?.(
           typeof message === 'string' && message.length > 0
             ? message
@@ -183,6 +188,7 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       onDisconnect: (details: { reason: string; message?: string }) => {
         setConnectionStatus('disconnected');
         updateBooting(false);
+        setIsDisconnecting(false); // Clear disconnecting flag
         isUserSpeakingRef.current = false;
         setIsUserSpeaking(false);
         if (details.reason === 'error') {
@@ -234,6 +240,10 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
   }, [connectionStatus]);
 
   // Sync status from conversation object directly as a fallback
+  // Sync status from conversation object directly as a fallback
+  // REMOVED: This causes state oscillation/jumping when callback updates happen faster/differently than hook prop updates
+  // trusting the callbacks (onStatusChange, onConnect, onDisconnect) is sufficient and more stable.
+  /*
   useEffect(() => {
     if (conversation.status && conversation.status !== connectionStatus) {
       console.log('[Voice] Syncing status from conversation object:', conversation.status);
@@ -243,6 +253,7 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
       }
     }
   }, [conversation.status, connectionStatus, updateBooting]);
+  */
 
   const startCall = useCallback(
     async ({
@@ -256,7 +267,10 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
         return;
       }
       // Prevent starting if already connecting or connected (like swift-version)
-      if (conversation.status === 'connecting' || conversation.status === 'connected') {
+      // Use local connectionStatus to prevent race conditions with stale hook state
+      // Also prevent if currently disconnecting
+      if (connectionStatus === 'connecting' || connectionStatus === 'connected' || isDisconnecting) {
+        console.warn('[Voice] Cannot start call: already active or disconnecting', { connectionStatus, isDisconnecting });
         return;
       }
       // Set booting state before starting (like swift-version)
@@ -277,18 +291,21 @@ export const useVoiceConversation = (options: VoiceConversationOptions = {}) => 
         throw error;
       }
     },
-    [conversation, updateBooting]
+    [conversation, updateBooting, connectionStatus, isDisconnecting]
   );
 
   const endCall = useCallback(async () => {
     updateBooting(false);
+    setIsDisconnecting(true);
     try {
       await conversation.endSession('user');
     } catch (error) {
+      setIsDisconnecting(false); // Make sure to clear if error
       callbacksRef.current.onError?.(
         error instanceof Error ? error.message : 'Không thể kết thúc cuộc gọi voice'
       );
     }
+    // We don't verify success here, onDisconnect callback handles the state update
   }, [conversation, updateBooting]);
 
   const toggleMute = useCallback(() => {

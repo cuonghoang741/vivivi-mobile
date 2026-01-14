@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Keyboard, Platform } from 'react-native';
 import { ChatMessagesOverlay } from './ChatMessagesOverlay';
 import type { ChatMessage } from '../../types/chat';
 import { ChatBottomActions } from './ChatBottomActions';
@@ -31,6 +31,9 @@ type Props = {
   onChatScrollStateChange?: (isScrolling: boolean) => void;
   onToggleChatList?: () => void;
   isInCall?: boolean;
+  isDarkBackground?: boolean;
+  isFullScreen?: boolean;
+  onToggleFullscreen?: (fullscreen: boolean) => void;
 };
 
 export const ChatBottomOverlay: React.FC<Props> = ({
@@ -59,8 +62,28 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   onChatScrollStateChange,
   onToggleChatList,
   isInCall = false,
+  isDarkBackground = true,
+  isFullScreen = false,
+  onToggleFullscreen,
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const handleSend = () => {
     const trimmed = inputValue.trim();
@@ -80,8 +103,8 @@ export const ChatBottomOverlay: React.FC<Props> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.messagesContainer}>
+    <View style={[styles.container, isFullScreen && styles.fullScreenContainer]}>
+      <View style={[styles.messagesContainer, isFullScreen && styles.fullScreenMessagesContainer]}>
         <ChatMessagesOverlay
           messages={messages}
           showChatList={showChatList}
@@ -96,16 +119,21 @@ export const ChatBottomOverlay: React.FC<Props> = ({
           onStreakTap={onStreakTap}
           onScrollStateChange={onChatScrollStateChange}
           onToggleChatList={onToggleChatList}
+          isFullScreen={isFullScreen}
+          onToggleFullscreen={onToggleFullscreen}
         />
       </View>
       <View style={styles.inputSection}>
-        <ChatBottomActions
-          onCapture={onCapture}
-          onSendPhoto={onSendPhoto}
-          onDance={onDance}
-          isDancing={isDancing}
-          isInCall={isInCall}
-        />
+        {!isKeyboardVisible && (
+          <ChatBottomActions
+            onCapture={onCapture}
+            onSendPhoto={onSendPhoto}
+            onDance={onDance}
+            isDancing={isDancing}
+            isInCall={isInCall}
+            isDarkBackground={isDarkBackground}
+          />
+        )}
         <View style={styles.inputWrapper}>
           <ChatInputBar
             value={inputValue}
@@ -120,6 +148,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
             placeholder={inputPlaceholder}
             disabled={inputDisabled}
             voiceLoading={voiceLoading}
+            isDarkBackground={isDarkBackground}
           />
         </View>
       </View>
@@ -137,6 +166,11 @@ const styles = StyleSheet.create({
     maxHeight: '100%',
     paddingHorizontal: 10
   },
+  fullScreenContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
+  },
   messagesContainer: {
     // Messages container can scroll but won't push input out
     // Use flexShrink to allow shrinking when needed
@@ -146,6 +180,10 @@ const styles = StyleSheet.create({
     // Ensure it's visible and takes space when needed
     minHeight: 0,
     width: '100%',
+  },
+  fullScreenMessagesContainer: {
+    flex: 1,
+    marginBottom: 0,
   },
   inputSection: {
     // Input section always stays at bottom

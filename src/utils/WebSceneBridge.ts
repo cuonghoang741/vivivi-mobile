@@ -63,8 +63,16 @@ export class WebSceneBridge {
     this.evaluate(js);
   }
 
+  private lastMouthLogTime = 0;
+
   setMouthOpen(value: number) {
     const clamped = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+    // Throttled debug log (max once per second)
+    const now = Date.now();
+    if (clamped > 0.1 && now - this.lastMouthLogTime > 1000) {
+      this.lastMouthLogTime = now;
+      console.log('[WebBridge] setMouthOpen:', clamped.toFixed(2), 'webViewRef:', !!this.webViewRef?.current);
+    }
     const js = `window.setMouthOpen && window.setMouthOpen(${clamped.toFixed(3)});`;
     this.evaluate(js);
   }

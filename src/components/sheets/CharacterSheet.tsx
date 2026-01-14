@@ -432,6 +432,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       ref={sheetRef}
       isOpened={isOpened}
       onIsOpenedChange={onIsOpenedChange}
+      backgroundBlur='system-thick-material-dark'
       title="Characters"
       isDarkBackground={isDarkBackground}
       detents={[0.7, 0.95]}

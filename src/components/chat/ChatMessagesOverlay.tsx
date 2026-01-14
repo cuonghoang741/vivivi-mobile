@@ -1,7 +1,9 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, ScrollView, PanResponder } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, ScrollView, PanResponder, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { IconX } from '@tabler/icons-react-native';
+import { Button } from '../Button';
 import type { ChatMessage } from '../../types/chat';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { TypingIndicator } from './TypingIndicator';
@@ -19,6 +21,8 @@ type Props = {
   onStreakTap?: () => void;
   onScrollStateChange?: (isScrolling: boolean) => void;
   onToggleChatList?: () => void;
+  isFullScreen?: boolean;
+  onToggleFullscreen?: (fullscreen: boolean) => void;
 };
 
 // Spring animation config matching Swift version
@@ -110,6 +114,8 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   onStreakTap,
   onScrollStateChange,
   onToggleChatList,
+  isFullScreen = false,
+  onToggleFullscreen,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const isUserScrollingRef = useRef(false);
@@ -212,6 +218,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
     <Animated.View
       style={[
         styles.container,
+        isFullScreen && styles.fullScreenContainer,
         {
           opacity: opacityAnim,
           transform: [{ translateX: translateXAnim }],
@@ -220,10 +227,28 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
       pointerEvents="box-none"
       {...panResponder.panHandlers}
     >
+      {isFullScreen && (
+        <View style={styles.quitButton}>
+          <Button
+            variant="liquid"
+            size="md"
+            isIconOnly
+            startIcon={IconX}
+            onPress={() => onToggleFullscreen?.(false)}
+            isDarkBackground={true}
+          />
+        </View>
+      )}
+
+      {/* Tap to expand overlay - Removed as per user request to use messages instead */}
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.overlayContent]}
+        contentContainerStyle={[
+          styles.overlayContent,
+          isFullScreen && styles.fullScreenContent
+        ]}
         showsVerticalScrollIndicator={false}
         bounces={true}
         nestedScrollEnabled={true}
@@ -234,15 +259,6 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         keyboardShouldPersistTaps="handled"
         scrollEnabled={true}
       >
-        {/* {typeof streakDays === 'number' && (
-          <StreakBadge
-            days={streakDays}
-            hasUnclaimed={!!hasUnclaimed}
-            showConfetti={!!showStreakConfetti}
-            onPress={onStreakTap}
-          />
-        )} */}
-
         {displayedMessages.length === 0 && !isTyping ? (
           <View style={styles.emptyStateContainer}>
             <ChatMessageBubble
@@ -263,7 +279,13 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
               message={message}
               index={index}
               total={displayedMessages.length}
-              onMessagePress={onMessagePress}
+              onMessagePress={(msg) => {
+                if (!isFullScreen && onToggleFullscreen) {
+                  onToggleFullscreen(true);
+                } else {
+                  onMessagePress?.(msg);
+                }
+              }}
               variant="compact"
             />
           ))
@@ -303,6 +325,13 @@ const styles = StyleSheet.create({
     // Ensure container is visible
     minHeight: 0,
   },
+  fullScreenContainer: {
+    width: '100%',
+    maxHeight: '100%',
+    flex: 1,
+    paddingRight: 0,
+    paddingTop: 40, // Space for quit button
+  },
   scrollView: {
     // Allows content to scroll
     flexGrow: 0,
@@ -314,6 +343,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     // Ensure content is visible
     minHeight: 0,
+  },
+  fullScreenContent: {
+    paddingBottom: 100, // Extra padding at bottom for input bar area
+    paddingTop: 60, // Push messages down to avoid overlap with quit button
   },
   typingContainer: {
     paddingTop: 4,
@@ -384,6 +417,12 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 2,
     backgroundColor: '#fff',
+  },
+  quitButton: {
+    position: 'absolute',
+    top: 50, // Should be safe for most notches, or use insets from prop if needed
+    right: 20,
+    zIndex: 20,
   },
 });
 
@@ -484,76 +523,3 @@ const MiniConfetti: React.FC = () => {
   });
   return <View style={styles.confettiContainer}>{pieces}</View>;
 };
-
-const additionalStyles = StyleSheet.create({
-  streakShadow: {
-    shadowColor: '#FF5E9E',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-  },
-});
-
-Object.assign(styles, {
-  streakContainer: {
-    height: BADGE_HEIGHT,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  streakClaimable: {
-    ...additionalStyles.streakShadow,
-  },
-  streakPressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  streakGradient: {
-    flex: 1,
-  },
-  streakContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  streakLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  streakSubtitle: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  claimPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-  },
-  claimText: {
-    fontSize: 11,
-    color: '#fff',
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  confettiContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: BADGE_HEIGHT,
-    pointerEvents: 'none',
-  },
-  confettiPiece: {
-    position: 'absolute',
-    width: 4,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: '#fff',
-  },
-});
-

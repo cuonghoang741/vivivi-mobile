@@ -114,7 +114,7 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         isOpened={showCharacterSheet}
         onIsOpenedChange={setShowCharacterSheet}
         onOpenSubscription={onOpenSubscription}
-        isDarkBackground={isDarkBackground}
+        isDarkBackground={true}
         isPro={isPro}
       />
       <CostumeSheet

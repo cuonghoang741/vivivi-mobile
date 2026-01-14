@@ -8,7 +8,7 @@ interface TelegramUserInfo {
   userId: string;
   userName: string;
   userCountry: string;
-  userAge: number | string;
+  userAge: string; // Time since user started using the app (e.g., "5d 3h", "2h 30m")
 }
 
 /**
@@ -16,7 +16,7 @@ interface TelegramUserInfo {
  */
 export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
   const user = authManager.user;
-  
+
   if (!user) {
     return {
       userId: 'Unknown',
@@ -28,18 +28,26 @@ export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
 
   const userId = user.id || 'Unknown';
   const displayName = (user.user_metadata?.display_name as string) || 'Unknown';
-  
-  // Calculate age from birth_year
-  const birthYear = user.user_metadata?.birth_year;
-  let userAge: number | string = 'Unknown';
-  if (birthYear) {
-    const currentYear = new Date().getFullYear();
-    const birthYearNum = typeof birthYear === 'string' ? parseInt(birthYear, 10) : birthYear;
-    if (!isNaN(birthYearNum)) {
-      userAge = currentYear - birthYearNum;
+
+  // Calculate time since user started using the app (from created_at)
+  let userAge: string = 'Unknown';
+  if (user.created_at) {
+    const createdAt = new Date(user.created_at);
+    const now = new Date();
+    const diffMs = now.getTime() - createdAt.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffDays > 0) {
+      userAge = `${diffDays}d ${diffHours}h`;
+    } else if (diffHours > 0) {
+      userAge = `${diffHours}h ${diffMinutes}m`;
+    } else {
+      userAge = `${diffMinutes}m`;
     }
   }
-  
+
   // Get country from locale or default
   // Note: React Native doesn't have direct country access, we'll use locale or timezone
   let userCountry = 'Unknown';

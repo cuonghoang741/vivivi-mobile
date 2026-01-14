@@ -11,7 +11,7 @@ interface UserInfo {
   userId: string;
   userName: string;
   userCountry: string;
-  userAge: number | string;
+  userAge: string; // Time since user started using the app
 }
 
 type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription';
@@ -24,7 +24,7 @@ interface NotificationPayload extends UserInfo {
 class TelegramNotificationService {
   private static instance: TelegramNotificationService;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): TelegramNotificationService {
     if (!TelegramNotificationService.instance) {
@@ -39,7 +39,7 @@ class TelegramNotificationService {
   private async sendToTelegram(message: string): Promise<void> {
     try {
       const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-      
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {

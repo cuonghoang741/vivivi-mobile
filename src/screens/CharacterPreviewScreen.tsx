@@ -36,6 +36,13 @@ import { BlurView } from 'expo-blur';
 
 const DIAMOND_ICON_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/gHCihrZqs0a7K0rms5qSXE1TRs8FuWwPWaEeLIey.png';
 
+// Map of local video assets by character order
+const LOCAL_VIDEOS: Record<number, any> = {
+    1: require('../assets/videos/1.mp4'),
+    2: require('../assets/videos/2.mp4'),
+    3: require('../assets/videos/3.mp4'),
+};
+
 type RootStackParamList = {
     Experience: { purchaseCharacterId?: string; selectedCharacterId?: string };
     CharacterPreview: { characters: CharacterItem[]; initialIndex?: number; isViewMode?: boolean; ownedCharacterIds?: string[]; isPro?: boolean };
@@ -77,9 +84,9 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const isOwned = character ? ownedCharacterIds.has(character.id) : false;
     const canSelect = isOwned || isPro;
 
-    // Store all video URLs in a map (loaded once)
-    const [characterVideoUrls, setCharacterVideoUrls] = useState<Map<string, string | null>>(new Map());
-    // Store cached local URIs for instant playback
+    // Store all video sources (URL string or Asset ID number)
+    const [characterVideoSources, setCharacterVideoSources] = useState<Map<string, any>>(new Map());
+    // Store cached local URIs for remote URLs
     const [cachedVideoUris, setCachedVideoUris] = useState<Map<string, string | null>>(new Map());
     const [isLoadingVideos, setIsLoadingVideos] = useState(true);
     const [isSelectingCharacter, setIsSelectingCharacter] = useState(false);
@@ -103,15 +110,35 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
             setIsLoadingVideos(true);
 
             const costumeRepo = new CostumeRepository();
-            const videoMap = new Map<string, string | null>();
+            const videoMap = new Map<string, any>();
 
-            // Step 1: Collect all video URLs
+            // Step 1: Collect all video sources
             await Promise.all(
                 characters.map(async (char) => {
                     try {
+                        // 0. Check for local video asset first (NEW)
+                        // Debug log for order check
+                        if (char.order && char.order <= 3) {
+                            console.log(`[CharacterPreview] Checking local video for ${char.name} (id:${char.id}, order:${char.order}, type:${typeof char.order})`);
+                        }
+
+                        // 0. Check for local video asset first (NEW)
+                        // Parse order to number to handle cases like "0001" -> 1
+                        const orderNum = char.order ? parseInt(String(char.order), 10) : null;
+
+                        console.log(`[CharacterPreview] Checking local video for ${char.name}, order raw: "${char.order}", parsed: ${orderNum}`);
+
+                        if (orderNum && LOCAL_VIDEOS[orderNum]) {
+                            console.log(`[CharacterPreview] ✅ Found local video for ${char.name} (order ${orderNum})`);
+                            videoMap.set(char.id, LOCAL_VIDEOS[orderNum]);
+                            return;
+                        } else {
+                            console.log(`[CharacterPreview] ❌ No local video found for order ${orderNum} (keys: ${Object.keys(LOCAL_VIDEOS).join(',')})`);
+                        }
+
                         let targetVideoUrl: string | null = null;
 
-                        // 1. Try character video first (NEW)
+                        // 1. Try character video URL
                         if (char.video_url) {
                             targetVideoUrl = char.video_url;
                         }
@@ -133,6 +160,10 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                             }
                         }
 
+                        if (targetVideoUrl) {
+                            console.log(`[CharacterPreview] ⚠️ Using REMOTE URL for ${char.name}: ${targetVideoUrl}`);
+                        }
+
                         videoMap.set(char.id, targetVideoUrl);
                     } catch (err) {
                         console.warn('[CharacterPreview] Failed to fetch video for character:', char.name, err);
@@ -141,11 +172,11 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                 })
             );
 
-            setCharacterVideoUrls(videoMap);
+            setCharacterVideoSources(videoMap);
             console.log('[CharacterPreview] Loaded video URLs for', videoMap.size, 'characters');
 
-            // Step 2: Preload and cache all videos in background
-            const videoUrls = [...videoMap.values()].filter((url): url is string => !!url);
+            // Step 2: Preload and cache all REMOTE videos in background
+            const videoUrls = [...videoMap.values()].filter((source): source is string => typeof source === 'string' && !!source);
             if (videoUrls.length > 0) {
                 console.log('[CharacterPreview] Starting video preload for', videoUrls.length, 'videos');
 
@@ -153,10 +184,10 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                 VideoCacheService.preloadVideos(videoUrls).then((cachedResults) => {
                     const newCachedUris = new Map<string, string | null>();
 
-                    // Map character IDs to their cached local URIs
-                    for (const [charId, remoteUrl] of videoMap.entries()) {
-                        if (remoteUrl) {
-                            const localUri = cachedResults.get(remoteUrl) || null;
+                    // Map character IDs to their cached local URIs (only for string URLs)
+                    for (const [charId, source] of videoMap.entries()) {
+                        if (typeof source === 'string') {
+                            const localUri = cachedResults.get(source) || null;
                             newCachedUris.set(charId, localUri);
                         }
                     }
@@ -173,19 +204,30 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     }, [characters]);
 
     // Get current video source - prefer cached local URI for instant playback
-    const currentVideoUrl = useMemo(() => {
+    const currentVideoSource = useMemo(() => {
         if (!character) return null;
 
-        // First, check if we have a cached local URI
-        const cachedUri = cachedVideoUris.get(character.id);
-        if (cachedUri) {
-            console.log('[CharacterPreview] Using cached video for', character.name);
-            return cachedUri;
+        // Check our resolved source logic
+        const source = characterVideoSources.get(character.id);
+
+        // If it's a number, it's a local assert (require)
+        if (typeof source === 'number') {
+            console.log('[CharacterPreview] Using local asset video for', character.name);
+            return source;
         }
 
-        // Fall back to remote URL (will stream while caching in background)
-        return characterVideoUrls.get(character.id) ?? null;
-    }, [character, cachedVideoUris, characterVideoUrls]);
+        // If it's a string, check if we have a cached local URI
+        if (typeof source === 'string') {
+            const cachedUri = cachedVideoUris.get(character.id);
+            if (cachedUri) {
+                console.log('[CharacterPreview] Using cached video for', character.name);
+                return { uri: cachedUri };
+            }
+            return { uri: source };
+        }
+
+        return null;
+    }, [character, cachedVideoUris, characterVideoSources]);
 
     // Fade animation when switching characters
     useEffect(() => {
@@ -310,9 +352,9 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
             {/* Full Screen Video Player with Fade */}
             <View style={styles.webViewContainer}>
                 <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
-                    {currentVideoUrl ? (
+                    {currentVideoSource ? (
                         <Video
-                            source={{ uri: currentVideoUrl }}
+                            source={typeof currentVideoSource === 'number' ? currentVideoSource : currentVideoSource}
                             style={StyleSheet.absoluteFill}
                             resizeMode={ResizeMode.COVER}
                             isLooping

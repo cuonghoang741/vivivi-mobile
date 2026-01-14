@@ -56,7 +56,7 @@
 
         /* Call mode background blur layer. We re-use #bgFadeOverlay with this class. */
         #bgFadeOverlay.call-blur {
-            opacity: 1 !important;
+            /* opacity: 1 !important; removed to allow JS transitions */
             /* ensure visible during call mode */
             filter: blur(10px) saturate(1.05);
             /* soft blur with slight pop */
@@ -71,9 +71,6 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            /* Lift the rendered scene visually without changing model/camera coordinates */
-            margin-top: -40px;
-            /* adjust as desired */
             z-index: 1;
         }
 
@@ -495,15 +492,16 @@
 
         const camera = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 20.0);
         // Camera state with smooth lerp to support call mode zooming
-        camera.position.set(0.0, 1.0, 5.0);
-        const __camDesiredPos = new THREE.Vector3(0.0, 1.0, 5.0);
-        const __camDesiredTarget = new THREE.Vector3(0.0, 1.0, 0.0);
+        // Default (non-call): slightly zoomed in on body, targeting waist (y=1.05, z=3.0)
+        camera.position.set(0.0, 1.05, 3.0);
+        const __camDesiredPos = new THREE.Vector3(0.0, 1.05, 3.0);
+        const __camDesiredTarget = new THREE.Vector3(0.0, 1.05, 0.0);
         let __callMode = false;
         const __tmpVec3 = new THREE.Vector3();
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.screenSpacePanning = true;
-        controls.target.set(0.0, 1.0, 0.0);
+        controls.target.set(0.0, 1.05, 0.0);
         controls.update();
         controls.enabled = false;
 
@@ -543,16 +541,18 @@
                         overlay.style.backgroundImage = bodyBg;
                     }
                     overlay.classList.add('call-blur');
+                    overlay.style.opacity = '1';
                 } else {
                     overlay.classList.remove('call-blur');
+                    overlay.style.opacity = '0';
                 }
             } catch { }
         }
 
         function __updateCameraTargetsForMode() {
             // Default framing
-            let targetY = 1.0;
-            let posZ = __callMode ? 1.8 : 5.0; // closer in call mode
+            let targetY = 1.05;
+            let posZ = __callMode ? 1.8 : 3.0; // closer in call mode, default 3.0 for body shot
             let fov = __callMode ? 24.0 : 30.0; // slightly tighter FOV
 
             // If we have a VRM, try to focus on the head for better framing
@@ -568,13 +568,13 @@
                         __camDesiredTarget.set(0.0, targetY, 0.0);
                     }
                 } else {
-                    // Non-call mode: use simple baseline like yesterday's build
-                    __camDesiredTarget.set(0.0, 1.0, 0.0);
-                    targetY = 1.0;
+                    // Non-call mode: focus on waist (1.05)
+                    __camDesiredTarget.set(0.0, 1.05, 0.0);
+                    targetY = 1.05;
                 }
             } catch {
-                __camDesiredTarget.set(0.0, 1.0, 0.0);
-                targetY = 1.0;
+                __camDesiredTarget.set(0.0, 1.05, 0.0);
+                targetY = 1.05;
             }
 
             // Place camera in front of the target along Z axis in world space
@@ -784,6 +784,7 @@
             blinkAnimationFrame = requestAnimationFrame(animateBlink);
             const performBlink = () => {
                 if (!targetVrm || !targetVrm.expressionManager || isBlinking) return;
+                console.log('👁️ [Blink] Performing blink animation');
                 isBlinking = true;
                 blinkStartTime = performance.now();
             };
@@ -1699,10 +1700,17 @@
         // Lipsync: set mouth openness [0..1]; damped smoothing
         let __mouthLerp = 0;
         let __speechActiveUntil = 0; // ms timestamp while speech is considered active
+        let __lastMouthLogTime = 0;
         window.setMouthOpen = (v) => {
             try {
                 // Amplify and bias for stronger lipsync
                 const raw = Math.max(0, Math.min(1, Number(v) || 0));
+                // Debug log (throttled)
+                const now = performance.now();
+                if (raw > 0.1 && now - __lastMouthLogTime > 1000) {
+                    __lastMouthLogTime = now;
+                    console.log('👄 [Lipsync] setMouthOpen called, raw:', raw.toFixed(2), 'hasVRM:', !!currentVrm, 'hasExpMgr:', !!currentVrm?.expressionManager);
+                }
                 // Gain and soft gamma curve make quiet sounds visible and loud sounds pop
                 const gain = 3.0;            // stronger amplification
                 const gamma = 0.65;          // stronger curve

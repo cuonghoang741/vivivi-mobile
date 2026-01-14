@@ -94,7 +94,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
         styles.container,
         {
           paddingBottom: bottomPadding,
-          paddingRight: 14,
+          paddingRight: 16,
           opacity: opacityAnim,
         },
       ]}
@@ -182,15 +182,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   avatarWrapper: {
     position: 'relative',
   },
   avatarContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
   },
   avatar: {
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   avatarBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    borderRadius: 22,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
   },
@@ -228,9 +228,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   },
   addButtonBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    borderRadius: 22,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
   },

@@ -9,6 +9,7 @@ type Props = {
   onDance: () => void;
   isDancing?: boolean;
   isInCall?: boolean;
+  isDarkBackground?: boolean;
 };
 
 export const ChatBottomActions: React.FC<Props> = ({
@@ -17,6 +18,7 @@ export const ChatBottomActions: React.FC<Props> = ({
   onDance,
   isDancing = false,
   isInCall = false,
+  isDarkBackground = true,
 }) => {
   // When in call mode, hide all action buttons
   if (isInCall) {
@@ -25,25 +27,27 @@ export const ChatBottomActions: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
-      <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} />
-      <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} />
+      <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} isDarkBackground={isDarkBackground} />
+      <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} isDarkBackground={isDarkBackground} />
       <ActionButton
         icon={isDancing ? "close" : "musical-notes-outline"}
         label={isDancing ? "Dance" : "Dance"}
         onPress={onDance}
+        isDarkBackground={isDarkBackground}
       />
     </View>
   );
 };
 
-const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void }> = ({
+const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void; isDarkBackground: boolean }> = ({
   icon,
   label,
   onPress,
+  isDarkBackground,
 }) => (
-  <LiquidGlass style={styles.button} onPress={onPress}>
-    <Ionicons name={icon as any} size={14} color="#fff" />
-    <Text style={styles.buttonLabel}>{label}</Text>
+  <LiquidGlass style={styles.button} onPress={onPress} isDarkBackground={isDarkBackground}>
+    <Ionicons name={icon as any} size={14} color={isDarkBackground ? "#fff" : "#000"} />
+    <Text style={[styles.buttonLabel, { color: isDarkBackground ? "#fff" : "#000" }]}>{label}</Text>
   </LiquidGlass>
 );
 

@@ -131,6 +131,7 @@ const AppContent = () => {
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
+  const [isChatFullScreen, setIsChatFullScreen] = useState(false);
   const [isDancing, setIsDancing] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
@@ -445,6 +446,10 @@ const AppContent = () => {
         addUserMessage(text);
       },
       onAgentVolume: (volume: number) => {
+        // Debug log for lipsync
+        if (volume > 0.1) {
+          console.log('[Lipsync] Agent volume:', volume.toFixed(2));
+        }
         if (webBridgeRef.current) {
           webBridgeRef.current.setMouthOpen(volume);
         }
@@ -1874,17 +1879,6 @@ const AppContent = () => {
   }, [hasRestoredSession, session]);
 
   const renderContent = () => {
-    if (!hasRestoredSession) {
-      return (
-        <View style={styles.container}>
-          <StatusBar barStyle="light-content" />
-          <View style={styles.loadingState}>
-            <ActivityIndicator color="#fff" />
-          </View>
-        </View>
-      );
-    }
-
     if (shouldShowSignIn) {
       return (
         <View style={styles.container}>
@@ -1950,16 +1944,18 @@ const AppContent = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
-        <SceneHeader
-          characterName={characterTitle}
-          relationshipName={currentCharacter?.relationshipName}
-          relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
-          avatarUri={currentCharacter?.avatar}
-          onCharacterCardPress={handleCharacterCardPress}
-          onSettingsPress={handleOpenSettings}
-          onCharacterMenuPress={() => setShowCharacterSheet(true)}
-          isDarkBackground={isDarkBackground}
-        />
+        <View style={{ zIndex: 100 }}>
+          <SceneHeader
+            characterName={characterTitle}
+            relationshipName={currentCharacter?.relationshipName}
+            relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
+            avatarUri={currentCharacter?.avatar}
+            onCharacterCardPress={handleCharacterCardPress}
+            onSettingsPress={handleOpenSettings}
+            onCharacterMenuPress={() => setShowCharacterSheet(true)}
+            isDarkBackground={isDarkBackground}
+          />
+        </View>
         <Pressable
           style={styles.webViewWrapper}
           ref={snapshotViewRef as any}
@@ -1973,30 +1969,35 @@ const AppContent = () => {
             enableDebug={false}
           />
         </Pressable>
+        <VoiceLoadingOverlay
+          visible={voiceState.isBooting || voiceState.status === 'connecting'}
+          characterName={characterTitle}
+          characterAvatar={currentCharacter?.avatar || initialData?.character.avatar || initialData?.character.thumbnail_url}
+          backgroundImage={allBackgrounds.find((bg) => bg.id === currentBackgroundId)?.image}
+        />
         {/* Hide VRMUIOverlay when in call mode */}
-        {!(isCameraMode || voiceState.isConnected) && (
-          <VRMUIOverlay
-            canClaimCalendar={overlayFlags.canClaimCalendar}
-            hasMessages={overlayFlags.hasMessages}
-            showChatList={overlayFlags.showChatList}
-            loginStreak={chatState.streakDays ?? 0}
-            isDarkBackground={isDarkBackground}
-            isBgmOn={isBgmOn}
-            remainingQuotaSeconds={remainingQuotaSeconds}
-            isInCall={isCameraMode || voiceState.isConnected}
-            onBackgroundPress={() => setShowBackgroundSheet(true)}
-            onCostumePress={() => setShowCostumeSheet(true)}
-            onCalendarPress={handleCalendarPress}
-            onSettingsPress={handleOpenSettings}
-            onSpeakerPress={handleToggleBgm}
-            onToggleChatList={toggleChatListInternal}
-            onSwipeBackground={advanceBackground}
-            onSwipeCharacter={changeCharacter}
-            isChatScrolling={isChatScrolling}
-            canSwipeCharacter={allCharacters.length > 1}
-            isPro={isPro}
-          />
-        )}
+        <VRMUIOverlay
+          canClaimCalendar={overlayFlags.canClaimCalendar}
+          hasMessages={overlayFlags.hasMessages}
+          showChatList={overlayFlags.showChatList}
+          loginStreak={chatState.streakDays ?? 0}
+          isDarkBackground={isDarkBackground}
+          isBgmOn={isBgmOn}
+          remainingQuotaSeconds={remainingQuotaSeconds}
+          isInCall={isCameraMode || voiceState.isConnected}
+          isHidden={isChatFullScreen}
+          onBackgroundPress={() => setShowBackgroundSheet(true)}
+          onCostumePress={() => setShowCostumeSheet(true)}
+          onCalendarPress={handleCalendarPress}
+          onSettingsPress={handleOpenSettings}
+          onSpeakerPress={handleToggleBgm}
+          onToggleChatList={toggleChatListInternal}
+          onSwipeBackground={advanceBackground}
+          onSwipeCharacter={changeCharacter}
+          isChatScrolling={isChatScrolling}
+          canSwipeCharacter={allCharacters.length > 1}
+          isPro={isPro}
+        />
         <CameraPreviewOverlay
           visible={showCameraPreview && !!cameraStream}
           stream={cameraStream}
@@ -2010,7 +2011,8 @@ const AppContent = () => {
         <View
           style={[
             styles.chatOverlay,
-            { bottom: keyboardHeight }
+            { bottom: keyboardHeight },
+            isChatFullScreen && { top: 0, paddingBottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' }
           ]}
           pointerEvents="box-none"
         >
@@ -2045,10 +2047,14 @@ const AppContent = () => {
             onChatScrollStateChange={setIsChatScrolling}
             onToggleChatList={toggleChatListInternal}
             isInCall={isCameraMode || voiceState.isConnected}
+            isDarkBackground={isDarkBackground}
+            isFullScreen={isChatFullScreen}
+            onToggleFullscreen={setIsChatFullScreen}
           />
         </View>
         {/* Hide CharacterQuickSwitcher when in call mode */}
-        {!(isCameraMode || voiceState.isConnected) && (
+        {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
+        {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
           <CharacterQuickSwitcher
             characters={allCharacters}
             currentIndex={currentCharacterIndex}
@@ -2221,9 +2227,7 @@ const AppContent = () => {
             setStreakRewardIsClaimed(false);
           }}
         />
-        <VoiceLoadingOverlay
-          visible={voiceState.isBooting || voiceState.status === 'connecting'}
-        />
+
         <SubscriptionSheet
           isOpened={showSubscriptionSheet}
           onClose={() => setShowSubscriptionSheet(false)}
@@ -2308,26 +2312,23 @@ const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({ onC
     loadFreeCharacters();
   }, []);
 
-  if (isLoading) {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color="#FF2F71" />
-          <Text style={{ color: '#fff', marginTop: 16 }}>Loading characters...</Text>
-        </View>
-      </View>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <View style={styles.container}>
+  //       <StatusBar barStyle="light-content" />
+  //       <View style={styles.loadingState}>
+  //         <ActivityIndicator size="large" color="#FF2F71" />
+  //         <Text style={{ color: '#fff', marginTop: 16 }}>Loading characters...</Text>
+  //       </View>
+  //     </View>
+  //   );
+  // }
 
   if (error || characters.length === 0) {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.loadingState}>
-          <Text style={{ color: '#fff', fontSize: 16 }}>
-            {error || 'No characters available'}
-          </Text>
         </View>
       </View>
     );
@@ -2486,6 +2487,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingBottom: 24,
+    zIndex: 100,
   },
   savedToastContainer: {
     position: 'absolute',

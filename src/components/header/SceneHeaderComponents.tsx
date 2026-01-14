@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react-native";
 import { LiquidGlass } from "../LiquidGlass";
 import HapticPressable from "../ui/HapticPressable";
+import { NotificationDot } from "../ui/NotificationDot";
 import Button from "../Button";
 
 type CharacterHeaderCardProps = {
@@ -43,7 +44,7 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
   const relationshipLabel = relationshipName?.trim() || "Stranger";
 
   return (
-    <LiquidGlass style={styles.card} onPress={onPress}>
+    <LiquidGlass isDarkBackground={isDarkBackground} style={styles.card} onPress={onPress}>
       <View style={styles.cardBody}>
         <View style={styles.topRow}>
           {/* <View style={styles.avatarWrapper}>
@@ -98,6 +99,7 @@ type HeaderIconButtonProps = {
   active?: boolean;
   accessibilityLabel?: string;
   iconColor?: string;
+  isDarkBackground?: boolean;
 };
 
 export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
@@ -106,6 +108,7 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
   active,
   accessibilityLabel,
   iconColor = "#fff",
+  isDarkBackground,
 }) => {
   return (
     <Button
@@ -115,6 +118,7 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
       startIcon={Icon}
       iconColor={iconColor}
       size="lg"
+      isDarkBackground={isDarkBackground}
     >
     </Button>
   );
@@ -234,6 +238,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     zIndex: 100,
   },
+  iconButtonContainer: {
+    position: 'relative',
+  },
 });
 
 // Scene Header Left Component
@@ -259,6 +266,7 @@ export const SceneHeaderLeft: React.FC<SceneHeaderLeftProps> = ({
         onPress={onSettingsPress}
         accessibilityLabel="Open settings"
         iconColor={iconColor}
+        isDarkBackground={isDarkBackground}
       />
       <HeaderIconButton
         Icon={isBgmOn ? IconVolume : IconVolumeOff}
@@ -266,6 +274,7 @@ export const SceneHeaderLeft: React.FC<SceneHeaderLeftProps> = ({
         accessibilityLabel="Toggle background music"
         active={isBgmOn}
         iconColor={iconColor}
+        isDarkBackground={isDarkBackground}
       />
     </View>
   );
@@ -294,6 +303,7 @@ export const SceneHeaderRight: React.FC<SceneHeaderRightProps> = ({
         onPress={onCharacterMenuPress}
         accessibilityLabel="Character menu"
         iconColor={iconColor}
+        isDarkBackground={isDarkBackground}
       />
       <HeaderIconButton
         Icon={isCameraModeOn ? IconPlayerStop : IconVideo}
@@ -301,6 +311,7 @@ export const SceneHeaderRight: React.FC<SceneHeaderRightProps> = ({
         accessibilityLabel="Camera mode"
         active={isCameraModeOn}
         iconColor={iconColor}
+        isDarkBackground={isDarkBackground}
       />
     </View>
   );
@@ -344,6 +355,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
           onPress={onSettingsPress}
           accessibilityLabel="Open settings"
           iconColor={iconColor}
+          isDarkBackground={isDarkBackground}
         />
       </View>
 
@@ -359,12 +371,16 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
 
       {/* Right */}
       <View style={styles.headerActions}>
-        <HeaderIconButton
-          Icon={IconLayoutGrid}
-          onPress={onCharacterMenuPress}
-          accessibilityLabel="Character menu"
-          iconColor={iconColor}
-        />
+        <View style={styles.iconButtonContainer}>
+          <HeaderIconButton
+            Icon={IconLayoutGrid}
+            onPress={onCharacterMenuPress}
+            accessibilityLabel="Character menu"
+            iconColor={iconColor}
+            isDarkBackground={isDarkBackground}
+          />
+          <NotificationDot />
+        </View>
       </View>
     </View>
   );

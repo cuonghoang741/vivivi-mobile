@@ -36,7 +36,8 @@ export interface ButtonProps {
   iconColor?: ColorValue;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
-  tintColor?: string
+  tintColor?: string;
+  isDarkBackground?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -56,6 +57,7 @@ export const Button: React.FC<ButtonProps> = ({
   onPress,
   style,
   tintColor,
+  isDarkBackground,
 }) => {
   const baseColors = getBaseColors(color);
   const { buttonStyle, textStyle, iconSize } = getStyles({
@@ -129,7 +131,11 @@ export const Button: React.FC<ButtonProps> = ({
   // Render with liquid glass effect
   if (variant === 'liquid' && isLiquidGlassSupported) {
     const glassStyle = { ...(baseStyle as ViewStyle) };
-    const tintColor = getBackgroundColor(glassStyle);
+
+    // Determine effective tint color: explicit tintColor > background-based default > style background color
+    const styleBg = getBackgroundColor(glassStyle);
+    const effectiveTintColor = tintColor ?? (isDarkBackground !== undefined ? (isDarkBackground ? "#000000a7" : "#ffffff50") : undefined) ?? styleBg;
+
     if ('backgroundColor' in glassStyle) {
       delete glassStyle.backgroundColor;
     }
@@ -138,7 +144,7 @@ export const Button: React.FC<ButtonProps> = ({
       <HapticPressable onPress={onPress} disabled={disabled || loading}>
         <LiquidGlassView
           effect="regular"
-          tintColor={tintColor}
+          tintColor={effectiveTintColor}
           interactive
           style={[
             glassButtonStyle,

@@ -11,6 +11,7 @@ type Props = ViewProps & {
   pressable?: boolean;
   onPress?: PressableProps['onPress'];
   disabled?: boolean;
+  isDarkBackground?: boolean;
 };
 
 /**
@@ -27,9 +28,13 @@ export const LiquidGlass: React.FC<Props> = ({
   pressable = true,
   onPress,
   disabled,
+  isDarkBackground,
   ...rest
 }) => {
   const baseStyle = [glassButtonStyle, style];
+
+  // Determine tint color based on isDarkBackground if not explicitly provided
+  const effectiveTintColor = tintColor ?? (isDarkBackground ? "#000000a7" : "#ffffff50");
 
   // Content wrapper - LiquidGlassView hoặc View
   const renderContent = () => {
@@ -37,15 +42,15 @@ export const LiquidGlass: React.FC<Props> = ({
       // Only pass valid props to LiquidGlassView
       const liquidProps: any = {
         style: baseStyle,
-        tintColor,
+        tintColor: effectiveTintColor,
         effect: 'regular',
       };
-      
+
       // Interactive prop: true nếu có pressable và onPress, hoặc nếu được set explicitly
-      const shouldBeInteractive = interactive !== undefined 
-        ? interactive 
+      const shouldBeInteractive = interactive !== undefined
+        ? interactive
         : (pressable && !!onPress);
-      
+
       if (shouldBeInteractive) {
         liquidProps.interactive = true;
       }

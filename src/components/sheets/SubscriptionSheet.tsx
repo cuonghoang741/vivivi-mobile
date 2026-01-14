@@ -18,10 +18,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Video, ResizeMode } from 'expo-av';
 import { PurchasesPackage } from 'react-native-purchases';
 import { LiquidGlassView } from '@callstack/liquid-glass';
+import { VideoCacheService } from '../../services/VideoCacheService';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useVRMContext } from '../../context/VRMContext';
-import { CostumeRepository } from '../../repositories/CostumeRepository';
-import { UserCharacterPreferenceService } from '../../services/UserCharacterPreferenceService';
 import Button from '../Button';
 
 // Icons
@@ -33,6 +32,8 @@ import Icon5 from '../../assets/icons/subscriptions/1.svg';
 import Icon6 from '../../assets/icons/subscriptions/6.svg';
 
 const { height } = Dimensions.get('window');
+
+const DEFAULT_VIDEO_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
 
 const SUBSCRIPTION_FEATURES = [
     { icon: Icon1, text: 'Unlimited messages, no daily limits' },
@@ -86,18 +87,39 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     );
 
     // Load background video - prioritize costume video over character video
+    // PRELOAD and CACHE video immediately
     useEffect(() => {
-        if (!isOpened) return;
+        const loadAndCacheVideo = async () => {
+            let targetUrl: string | null = null;
 
-        // Prioritize costume video over character video
-        if (currentCostume?.video_url) {
-            setBackgroundVideo(currentCostume.video_url);
-        } else if (currentCharacter?.video_url) {
-            setBackgroundVideo(currentCharacter.video_url);
-        } else {
-            setBackgroundVideo(null);
-        }
-    }, [isOpened, currentCostume, currentCharacter]);
+            // Determine which video we WANT to show
+            if (currentCostume?.video_url) {
+                targetUrl = currentCostume.video_url;
+            } else if (currentCharacter?.video_url) {
+                targetUrl = currentCharacter.video_url;
+            }
+
+            // If no custom video, we use the default
+            const finalUrl = targetUrl || DEFAULT_VIDEO_URL;
+
+            try {
+                // Try caching
+                const cachedMap = await VideoCacheService.preloadVideos([finalUrl]);
+                const localUri = cachedMap.get(finalUrl);
+
+                if (localUri) {
+                    setBackgroundVideo(localUri);
+                } else {
+                    setBackgroundVideo(finalUrl);
+                }
+            } catch (error) {
+                console.warn('[SubscriptionSheet] Failed to cache video', error);
+                setBackgroundVideo(finalUrl);
+            }
+        };
+
+        loadAndCacheVideo();
+    }, [currentCostume, currentCharacter]);
 
     // Set default selected package
     useEffect(() => {
@@ -197,7 +219,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         }
     };
 
-    const videoSource = backgroundVideo || 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
+    const videoSource = backgroundVideo || DEFAULT_VIDEO_URL;
 
     return (
         <Modal
@@ -238,159 +260,168 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     />
                 </View>
 
-                <ScrollView
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <View style={styles.heroContent}>
-                        <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                            <Text style={styles.proBadgeTextName}>Roxie</Text>
-                            <LinearGradient
-                                colors={['#FFD91B', '#FFE979']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={styles.premiumBadge}
+                {/* Main Content pushed to bottom */}
+                <View style={styles.contentWrapper}>
+                    <View style={styles.sheetContent}>
+                        {/* Scrollable Section: Title + Features */}
+                        <View style={styles.featuresScrollContainer}>
+                            <ScrollView
+                                style={styles.featuresScrollView}
+                                contentContainerStyle={styles.featuresScrollContent}
+                                showsVerticalScrollIndicator={false}
                             >
-                                <Text style={styles.premiumBadgeText}>Premium</Text>
-                            </LinearGradient>
-                        </LiquidGlassView>
-                        <Text style={styles.title}>Stay With Me{'\n'}Without Limits</Text>
-                    </View>
+                                <View style={styles.heroContent}>
+                                    <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
+                                        <Text style={styles.proBadgeTextName}>Roxie</Text>
+                                        <LinearGradient
+                                            colors={['#FFD91B', '#FFE979']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={styles.premiumBadge}
+                                        >
+                                            <Text style={styles.premiumBadgeText}>Pro</Text>
+                                        </LinearGradient>
+                                    </LiquidGlassView>
+                                    <Text style={styles.title}>Stay With Me{'\n'}Without Limits</Text>
+                                </View>
 
-                    <View style={styles.featuresList}>
-                        {SUBSCRIPTION_FEATURES.map((feature, index) => (
-                            <View key={index} style={styles.featureRow}>
-                                <feature.icon width={24} height={24} fill="#fff" style={{ marginRight: 12 }} />
-                                <Text style={styles.featureText}>{feature.text}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </ScrollView>
+                                <View style={styles.featuresList}>
+                                    {SUBSCRIPTION_FEATURES.map((feature, index) => (
+                                        <View key={index} style={styles.featureRow}>
+                                            <feature.icon width={24} height={24} fill="#fff" style={{ marginRight: 12 }} />
+                                            <Text style={styles.featureText}>{feature.text}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </View>
 
-                <View style={[styles.bottomContainer, { paddingBottom: 10 }]}>
-                    <View style={styles.pricingContainer}>
-                        {yearlyPackage && (
-                            <Pressable
-                                style={[
-                                    styles.planCard,
-                                    selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
-                                ]}
-                                onPress={() => setSelectedPackage(yearlyPackage)}
-                            >
-                                {activeProductId === yearlyPackage.product.identifier ? (
-                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                    </View>
-                                ) : (selectedPackage?.identifier === yearlyPackage.identifier && (
-                                    <View style={styles.blueBadge}>
-                                        <Text style={styles.blueBadgeText}>80% OFF</Text>
-                                    </View>
+                        {/* Fixed Bottom Section */}
+                        <View style={[styles.bottomContainer, { paddingBottom: 10 }]}>
+                            <View style={styles.pricingContainer}>
+                                {yearlyPackage && (
+                                    <Pressable
+                                        style={[
+                                            styles.planCard,
+                                            selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
+                                        ]}
+                                        onPress={() => setSelectedPackage(yearlyPackage)}
+                                    >
+                                        {activeProductId === yearlyPackage.product.identifier ? (
+                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                            </View>
+                                        ) : (selectedPackage?.identifier === yearlyPackage.identifier && (
+                                            <View style={styles.blueBadge}>
+                                                <Text style={styles.blueBadgeText}>80% OFF</Text>
+                                            </View>
+                                        ))}
+                                        <Text style={styles.planName}>Yearly</Text>
+                                        <View>
+                                            <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
+                                            <Text style={styles.planPeriod}>per year</Text>
+                                            <Text style={styles.planSubDetail}>
+                                                {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
+                                                    style: 'currency',
+                                                    currency: yearlyPackage.product.currencyCode
+                                                })}/per month
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+                                )}
+
+                                {monthlyPackage && (
+                                    <Pressable
+                                        style={[
+                                            styles.planCard,
+                                            selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
+                                        ]}
+                                        onPress={() => setSelectedPackage(monthlyPackage)}
+                                    >
+                                        {activeProductId === monthlyPackage.product.identifier && (
+                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                            </View>
+                                        )}
+                                        <Text style={styles.planName}>Monthly</Text>
+                                        <View>
+                                            <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
+                                            <Text style={styles.planPeriod}>per month</Text>
+                                        </View>
+                                    </Pressable>
+                                )}
+
+                                {/* Fallback if no yearly/monthly found */}
+                                {!yearlyPackage && !monthlyPackage && packages.length > 0 && packages.map(pkg => (
+                                    <Pressable
+                                        key={pkg.identifier}
+                                        style={[
+                                            styles.planCard,
+                                            selectedPackage?.identifier === pkg.identifier && styles.planCardSelected
+                                        ]}
+                                        onPress={() => setSelectedPackage(pkg)}
+                                    >
+                                        {activeProductId === pkg.product.identifier && (
+                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
+                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
+                                            </View>
+                                        )}
+                                        <Text style={styles.planName}>{pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly'}</Text>
+                                        <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
+                                    </Pressable>
                                 ))}
-                                <Text style={styles.planName}>Yearly</Text>
-                                <View>
-                                    <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
-                                    <Text style={styles.planPeriod}>per year</Text>
-                                    <Text style={styles.planSubDetail}>
-                                        {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
-                                            style: 'currency',
-                                            currency: yearlyPackage.product.currencyCode
-                                        })}/per month
-                                    </Text>
-                                </View>
-                            </Pressable>
-                        )}
 
-                        {monthlyPackage && (
-                            <Pressable
-                                style={[
-                                    styles.planCard,
-                                    selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
-                                ]}
-                                onPress={() => setSelectedPackage(monthlyPackage)}
-                            >
-                                {activeProductId === monthlyPackage.product.identifier && (
-                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                    </View>
+                                {(contextLoading || isProcessing) && packages.length === 0 && (
+                                    <ActivityIndicator color="#FFE66D" size="large" style={{ marginVertical: 20 }} />
                                 )}
-                                <Text style={styles.planName}>Monthly</Text>
-                                <View>
-                                    <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
-                                    <Text style={styles.planPeriod}>per month</Text>
-                                </View>
-                            </Pressable>
-                        )}
+                            </View>
 
-                        {/* Fallback if no yearly/monthly found */}
-                        {!yearlyPackage && !monthlyPackage && packages.length > 0 && packages.map(pkg => (
                             <Pressable
-                                key={pkg.identifier}
-                                style={[
-                                    styles.planCard,
-                                    selectedPackage?.identifier === pkg.identifier && styles.planCardSelected
-                                ]}
-                                onPress={() => setSelectedPackage(pkg)}
+                                style={[styles.upgradeButton, (isProcessing || contextLoading) && styles.upgradeButtonDisabled]}
+                                onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
+                                disabled={isProcessing || contextLoading}
+                                android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
                             >
-                                {activeProductId === pkg.product.identifier && (
-                                    <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                        <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                    </View>
-                                )}
-                                <Text style={styles.planName}>{pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly'}</Text>
-                                <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
+                                <LinearGradient
+                                    colors={['#FFD91B', '#FFE979']}
+                                    style={styles.upgradeButtonGradient}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                >
+                                    {isProcessing ? (
+                                        <ActivityIndicator color="#000" />
+                                    ) : (
+                                        <Text style={styles.upgradeButtonText}>
+                                            {isPro ? 'Update Subscription' : 'Upgrade'}
+                                        </Text>
+                                    )}
+                                </LinearGradient>
                             </Pressable>
-                        ))}
 
-                        {(contextLoading || isProcessing) && packages.length === 0 && (
-                            <ActivityIndicator color="#FFE66D" size="large" style={{ marginVertical: 20 }} />
-                        )}
-                    </View>
-
-                    <Pressable
-                        style={[styles.upgradeButton, (isProcessing || contextLoading) && styles.upgradeButtonDisabled]}
-                        onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
-                        disabled={isProcessing || contextLoading}
-                        android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
-                    >
-                        <LinearGradient
-                            colors={['#FFD91B', '#FFE979']}
-                            style={styles.upgradeButtonGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                        >
-                            {isProcessing ? (
-                                <ActivityIndicator color="#000" />
-                            ) : (
-                                <Text style={styles.upgradeButtonText}>
-                                    {isPro ? 'Update Subscription' : 'Upgrade'}
-                                </Text>
+                            <View style={styles.footerLinks}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
+                                    Privacy Policy
+                                </LinkText>
+                                <Text style={styles.footerSeparator}>|</Text>
+                                <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
+                                <Text style={styles.footerSeparator}>|</Text>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/terms')}>
+                                    Terms of Use
+                                </LinkText>
+                            </View>
+                            {isPro && (
+                                <Pressable
+                                    style={styles.cancelButton}
+                                    onPress={() => {
+                                        // iTunes subscription management URL for iOS
+                                        Linking.openURL('https://apps.apple.com/account/subscriptions');
+                                    }}
+                                >
+                                    <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
+                                </Pressable>
                             )}
-                        </LinearGradient>
-                    </Pressable>
-
-                    <View style={styles.footerLinks}>
-                        <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
-                            Privacy Policy
-                        </LinkText>
-                        <Text style={styles.footerSeparator}>|</Text>
-                        <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
-                        <Text style={styles.footerSeparator}>|</Text>
-                        <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/terms')}>
-                            Terms of Use
-                        </LinkText>
+                        </View>
                     </View>
-                    {isPro && (
-                        <Pressable
-                            style={styles.cancelButton}
-                            onPress={() => {
-                                // iTunes subscription management URL for iOS
-                                Linking.openURL('https://apps.apple.com/account/subscriptions');
-                            }}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
-                        </Pressable>
-                    )}
                 </View>
             </View>
         </Modal>
@@ -412,7 +443,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 0,
         width: '100%',
-        height: '55%',
+        height: '65%', // Increased slightly to cover more background behind sheet
     },
     backgroundVideo: {
         width: '100%',
@@ -423,26 +454,38 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: 150,
+        height: '50%',
         width: '100%',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
         paddingHorizontal: 16,
+        zIndex: 10,
     },
-    scrollView: {
+    contentWrapper: {
         flex: 1,
+        justifyContent: 'flex-end',
     },
-    scrollContent: {
-        flexGrow: 1,
+    sheetContent: {
+        maxHeight: '85%', // Prevent going too high
+        paddingBottom: 20,
+    },
+    featuresScrollContainer: {
+        flexShrink: 1, // Allows scrolling if content is too large
+        marginBottom: 10,
+    },
+    featuresScrollView: {
+        flexGrow: 0,
+    },
+    featuresScrollContent: {
         paddingHorizontal: 20,
-        paddingTop: height * 0.1,
-        paddingBottom: 40,
+        paddingBottom: 10,
     },
     heroContent: {
         alignItems: 'center',
         marginBottom: 14,
+        paddingTop: 10,
     },
     proBadgeContainer: {
         flexDirection: 'row',
@@ -476,7 +519,7 @@ const styles = StyleSheet.create({
         lineHeight: 42,
     },
     featuresList: {
-        marginBottom: 14,
+        // Removed marginBottom as it's handled by container
     },
     featureRow: {
         flexDirection: 'row',

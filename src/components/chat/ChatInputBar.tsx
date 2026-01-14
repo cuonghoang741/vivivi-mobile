@@ -9,6 +9,7 @@ import {
   IconPhoneOff,
   IconPhoneFilled,
   IconPlayerStopFilled,
+  IconSend2,
 } from '@tabler/icons-react-native';
 import { glassButtonStyle } from '../../styles/glass';
 import { LiquidGlass } from '../LiquidGlass';
@@ -28,6 +29,7 @@ type Props = {
   placeholder?: string;
   disabled?: boolean;
   voiceLoading?: boolean;
+  isDarkBackground?: boolean;
 };
 
 export const ChatInputBar: React.FC<Props> = ({
@@ -43,9 +45,12 @@ export const ChatInputBar: React.FC<Props> = ({
   placeholder = 'Chat',
   disabled,
   voiceLoading,
+  isDarkBackground = true,
 }) => {
   const showSend = useMemo(() => value.trim().length > 0, [value]);
   const isCallActive = isVoiceCallActive || isVideoCallActive;
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  const placeholderColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
 
   // Pulsing animation for user speaking indicator
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -94,7 +99,8 @@ export const ChatInputBar: React.FC<Props> = ({
               onPress={onToggleMic}
               disabled={voiceLoading}
               startIcon={isMicMuted ? IconPlayerStopFilled : IconMicrophone}
-              iconColor={isMicMuted ? '#FF6EA1' : 'white'}
+              iconColor={isMicMuted ? '#FF6EA1' : textColor}
+              isDarkBackground={isDarkBackground}
             />
           </View>
         )}
@@ -108,20 +114,21 @@ export const ChatInputBar: React.FC<Props> = ({
             isIconOnly
             onPress={onVideoCall}
             startIcon={isVideoCallActive ? IconVideoOff : IconVideo}
-            iconColor={isVideoCallActive ? "#FF6EA1" : "white"}
+            iconColor={isVideoCallActive ? "#FF6EA1" : textColor}
+            isDarkBackground={isDarkBackground}
           />
         )}
       </View>
 
       {/* Chat Input */}
-      <LiquidGlass style={styles.liquidGlass}>
+      <LiquidGlass style={styles.liquidGlass} isDarkBackground={isDarkBackground}>
         <View style={styles.row}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: textColor }]}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor="rgba(255,255,255,0.6)"
+            placeholderTextColor={placeholderColor}
             editable={!disabled}
             returnKeyType="send"
             onSubmitEditing={onSend}
@@ -140,7 +147,7 @@ export const ChatInputBar: React.FC<Props> = ({
                   onSend();
                 }}
               >
-                <IconSend width={20} height={20} color="#fff" />
+                <IconSend2 width={20} height={20} color={textColor} />
               </Pressable>
             )}
 
@@ -209,7 +216,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     ...glassButtonStyle,
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 4,
     minHeight: 44,
     justifyContent: 'center',
   },
@@ -237,7 +245,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF6EA1',
   },
   endCallButton: {
     width: 36,

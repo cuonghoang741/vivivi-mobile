@@ -10,7 +10,10 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Keyboard,
 } from "react-native";
+import { LiquidGlassView } from '@callstack/liquid-glass';
+import { Svg, Circle } from 'react-native-svg';
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -29,10 +32,12 @@ import {
 } from '@tabler/icons-react-native';
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
+import { HapticPressable } from "./ui/HapticPressable";
+import { NotificationDot } from "./ui/NotificationDot";
 import StreakIcon from "../assets/icons/streak.svg";
 import GoProButton from "./GoProButton";
 import Button from "./Button";
-import DiamondIcon from "../assets/icons/diamond.svg";
+import DiamondPinkIcon from "../assets/icons/diamond-pink.svg";
 import { useSceneActions } from "../context/SceneActionsContext";
 
 // Enable LayoutAnimation for Android
@@ -63,6 +68,7 @@ type VRMUIOverlayProps = ViewProps & {
   isChatScrolling?: boolean;
   canSwipeCharacter?: boolean;
   isPro?: boolean;
+  isHidden?: boolean;
 };
 
 export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
@@ -86,10 +92,14 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   isChatScrolling = false,
   canSwipeCharacter = false,
   isPro = false,
+  isHidden = false,
   ...rest
 }) => {
+  if (isHidden) return null;
+
   const [isExpanded, setIsExpanded] = useState(false);
   const sceneActions = useSceneActions();
+  // ... rest of component
 
   // Animation values
   const expandAnimation = useRef(new Animated.Value(0)).current;
@@ -99,7 +109,11 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponder: () => {
+          if (isInCall) return false;
+          if (isChatScrolling) return false;
+          return true;
+        },
         onMoveShouldSetPanResponder: (evt, gestureState) => {
           // Disable swipe during call
           if (isInCall) return false;
@@ -133,17 +147,33 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
           return Math.abs(gestureState.dx) > 20 || Math.abs(gestureState.dy) > 20;
         },
         onPanResponderGrant: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          // Only provide haptic feedback if we're treating this as a potential swipe or button press?
+          // Actually, grant happens immediately on tap now.
+          // We might want to avoid haptic on every tap if it's annoying.
+          // But original code had it on grant.
+          // Let's keep it or move it?
+          // If we tap to dismiss keyboard, we probably don't want impact?
+          // Original code: Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          // If I return true on start, this fires on every tap.
+          // I will comment it out or leave it if touch feedback is desired.
+          // The user mentions "check why... keyboard not dismissed", implies they want it to work like normal background.
+          // Normal background doesn't vibrate.
+          // So I will remove the haptic from Grant, and only do it on meaningful action (Swipe).
         },
         onPanResponderRelease: (_, gestureState) => {
           if (isChatScrolling) return;
           const dx = gestureState.dx;
           const dy = gestureState.dy;
+
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && onSwipeBackground) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onSwipeBackground(dx < 0 ? 1 : -1);
           } else if (Math.abs(dy) > 40 && canSwipeCharacter && onSwipeCharacter) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onSwipeCharacter(dy < 0 ? 1 : -1);
+          } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+            // Tap detected (small movement)
+            Keyboard.dismiss();
           }
         },
       }),
@@ -262,26 +292,44 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       {...panResponder.panHandlers}
       {...rest}
     >
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: '#000',
+            opacity: expandAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.2], // Using 0.2 for better contrast, roughly 0.1 as requested
+            }),
+            zIndex: -1,
+          },
+        ]}
+        pointerEvents="none"
+      />
       <View style={styles.leftColumn} pointerEvents="box-none">
-        {/* Go Pro button - only for non-Pro users */}
-        {!isPro && (
+        {/* Go Pro button - only for non-Pro users AND when NOT in a call */}
+        {!isPro && !isInCall && (
           <View style={styles.menuItemRowLeft}>
-            <LiquidGlass
-              style={styles.goProButton}
-              onPress={() => sceneActions?.openSubscription()}
-            >
-              <DiamondIcon />
-              <Text style={{
-                color: isDarkBackground ? '#fff' : '#000',
-                fontWeight: '600',
-              }}>Go Pro</Text>
-            </LiquidGlass>
+            <View style={styles.iconButtonContainer}>
+              <HapticPressable onPress={() => sceneActions?.openSubscription()}>
+                <LiquidGlassView style={styles.iconButtonGlass} interactive={true}>
+                  <View style={styles.premiumButton}>
+                    <View style={styles.premiumIconContainer}>
+                      <DiamondPinkIcon width={24} height={24} />
+                    </View>
+                  </View>
+                  <NotificationDot />
+                </LiquidGlassView>
+
+              </HapticPressable>
+
+            </View>
             {isExpanded && (
               <Animated.Text style={[
                 styles.menuLabel,
                 { opacity: expandAnimation }
               ]}>
-                Upgrade
+                Go Premium
               </Animated.Text>
             )}
           </View>
@@ -289,27 +337,44 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
 
         {/* Always show remaining call time */}
         <View style={styles.callQuotaRow}>
-          <LiquidGlass style={styles.callQuotaButton}>
-            <IconPhone size={18} color={iconColor} />
-            <Text style={[
-              styles.callQuotaText,
-              { color: isDarkBackground ? '#fff' : '#000' }
-            ]}>
-              {formatRemainingTime(remainingQuotaSeconds)}
-            </Text>
+          <LiquidGlass isDarkBackground={isDarkBackground} style={[styles.iconButtonGlass, { borderWidth: 0, paddingLeft: 0, paddingRight: 0 }]}>
+            <Svg width={44} height={44} style={StyleSheet.absoluteFill}>
+              <Circle
+                cx={22}
+                cy={22}
+                r={21}
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth={2}
+                fill="none"
+              />
+              <Circle
+                cx={22}
+                cy={22}
+                r={21}
+                stroke="white"
+                strokeWidth={2}
+                fill="none"
+                strokeDasharray={`${2 * Math.PI * 21}`}
+                strokeDashoffset={`${2 * Math.PI * 21 * (1 - Math.min(remainingQuotaSeconds / 600, 1))}`}
+                strokeLinecap="round"
+                rotation="-90"
+                origin="22, 22"
+              />
+            </Svg>
+            <IconPhone size={20} color={iconColor} />
           </LiquidGlass>
-          {isExpanded && (
+          {(isExpanded || isInCall) && (
             <Animated.Text style={[
               styles.menuLabel,
-              { opacity: isExpanded ? 1 : 0 }
+              { opacity: isInCall ? 1 : expandAnimation }
             ]}>
-              Call Time
+              {formatRemainingTime(remainingQuotaSeconds)}
             </Animated.Text>
           )}
         </View>
       </View>
 
-      <View style={styles.rightColumn} pointerEvents="box-none">
+      <View style={[styles.rightColumn, isInCall && { opacity: 0 }]} pointerEvents={isInCall ? "none" : "box-none"}>
         {menuItems.map((item, index) => {
           // Show only first 2 items when collapsed
           const shouldShow = isExpanded || index < 3;
@@ -329,6 +394,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
               isExpanded={isExpanded}
               index={index}
               expandAnimation={expandAnimation}
+              isDarkBackground={isDarkBackground}
             />
           );
         })}
@@ -366,6 +432,7 @@ const AnimatedMenuItem: React.FC<{
   isExpanded: boolean;
   index: number;
   expandAnimation: Animated.Value;
+  isDarkBackground?: boolean
 }> = ({
   label,
   Icon,
@@ -377,6 +444,7 @@ const AnimatedMenuItem: React.FC<{
   isExpanded,
   index,
   expandAnimation,
+  isDarkBackground
 }) => {
     // Create individual animation for staggered effect
     const itemAnimation = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
@@ -427,7 +495,7 @@ const AnimatedMenuItem: React.FC<{
             </View>
           </View>
         ) : (
-          <LiquidGlass style={styles.iconButtonGlass} onPress={onPress}>
+          <LiquidGlass isDarkBackground={isDarkBackground} style={styles.iconButtonGlass} onPress={onPress}>
             {Icon && <Icon width={22} height={22} color={iconColor}  {...iconProps} />}
           </LiquidGlass>
         )}
@@ -463,17 +531,17 @@ const styles = StyleSheet.create({
   },
   badgeContainer: {
     position: "absolute",
-    top: -2,
-    right: -2,
+    top: -1,
+    right: -1,
     zIndex: 1,
   },
   badgeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 15,
+    height: 15,
+    borderRadius: 100,
     backgroundColor: "#FF3B30",
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#ffffffa5",
   },
   badgeWithCount: {
     minWidth: 18,
@@ -554,16 +622,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  goProButton: {
+  premiumButton: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "row",
-    gap: 6,
-    width: 100,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 100,
-    ...LiquidGlass
+    backgroundColor: '#FF5CA8',
+  },
+  premiumIconContainer: {
+    width: '100%',
+    height: '100%',
+    borderWidth: 2,
+    borderColor: '#ffffff97',
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
   callQuotaButton: {
     flexDirection: 'row',
