@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, TextInput, View, Animated } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View, Animated, Keyboard, Platform } from 'react-native';
 import {
   IconMicrophone,
   IconMicrophoneOff,
@@ -10,6 +10,7 @@ import {
   IconPhoneFilled,
   IconPlayerStopFilled,
   IconSend2,
+  IconPhone,
 } from '@tabler/icons-react-native';
 import { glassButtonStyle } from '../../styles/glass';
 import { LiquidGlass } from '../LiquidGlass';
@@ -77,48 +78,70 @@ export const ChatInputBar: React.FC<Props> = ({
     }
   }, [isUserSpeaking, pulseAnim]);
 
+  // Keyboard handling
+  const [isKeyboardVisible, setKeyboardVisible] = React.useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const keyboardShowListener = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+    });
+    const keyboardHideListener = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      keyboardShowListener.remove();
+      keyboardHideListener.remove();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Left side buttons */}
-      <View style={styles.leftButtons}>
-        {/* Mic Button with speaking indicator */}
-        {onToggleMic && (
-          <View style={styles.micButtonWrapper}>
-            {isUserSpeaking && (
-              <Animated.View
-                style={[
-                  styles.speakingIndicator,
-                  { transform: [{ scale: pulseAnim }] }
-                ]}
+      {!isKeyboardVisible && (
+        <View style={styles.leftButtons}>
+          {/* Mic Button with speaking indicator */}
+          {onToggleMic && (
+            <View style={styles.micButtonWrapper}>
+              {isUserSpeaking && (
+                <Animated.View
+                  style={[
+                    styles.speakingIndicator,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}
+                />
+              )}
+              <Button
+                variant="liquid"
+                size="lg"
+                isIconOnly
+                onPress={onToggleMic}
+                disabled={voiceLoading}
+                startIcon={isMicMuted ? IconPhoneOff : IconVideo}
+                iconColor={isMicMuted ? '#FF6EA1' : textColor}
+                isDarkBackground={isDarkBackground}
               />
-            )}
+            </View>
+          )}
+
+          {/* Video Call Button */}
+          {onVideoCall && isMicMuted && (
             <Button
               variant="liquid"
               size="lg"
-              isIconOnly
-              onPress={onToggleMic}
               disabled={voiceLoading}
-              startIcon={isMicMuted ? IconPlayerStopFilled : IconMicrophone}
-              iconColor={isMicMuted ? '#FF6EA1' : textColor}
+              isIconOnly
+              onPress={onVideoCall}
+              startIcon={isVideoCallActive ? IconVideoOff : IconVideo}
+              iconColor={isVideoCallActive ? "#FF6EA1" : textColor}
               isDarkBackground={isDarkBackground}
             />
-          </View>
-        )}
-
-        {/* Video Call Button */}
-        {onVideoCall && (
-          <Button
-            variant="liquid"
-            size="lg"
-            disabled={voiceLoading}
-            isIconOnly
-            onPress={onVideoCall}
-            startIcon={isVideoCallActive ? IconVideoOff : IconVideo}
-            iconColor={isVideoCallActive ? "#FF6EA1" : textColor}
-            isDarkBackground={isDarkBackground}
-          />
-        )}
-      </View>
+          )}
+        </View>
+      )}
 
       {/* Chat Input */}
       <LiquidGlass style={styles.liquidGlass} isDarkBackground={isDarkBackground}>
@@ -175,7 +198,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   leftButtons: {
     flexDirection: 'row',

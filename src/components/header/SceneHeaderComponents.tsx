@@ -365,7 +365,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
         relationshipName={relationshipName}
         relationshipProgress={relationshipProgress}
         avatarUri={avatarUri}
-        onPress={onCharacterCardPress}
+        // onPress={onCharacterCardPress}
         isDarkBackground={isDarkBackground}
       />
 

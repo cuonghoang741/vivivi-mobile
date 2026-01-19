@@ -7,7 +7,7 @@ const EAS_PROJECT_ID = '05bd0c6c-5433-4468-a849-ccee180ba617'; // Will be set af
 const PROJECT_SLUG = 'vivivi';
 
 // App production config
-const APP_NAME = 'Roxie - Digital AI Girlfriend';
+const APP_NAME = 'Roxie';
 const BUNDLE_IDENTIFIER = 'com.vivivi';
 const PACKAGE_NAME = 'com.eduto.roxie';
 const ICON = './assets/icon.png';
@@ -45,6 +45,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'We need permission to add media files to your Photo Library when you save them.',
       NSMicrophoneUsageDescription:
         'We need access to your Microphone for voice conversations with VRM characters.',
+      NSUserTrackingUsageDescription:
+        'This identifier will be used to deliver personalized ads to you.',
     },
     requireFullScreen: false,
     usesAppleSignIn: true,
@@ -96,15 +98,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         mode: 'production',
       },
     ],
+    'react-native-appsflyer',
     '@livekit/react-native-expo-plugin',
     './withCustomPodfile',
     'expo-updates',
+    [
+      './withFacebookConfig',
+      {
+        appId: '1217703997132677',
+        displayName: 'Roxie',
+        clientToken: 'bf147c448ca2780663c32b64a6aff490',
+      },
+    ],
     'expo-web-browser',
     '@react-native-firebase/app',
     [
       'expo-splash-screen',
       {
-        image: './assets/icon.png',
+        image: './assets/splash-screen.png',
         resizeMode: 'contain',
         backgroundColor: '#000000',
       },
@@ -119,6 +130,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         isAccessMediaLocationEnabled: true,
       },
     ],
+    'expo-localization',
   ],
 
   updates: {

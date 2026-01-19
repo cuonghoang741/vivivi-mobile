@@ -349,7 +349,7 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: 'pink',
   },
   webview: {
     flex: 1,
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: 'pink',
   },
   loadingText: {
     color: '#fff',

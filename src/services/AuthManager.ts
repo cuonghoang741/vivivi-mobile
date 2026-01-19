@@ -6,6 +6,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import { getLocales } from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureClientId, clearClientId } from "../utils/clientId";
 import { getSupabaseAuthHeaders } from "../utils/supabaseHelpers";
@@ -339,6 +340,9 @@ export class AuthManager {
 
       await this.clearLocalStateAfterDeletion();
 
+      // Reset RevenueCat before callback to ensure no lingering pro state
+      await revenueCatManager.logout();
+
       // Call callback before logout (so UI can respond before redirect)
       await onBeforeLogout?.();
 
@@ -414,6 +418,7 @@ export class AuthManager {
         analyticsService.logSignIn('email');
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
+        await this.ensureUserCountry(data.user);
       }
 
       this.setState({ isLoading: false });
@@ -454,6 +459,7 @@ export class AuthManager {
           user: data.user,
         });
         await revenueCatManager.login(data.user.id);
+        await this.ensureUserCountry(data.user);
       }
 
       this.setState({ isLoading: false });
@@ -521,6 +527,7 @@ export class AuthManager {
         analyticsService.logSignIn('apple');
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
+        await this.ensureUserCountry(data.user);
       }
     } catch (error: any) {
       if (error?.code === "ERR_CANCELED") {
@@ -593,6 +600,7 @@ export class AuthManager {
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
+          await this.ensureUserCountry(sessionData.user);
         }
         return;
       }
@@ -616,6 +624,7 @@ export class AuthManager {
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
+          await this.ensureUserCountry(sessionData.user);
         }
         return;
       }
@@ -658,6 +667,49 @@ export class AuthManager {
     }
 
     return { authCode, accessToken, refreshToken };
+  }
+
+  /**
+   * Helper: Check if 'country' is in user_metadata; if not, fetch from device locale and save.
+   */
+  private async ensureUserCountry(user: User): Promise<void> {
+    try {
+      const rawMeta = user.user_metadata || {};
+      console.log('🔍 [AuthManager] Checking country for user:', user.id);
+      console.log('🔍 [AuthManager] Current metadata:', JSON.stringify(rawMeta, null, 2));
+
+      if (rawMeta.country) {
+        console.log('✅ [AuthManager] Country already exists:', rawMeta.country);
+        return;
+      }
+
+      console.log('⚠️ [AuthManager] Country missing. Fetching device locales...');
+      const locales = getLocales();
+      console.log('🔍 [AuthManager] Device locales:', JSON.stringify(locales, null, 2));
+
+      const deviceCountry = locales?.[0]?.regionCode; // e.g. "VN", "US"
+
+      if (deviceCountry) {
+        console.log(`🚀 [AuthManager] Attempting to save country: ${deviceCountry}`);
+        // Save to Supabase (this updates raw_user_meta_json)
+        const { data, error } = await this.client.auth.updateUser({
+          data: {
+            country: deviceCountry,
+          },
+        });
+
+        if (error) {
+          console.warn('❌ [AuthManager] Error saving country metadata:', error);
+        } else {
+          console.log(`✅ [AuthManager] Saved user country: ${deviceCountry}`);
+          console.log('🔍 [AuthManager] Updated user:', JSON.stringify(data.user, null, 2));
+        }
+      } else {
+        console.warn('⚠️ [AuthManager] Could not determine device country from locales.');
+      }
+    } catch (err) {
+      console.warn('❌ [AuthManager] ensureUserCountry failed:', err);
+    }
   }
 
   /**

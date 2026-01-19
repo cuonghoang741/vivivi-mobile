@@ -86,67 +86,68 @@ const ToastCard: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
     >
       <LiquidGlass style={styles.toastCard} pressable={false}>
         <View style={styles.content}>
-        {/* Icon */}
-        <View style={styles.iconContainer}>
-          {getCurrencyType(toast.type) ? (
-            <CurrencyIcon
-              type={getCurrencyType(toast.type)!}
-              size={20}
-            />
-          ) : (
-            <Ionicons
-              name={iconName as any}
-              size={18}
-              color={iconColor}
-            />
-          )}
-        </View>
-
-        {/* Text Content */}
-        <View style={[
-          styles.textContainer,
-          !toast.subtitle && toast.progress === undefined && styles.textContainerCenter
-        ]}>
-          <View style={[
-            styles.textContent,
-            !toast.subtitle && toast.progress === undefined && styles.textContentCenter
-          ]}>
-            <Text style={[
-              styles.title,
-              !toast.subtitle && toast.progress === undefined && styles.titleCenter
-            ]} numberOfLines={1}>
-              {toast.title}
-            </Text>
-            {toast.subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {toast.subtitle}
-              </Text>
+          {/* Icon */}
+          <View style={styles.iconContainer}>
+            {getCurrencyType(toast.type) ? (
+              <Ionicons
+                name={iconName as any}
+                size={18}
+                color={iconColor}
+              />
+            ) : (
+              <Ionicons
+                name={iconName as any}
+                size={18}
+                color={iconColor}
+              />
             )}
           </View>
 
-          {/* Progress Bar */}
-          {toast.progress !== undefined && toast.target !== undefined && (
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBarBackground}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${(toast.progress * 100).toFixed(0)}%` as any,
-                      backgroundColor: iconColor,
-                    },
-                  ]}
-                />
-              </View>
-              {toast.amount !== undefined && (
-                <Text style={styles.progressText}>
-                  {toast.amount}/{toast.target}
+          {/* Text Content */}
+          <View style={[
+            styles.textContainer,
+            !toast.subtitle && toast.progress === undefined && styles.textContainerCenter
+          ]}>
+            <View style={[
+              styles.textContent,
+              !toast.subtitle && toast.progress === undefined && styles.textContentCenter
+            ]}>
+              <Text style={[
+                styles.title,
+                !toast.subtitle && toast.progress === undefined && styles.titleCenter
+              ]} numberOfLines={1}>
+                {toast.title}
+              </Text>
+              {toast.subtitle && (
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {toast.subtitle}
                 </Text>
               )}
             </View>
-          )}
+
+            {/* Progress Bar */}
+            {toast.progress !== undefined && toast.target !== undefined && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBarBackground}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        width: `${(toast.progress * 100).toFixed(0)}%` as any,
+                        backgroundColor: iconColor,
+                      },
+                    ]}
+                  />
+                </View>
+                {toast.amount !== undefined && (
+                  <Text style={styles.progressText}>
+                    {toast.amount}/{toast.target}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
         </View>
-      </View>
       </LiquidGlass>
     </Animated.View>
   );
@@ -226,12 +227,12 @@ function getIconName(toast: ToastMessage): string {
 
 function getCurrencyType(type: ToastType): 'vcoin' | 'ruby' | null {
   if (type === ToastType.VCOIN) {
-      return 'vcoin';
+    return 'vcoin';
   }
   if (type === ToastType.RUBY) {
-      return 'ruby';
+    return 'ruby';
   }
-      return null;
+  return null;
 }
 
 const styles = StyleSheet.create({

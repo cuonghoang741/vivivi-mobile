@@ -22,6 +22,10 @@ import { VideoCacheService } from '../../services/VideoCacheService';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useVRMContext } from '../../context/VRMContext';
 import Button from '../Button';
+import { analyticsService } from '../../services/AnalyticsService';
+import AssetRepository from '../../repositories/AssetRepository';
+import { CharacterRepository } from '../../repositories/CharacterRepository';
+import { BackgroundRepository } from '../../repositories/BackgroundRepository';
 
 // Icons
 import Icon1 from '../../assets/icons/subscriptions/4.svg';
@@ -30,6 +34,7 @@ import Icon3 from '../../assets/icons/subscriptions/3.svg';
 import Icon4 from '../../assets/icons/subscriptions/5.svg';
 import Icon5 from '../../assets/icons/subscriptions/1.svg';
 import Icon6 from '../../assets/icons/subscriptions/6.svg';
+import { IconX } from '@tabler/icons-react-native';
 
 const { height } = Dimensions.get('window');
 
@@ -67,9 +72,16 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         restorePurchases,
     } = useSubscription();
 
+    // Map of local video assets by character order
+    const LOCAL_VIDEOS: Record<number, any> = {
+        1: require('../../assets/videos/1.mp4'),
+        2: require('../../assets/videos/2.mp4'),
+        3: require('../../assets/videos/3.mp4'),
+    };
+
     const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [backgroundVideo, setBackgroundVideo] = useState<string | null>(null);
+    const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
     // Find yearly and monthly packages
@@ -86,13 +98,32 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         p.product.title.toLowerCase().includes('month')
     );
 
-    // Load background video - prioritize costume video over character video
+    // Track view
+    useEffect(() => {
+        if (isOpened) {
+            analyticsService.logSubscriptionView();
+        }
+    }, [isOpened]);
+
+    // Load background video - prioritize local video -> costume video -> character video -> default
     // PRELOAD and CACHE video immediately
     useEffect(() => {
         const loadAndCacheVideo = async () => {
+            // 1. Check for local video first based on character order
+            // Cast to any to access 'order' if it's missing from the type definition
+            const charWithOrder = currentCharacter as any;
+            if (charWithOrder?.order) {
+                const orderNum = parseInt(String(charWithOrder.order), 10);
+                if (LOCAL_VIDEOS[orderNum]) {
+                    console.log(`[SubscriptionSheet] Using local video for ${currentCharacter?.name} (order ${orderNum})`);
+                    setBackgroundVideo(LOCAL_VIDEOS[orderNum]);
+                    return;
+                }
+            }
+
             let targetUrl: string | null = null;
 
-            // Determine which video we WANT to show
+            // 2. Determine which remote video we WANT to show
             if (currentCostume?.video_url) {
                 targetUrl = currentCostume.video_url;
             } else if (currentCharacter?.video_url) {
@@ -191,8 +222,42 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         setIsProcessing(false);
 
         if (result.success) {
+            // Unlock all content for PRO user
+            try {
+                const assetRepo = new AssetRepository();
+                const charRepo = new CharacterRepository();
+                const bgRepo = new BackgroundRepository();
+
+                const [allChars, allBgs] = await Promise.all([
+                    charRepo.fetchAllCharacters(),
+                    bgRepo.fetchAllBackgrounds()
+                ]);
+
+                // Grant all characters
+                const charPromises = allChars.map(char =>
+                    assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
+                );
+
+                // Grant all backgrounds
+                const bgPromises = allBgs.map(bg =>
+                    assetRepo.createAsset(bg.id, 'background').catch(e => console.warn('Failed to grant bg:', bg.id, e))
+                );
+
+                await Promise.all([...charPromises, ...bgPromises]);
+                console.log('[SubscriptionSheet] Unlocked all assets for new PRO user');
+            } catch (err) {
+                console.error('[SubscriptionSheet] Failed to unlock all assets:', err);
+            }
+
             // Notify parent of successful purchase
             onPurchaseSuccess?.();
+
+            // Track subscription purchase
+            analyticsService.logSubscriptionPurchase(
+                packageToPurchase.identifier,
+                packageToPurchase.product.price
+            );
+
             onClose()
         } else if (result.error && result.error !== 'cancelled') {
             Alert.alert('Purchase Failed', result.error || 'Unknown error occurred');
@@ -207,6 +272,33 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         setIsProcessing(false);
 
         if (result.isPro) {
+            // Unlock all content for Restored PRO user
+            try {
+                const assetRepo = new AssetRepository();
+                const charRepo = new CharacterRepository();
+                const bgRepo = new BackgroundRepository();
+
+                const [allChars, allBgs] = await Promise.all([
+                    charRepo.fetchAllCharacters(),
+                    bgRepo.fetchAllBackgrounds()
+                ]);
+
+                // Grant all characters
+                const charPromises = allChars.map(char =>
+                    assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
+                );
+
+                // Grant all backgrounds
+                const bgPromises = allBgs.map(bg =>
+                    assetRepo.createAsset(bg.id, 'background').catch(e => console.warn('Failed to grant bg:', bg.id, e))
+                );
+
+                await Promise.all([...charPromises, ...bgPromises]);
+                console.log('[SubscriptionSheet] Unlocked all assets for restored PRO user');
+            } catch (err) {
+                console.error('[SubscriptionSheet] Failed to unlock all assets during restore:', err);
+            }
+
             // Notify parent of successful restore
             onPurchaseSuccess?.();
             Alert.alert('Success', 'Purchases restored successfully!', [
@@ -221,6 +313,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 
     const videoSource = backgroundVideo || DEFAULT_VIDEO_URL;
 
+    console.log("videoSource", videoSource)
+
     return (
         <Modal
             visible={isOpened}
@@ -234,7 +328,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                 {/* Background Video - Top Half */}
                 <View style={styles.videoHeader}>
                     <Video
-                        source={{ uri: videoSource }}
+                        source={typeof videoSource === 'number' ? videoSource : { uri: videoSource }}
                         style={styles.backgroundVideo}
                         resizeMode={ResizeMode.COVER}
                         isLooping
@@ -255,7 +349,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                         variant='liquid'
                         size="lg"
                         onPress={onClose}
-                        startIconName='close'
+                        startIcon={() => <IconX color={"black"} />}
+                        style={{
+                            backgroundColor: '#ffffff50'
+                        }}
                         isIconOnly
                     />
                 </View>
@@ -549,6 +646,7 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
         flexDirection: 'column',
         justifyContent: 'space-between',
+        maxWidth: '50%'
     },
     planCardSelected: {
         borderColor: '#2196F3',

@@ -1,4 +1,7 @@
 import analytics from '@react-native-firebase/analytics';
+import { AppsFlyerService } from './AppsFlyerService';
+import { FacebookService } from './FacebookService';
+import { TikTokService } from './TikTokService';
 
 /**
  * Analytics Event Names - Centralized event definitions
@@ -9,25 +12,25 @@ export const AnalyticsEvents = {
   SIGN_UP: 'sign_up',
   SIGN_OUT: 'sign_out',
   DELETE_ACCOUNT: 'delete_account',
-  
+
   // Onboarding Events
   ONBOARDING_START: 'onboarding_start',
   ONBOARDING_STEP: 'onboarding_step',
   ONBOARDING_COMPLETE: 'onboarding_complete',
-  
+
   // Chat Events
   SEND_MESSAGE: 'send_message',
   RECEIVE_MESSAGE: 'receive_message',
   CHAT_OPEN: 'chat_open',
   CHAT_CLOSE: 'chat_close',
   CHAT_HISTORY_VIEW: 'chat_history_view',
-  
+
   // Voice/Video Call Events
   VOICE_CALL_START: 'voice_call_start',
   VOICE_CALL_END: 'voice_call_end',
   VIDEO_CALL_START: 'video_call_start',
   VIDEO_CALL_END: 'video_call_end',
-  
+
   // Character Events
   CHARACTER_SELECT: 'character_select',
   CHARACTER_UNLOCK: 'character_unlock',
@@ -38,65 +41,65 @@ export const AnalyticsEvents = {
   BACKGROUND_CHANGE: 'background_change',
   BACKGROUND_UNLOCK: 'background_unlock',
   BACKGROUND_SWIPE: 'background_swipe',
-  
+
   // VRM Actions
   DANCE_TRIGGER: 'dance_trigger',
   LOVE_TRIGGER: 'love_trigger',
   CAPTURE_PHOTO: 'capture_photo',
-  
+
   // Purchase Events  
   PURCHASE_START: 'purchase_start',
   PURCHASE_COMPLETE: 'purchase_complete',
   PURCHASE_FAILED: 'purchase_failed',
   PURCHASE_CANCELLED: 'purchase_cancelled',
-  
+
   // Subscription Events
   SUBSCRIPTION_VIEW: 'subscription_view',
   SUBSCRIPTION_SELECT_PLAN: 'subscription_select_plan',
   SUBSCRIPTION_PURCHASE: 'subscription_purchase',
   SUBSCRIPTION_RESTORE: 'subscription_restore',
   SUBSCRIPTION_CANCEL: 'subscription_cancel',
-  
+
   // Currency Events
   CURRENCY_PURCHASE_START: 'currency_purchase_start',
   CURRENCY_PURCHASE_COMPLETE: 'currency_purchase_complete',
   CURRENCY_SPEND: 'currency_spend',
-  
+
   // Quest Events
   QUEST_VIEW: 'quest_view',
   QUEST_COMPLETE: 'quest_complete',
   QUEST_CLAIM: 'quest_claim',
-  
+
   // Streak Events
   STREAK_VIEW: 'streak_view',
   STREAK_INCREASE: 'streak_increase',
   STREAK_CLAIM: 'streak_claim',
   STREAK_LOST: 'streak_lost',
-  
+
   // Media Events
   MEDIA_VIEW: 'media_view',
   MEDIA_UNLOCK: 'media_unlock',
   MEDIA_SHARE: 'media_share',
-  
+
   // Settings Events
   SETTINGS_OPEN: 'settings_open',
   SETTINGS_CHANGE: 'settings_change',
-  
+
   // Notification Events
   NOTIFICATION_PERMISSION: 'notification_permission',
   NOTIFICATION_RECEIVED: 'notification_received',
   NOTIFICATION_OPENED: 'notification_opened',
-  
+
   // UI Navigation Events
   SHEET_OPEN: 'sheet_open',
   SHEET_CLOSE: 'sheet_close',
   BUTTON_PRESS: 'button_press',
-  
+
   // App Lifecycle Events
   APP_OPEN: 'app_open',
   APP_BACKGROUND: 'app_background',
   APP_FOREGROUND: 'app_foreground',
-  
+
   // Error Events
   ERROR_OCCURRED: 'error_occurred',
   API_ERROR: 'api_error',
@@ -112,7 +115,7 @@ class AnalyticsService {
   private static instance: AnalyticsService;
   private isEnabled = true;
 
-  private constructor() {}
+  private constructor() { }
 
   static get shared(): AnalyticsService {
     if (!AnalyticsService.instance) {
@@ -134,9 +137,18 @@ class AnalyticsService {
    */
   async logEvent(eventName: string, params?: EventParams): Promise<void> {
     if (!this.isEnabled) return;
-    
+
     try {
       await analytics().logEvent(eventName, params);
+      // Log to AppsFlyer as well
+      await AppsFlyerService.logEvent(eventName, params);
+
+      // Log to Facebook as well
+      await FacebookService.logEvent(eventName, params);
+
+      // Log to TikTok as well
+      await TikTokService.logEvent(eventName, params);
+
       console.log('[Analytics] Event logged:', eventName, params);
     } catch (error) {
       console.warn('[Analytics] Failed to log event:', error);
@@ -174,7 +186,7 @@ class AnalyticsService {
    */
   async logScreenView(screenName: string, screenClass?: string): Promise<void> {
     if (!this.isEnabled) return;
-    
+
     try {
       await analytics().logScreenView({
         screen_name: screenName,
@@ -221,9 +233,9 @@ class AnalyticsService {
   // ============ Chat Events ============
 
   async logSendMessage(characterId: string, messageLength?: number): Promise<void> {
-    await this.logEvent(AnalyticsEvents.SEND_MESSAGE, { 
+    await this.logEvent(AnalyticsEvents.SEND_MESSAGE, {
       character_id: characterId,
-      message_length: messageLength 
+      message_length: messageLength
     });
   }
 
@@ -264,16 +276,16 @@ class AnalyticsService {
   // ============ Character Events ============
 
   async logCharacterSelect(characterId: string, characterName?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CHARACTER_SELECT, { 
+    await this.logEvent(AnalyticsEvents.CHARACTER_SELECT, {
       character_id: characterId,
-      character_name: characterName 
+      character_name: characterName
     });
   }
 
   async logCharacterUnlock(characterId: string, method: 'purchase' | 'free'): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CHARACTER_UNLOCK, { 
+    await this.logEvent(AnalyticsEvents.CHARACTER_UNLOCK, {
       character_id: characterId,
-      method 
+      method
     });
   }
 
@@ -286,16 +298,16 @@ class AnalyticsService {
   }
 
   async logCostumeChange(costumeId: string, characterId?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.COSTUME_CHANGE, { 
+    await this.logEvent(AnalyticsEvents.COSTUME_CHANGE, {
       costume_id: costumeId,
-      character_id: characterId 
+      character_id: characterId
     });
   }
 
   async logCostumeUnlock(costumeId: string, method: 'purchase' | 'free'): Promise<void> {
-    await this.logEvent(AnalyticsEvents.COSTUME_UNLOCK, { 
+    await this.logEvent(AnalyticsEvents.COSTUME_UNLOCK, {
       costume_id: costumeId,
-      method 
+      method
     });
   }
 
@@ -304,9 +316,9 @@ class AnalyticsService {
   }
 
   async logBackgroundUnlock(backgroundId: string, method: 'purchase' | 'free'): Promise<void> {
-    await this.logEvent(AnalyticsEvents.BACKGROUND_UNLOCK, { 
+    await this.logEvent(AnalyticsEvents.BACKGROUND_UNLOCK, {
       background_id: backgroundId,
-      method 
+      method
     });
   }
 
@@ -325,34 +337,34 @@ class AnalyticsService {
   }
 
   async logCapturePhoto(characterId: string, backgroundId?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CAPTURE_PHOTO, { 
+    await this.logEvent(AnalyticsEvents.CAPTURE_PHOTO, {
       character_id: characterId,
-      background_id: backgroundId 
+      background_id: backgroundId
     });
   }
 
   // ============ Purchase Events ============
 
   async logPurchaseStart(itemType: string, itemId?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.PURCHASE_START, { 
+    await this.logEvent(AnalyticsEvents.PURCHASE_START, {
       item_type: itemType,
-      item_id: itemId 
+      item_id: itemId
     });
   }
 
   async logPurchaseComplete(itemId: string, itemType: string, amount: number, currency?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.PURCHASE_COMPLETE, { 
-      item_id: itemId, 
+    await this.logEvent(AnalyticsEvents.PURCHASE_COMPLETE, {
+      item_id: itemId,
       item_type: itemType,
       amount,
-      currency 
+      currency
     });
   }
 
   async logPurchaseFailed(itemType: string, errorCode?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.PURCHASE_FAILED, { 
+    await this.logEvent(AnalyticsEvents.PURCHASE_FAILED, {
       item_type: itemType,
-      error_code: errorCode 
+      error_code: errorCode
     });
   }
 
@@ -367,16 +379,16 @@ class AnalyticsService {
   }
 
   async logSubscriptionSelectPlan(planId: string, planName: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.SUBSCRIPTION_SELECT_PLAN, { 
+    await this.logEvent(AnalyticsEvents.SUBSCRIPTION_SELECT_PLAN, {
       plan_id: planId,
-      plan_name: planName 
+      plan_name: planName
     });
   }
 
   async logSubscriptionPurchase(planId: string, price: number): Promise<void> {
-    await this.logEvent(AnalyticsEvents.SUBSCRIPTION_PURCHASE, { 
+    await this.logEvent(AnalyticsEvents.SUBSCRIPTION_PURCHASE, {
       plan_id: planId,
-      price 
+      price
     });
   }
 
@@ -391,24 +403,24 @@ class AnalyticsService {
   // ============ Currency Events ============
 
   async logCurrencyPurchaseStart(currencyType: 'vcoin' | 'ruby', amount: number): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CURRENCY_PURCHASE_START, { 
+    await this.logEvent(AnalyticsEvents.CURRENCY_PURCHASE_START, {
       currency_type: currencyType,
-      amount 
+      amount
     });
   }
 
   async logCurrencyPurchaseComplete(currencyType: 'vcoin' | 'ruby', amount: number): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CURRENCY_PURCHASE_COMPLETE, { 
+    await this.logEvent(AnalyticsEvents.CURRENCY_PURCHASE_COMPLETE, {
       currency_type: currencyType,
-      amount 
+      amount
     });
   }
 
   async logCurrencySpend(vcoinSpent: number, rubySpent: number, itemType: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.CURRENCY_SPEND, { 
+    await this.logEvent(AnalyticsEvents.CURRENCY_SPEND, {
       vcoin_spent: vcoinSpent,
       ruby_spent: rubySpent,
-      item_type: itemType 
+      item_type: itemType
     });
   }
 
@@ -419,17 +431,17 @@ class AnalyticsService {
   }
 
   async logQuestComplete(questId: string, questType: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.QUEST_COMPLETE, { 
+    await this.logEvent(AnalyticsEvents.QUEST_COMPLETE, {
       quest_id: questId,
-      quest_type: questType 
+      quest_type: questType
     });
   }
 
   async logQuestClaim(questId: string, rewardType: string, rewardAmount: number): Promise<void> {
-    await this.logEvent(AnalyticsEvents.QUEST_CLAIM, { 
+    await this.logEvent(AnalyticsEvents.QUEST_CLAIM, {
       quest_id: questId,
       reward_type: rewardType,
-      reward_amount: rewardAmount 
+      reward_amount: rewardAmount
     });
   }
 
@@ -444,9 +456,9 @@ class AnalyticsService {
   }
 
   async logStreakClaim(streakDay: number, rewardType: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.STREAK_CLAIM, { 
+    await this.logEvent(AnalyticsEvents.STREAK_CLAIM, {
       streak_day: streakDay,
-      reward_type: rewardType 
+      reward_type: rewardType
     });
   }
 
@@ -457,16 +469,16 @@ class AnalyticsService {
   // ============ Media Events ============
 
   async logMediaView(mediaId: string, mediaType: 'image' | 'video' | 'dance'): Promise<void> {
-    await this.logEvent(AnalyticsEvents.MEDIA_VIEW, { 
+    await this.logEvent(AnalyticsEvents.MEDIA_VIEW, {
       media_id: mediaId,
-      media_type: mediaType 
+      media_type: mediaType
     });
   }
 
   async logMediaUnlock(mediaId: string, mediaType: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.MEDIA_UNLOCK, { 
+    await this.logEvent(AnalyticsEvents.MEDIA_UNLOCK, {
       media_id: mediaId,
-      media_type: mediaType 
+      media_type: mediaType
     });
   }
 
@@ -481,9 +493,9 @@ class AnalyticsService {
   }
 
   async logSettingsChange(settingName: string, newValue: string | boolean): Promise<void> {
-    await this.logEvent(AnalyticsEvents.SETTINGS_CHANGE, { 
+    await this.logEvent(AnalyticsEvents.SETTINGS_CHANGE, {
       setting_name: settingName,
-      new_value: String(newValue) 
+      new_value: String(newValue)
     });
   }
 
@@ -512,9 +524,9 @@ class AnalyticsService {
   }
 
   async logButtonPress(buttonName: string, screenName?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.BUTTON_PRESS, { 
+    await this.logEvent(AnalyticsEvents.BUTTON_PRESS, {
       button_name: buttonName,
-      screen_name: screenName 
+      screen_name: screenName
     });
   }
 
@@ -535,18 +547,18 @@ class AnalyticsService {
   // ============ Error Events ============
 
   async logError(errorType: string, errorMessage: string, errorStack?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.ERROR_OCCURRED, { 
+    await this.logEvent(AnalyticsEvents.ERROR_OCCURRED, {
       error_type: errorType,
       error_message: errorMessage.substring(0, 100),
-      error_stack: errorStack?.substring(0, 200) 
+      error_stack: errorStack?.substring(0, 200)
     });
   }
 
   async logApiError(endpoint: string, statusCode: number, errorMessage?: string): Promise<void> {
-    await this.logEvent(AnalyticsEvents.API_ERROR, { 
+    await this.logEvent(AnalyticsEvents.API_ERROR, {
       endpoint,
       status_code: statusCode,
-      error_message: errorMessage?.substring(0, 100) 
+      error_message: errorMessage?.substring(0, 100)
     });
   }
 }

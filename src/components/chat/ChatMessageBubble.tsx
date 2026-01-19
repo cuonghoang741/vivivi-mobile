@@ -86,7 +86,7 @@ const renderTextContent = (
           alignLeft ? styles.agentText : styles.userText,
           variant === 'compact' && styles.compactText,
         ]}
-        numberOfLines={variant === 'compact' ? 3 : undefined}
+        numberOfLines={undefined}
       >
         {text}
       </Text>

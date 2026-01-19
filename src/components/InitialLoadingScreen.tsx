@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: '#000',
+    backgroundColor: 'pink',
     gap: 16,
   },
   message: {

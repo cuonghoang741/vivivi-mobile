@@ -3,6 +3,7 @@
  */
 
 import { authManager } from '../services/AuthManager';
+import { getLocales } from 'expo-localization';
 
 interface TelegramUserInfo {
   userId: string;
@@ -56,14 +57,10 @@ export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
     if (user.user_metadata?.country) {
       userCountry = user.user_metadata.country as string;
     } else {
-      // Use the Intl API to get locale info
-      const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-      if (locale) {
-        // Extract country code from locale (e.g., "en-US" -> "US")
-        const parts = locale.split('-');
-        if (parts.length > 1) {
-          userCountry = parts[parts.length - 1];
-        }
+      // Use the Localication API to get locale info
+      const locales = getLocales();
+      if (locales && locales.length > 0) {
+        userCountry = locales[0].regionCode || 'Unknown';
       }
     }
   } catch (e) {

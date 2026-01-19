@@ -34,6 +34,31 @@ interface CustomSheetProps {
     onSnapChange?: (index: number) => void;
 }
 
+const SheetBackground = React.memo(({ isDark, isLiquidGlass, fallbackBackgroundColor }: { isDark: boolean, isLiquidGlass: boolean, fallbackBackgroundColor?: string }) => {
+    if (isLiquidGlass) {
+        return (
+            <LiquidGlassView
+                style={StyleSheet.absoluteFill}
+                effect="regular"
+                tintColor={isDark ? sheetColors.light : sheetColors.dark}
+            />
+        );
+    }
+
+    const defaultFallbackColor = isDark
+        ? 'rgba(255,255,255,0.95)'
+        : 'rgba(0,0,0,0.95)';
+
+    return (
+        <View
+            style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: fallbackBackgroundColor || defaultFallbackColor }
+            ]}
+        />
+    );
+});
+
 export const CustomSheet: React.FC<CustomSheetProps> = ({
     children,
     snapPoints: snapPointsPercentage = [0.25, 0.5, 0.85],
@@ -113,17 +138,12 @@ export const CustomSheet: React.FC<CustomSheetProps> = ({
         },
     })).current;
 
-    const defaultFallbackColor = isDark
-        ? 'rgba(255,255,255,0.95)'
-        : 'rgba(0,0,0,0.95)';
-
     const containerStyle = useMemo(() => ({
         borderTopLeftRadius: cornerRadius,
         borderTopRightRadius: cornerRadius,
-        backgroundColor: isLiquidGlassSupported ? 'transparent' : (fallbackBackgroundColor || defaultFallbackColor),
         overflow: 'hidden' as const,
         flex: 1,
-    }), [cornerRadius, fallbackBackgroundColor, defaultFallbackColor]);
+    }), [cornerRadius]);
 
     const grabberColor = isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.4)';
 
@@ -133,27 +153,19 @@ export const CustomSheet: React.FC<CustomSheetProps> = ({
         </View>
     );
 
-    const renderContent = () => (
-        <View style={[containerStyle, style]}>
-            {renderGrabber()}
-            {children}
-        </View>
-    );
-
-    if (isLiquidGlassSupported) {
-        return (
-            <Animated.View style={[styles.wrapper, { height: sheetHeight }]}>
-                <LiquidGlassView style={styles.liquidGlass} effect="regular" tintColor={isDark ? sheetColors.light : sheetColors.dark}>
-                    {renderGrabber()}
-                    {children}
-                </LiquidGlassView>
-            </Animated.View>
-        );
-    }
-
     return (
         <Animated.View style={[styles.wrapper, { height: sheetHeight }]}>
-            {renderContent()}
+            <View style={[containerStyle, style]}>
+                <SheetBackground
+                    isDark={isDark}
+                    isLiquidGlass={isLiquidGlassSupported}
+                    fallbackBackgroundColor={fallbackBackgroundColor}
+                />
+                <View style={{ flex: 1 }}>
+                    {renderGrabber()}
+                    {children}
+                </View>
+            </View>
         </Animated.View>
     );
 };

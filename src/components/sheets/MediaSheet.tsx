@@ -16,17 +16,19 @@ import {
   Text,
   View,
   useWindowDimensions,
-  ScrollView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { Video } from 'expo-av';
+import { Video, ResizeMode } from 'expo-av';
+import { BlurView } from 'expo-blur';
+import ImageViewing from 'react-native-image-viewing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
-import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { type BottomSheetRef } from '../BottomSheet';
 import { DiamondBadge } from '../DiamondBadge';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type MediaSheetProps = {
   isOpened: boolean;
@@ -60,27 +62,32 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   isDarkBackground = true,
   isPro = false,
 }, ref) => {
-  const sheetRef = useRef<BottomSheetRef>(null);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<TabKey>('photo');
-  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
+  const [selectedTab, setSelectedTab] = useState<TabKey>('video');
 
-  const { width, height } = useWindowDimensions();
+  // Viewer states
+  const [previewVideoItem, setPreviewVideoItem] = useState<MediaItem | null>(null);
+  const [cameraRollImages, setCameraRollImages] = useState<{ uri: string }[]>([]);
+  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  // Dynamic colors (matching CharacterDetailSheet)
+  // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
   const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
-  const tertiaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
-  const cardBgColor = isDarkBackground ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const activeTabBgColor = isDarkBackground ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+  const cardBgColor = isDarkBackground ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+  const closeButtonBg = isDarkBackground ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const sheetBgColor = isDarkBackground ? '#1e1e1e' : '#fff';
 
   // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
-    present: (index?: number) => sheetRef.current?.present(index),
-    dismiss: () => sheetRef.current?.dismiss(),
+    present: () => onIsOpenedChange(true),
+    dismiss: () => onIsOpenedChange(false),
   }));
 
   const mediaRepositoryRef = useRef<MediaRepository | null>(null);
@@ -110,13 +117,12 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
 
   useEffect(() => {
     if (isOpened) {
+      setSelectedTab('video');
       if (items.length === 0 || characterId) {
         loadMedia();
       }
-    } else {
-      setPreviewItem(null);
     }
-  }, [isOpened, characterId, loadMedia]); // Removed items.length to allow refresh on re-open if char changed
+  }, [isOpened, characterId, loadMedia]);
 
   const handleTabChange = (tab: TabKey) => {
     Haptics.selectionAsync();
@@ -137,44 +143,60 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     });
   }, [items, selectedTab]);
 
+  // Prepare images for the ImageViewer (use full URL for preview)
+  useEffect(() => {
+    // Collect all 'photo' items for the viewer - use original URL for full preview
+    const photos = items
+      .filter(i => !isVideoItem(i))
+      .map(i => ({ uri: i.url }));
+    setCameraRollImages(photos);
+  }, [items]);
+
+  // Helper to get display URL (prefer thumbnail for grid, fallback to url)
+  const getDisplayUrl = useCallback((item: MediaItem) => {
+    return item.thumbnail || item.url;
+  }, []);
+
   const handleSelect = useCallback(
     (item: MediaItem) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
-      // Free if tier is 'free' OR no price set
       const isTierFree = item.tier?.toLowerCase() === 'free';
       const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
       const isFreeItem = isTierFree || (hasNoPrice && item.tier !== 'pro');
 
-      console.log('[MediaSheet] handleSelect:', {
-        id: item.id,
-        tier: item.tier,
-        isFreeItem,
-        isPro,
-        price_vcoin: item.price_vcoin,
-        price_ruby: item.price_ruby
-      });
-
       if (isPro || isFreeItem) {
-        setPreviewItem(item);
+        if (isVideoItem(item)) {
+          setPreviewVideoItem(item);
+        } else {
+          // Find index of this item in the photos ALL array (not just current view if we filter)
+          // But cameraRollImages is derived from all items filtered by !isVideoItem
+          const photoList = items.filter(i => !isVideoItem(i));
+          const photoIndex = photoList.findIndex(i => i.id === item.id);
+
+          if (photoIndex >= 0) {
+            setCurrentImageIndex(photoIndex);
+            setIsImageViewerVisible(true);
+          }
+        }
       } else {
-        // Not pro and not free -> Upsell
-        sheetRef.current?.dismiss();
+        onIsOpenedChange(false);
         setTimeout(() => {
           onOpenSubscription?.();
         }, 300);
       }
     },
-    [isPro, onOpenSubscription]
+    [isPro, onOpenSubscription, onIsOpenedChange, items]
   );
 
   const renderItem = useCallback(
     ({ item }: { item: MediaItem }) => {
-      const isFree = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-      const isUnlocked = isPro;
+      const isTierFree = item.tier?.toLowerCase() === 'free';
+      const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
+      // If user is Pro, everything is unlocked. If not pro, check if item is free.
+      const isUnlocked = isPro || isTierFree || (hasNoPrice && item.tier !== 'pro');
 
-      const thumb = item.thumbnail || item.url;
-      const cardWidth = (width - 40 - 12) / 2; // Matching CharacterDetailSheet spacing
+      const cardWidth = (width - 40 - 12) / 2;
 
       return (
         <Pressable
@@ -182,121 +204,206 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
           style={[styles.card, { width: cardWidth }]}
         >
           <View style={[styles.thumbnailWrapper, { backgroundColor: cardBgColor }]}>
-            {thumb ? (
+            {isVideoItem(item) ? (
+              // For videos: use thumbnail image if available, otherwise show video frame
+              item.thumbnail ? (
+                <View style={styles.thumbnail}>
+                  <Image
+                    source={{ uri: item.thumbnail }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                    <View style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: 'rgba(0,0,0,0.5)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingLeft: 2 // Optical center
+                    }}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.thumbnail} pointerEvents="none">
+                  <Video
+                    source={{ uri: item.url }}
+                    style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay={false}
+                    isMuted={true}
+                    positionMillis={1000}
+                  />
+                  <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                    <View style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: 'rgba(0,0,0,0.5)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingLeft: 2 // Optical center
+                    }}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                  </View>
+                </View>
+              )
+            ) : (
+              // For photos: use thumbnail for grid display (lighter), full URL only in preview
               <Image
-                source={{ uri: thumb }}
+                source={{ uri: getDisplayUrl(item) }}
                 style={styles.thumbnail}
                 contentFit="cover"
                 transition={200}
                 blurRadius={!isUnlocked ? 40 : 0}
               />
-            ) : (
-              <View style={[styles.thumbnail, styles.thumbnailFallback]}>
-                <Ionicons name="image" color={tertiaryTextColor} size={28} />
-              </View>
             )}
 
             {!isUnlocked && (
-              <View style={styles.lockOverlay}>
-                <View style={styles.diamondBadgeContainer}>
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                intensity={20}
+                tint={isDarkBackground ? 'dark' : 'light'}
+              >
+                <View style={styles.lockOverlay}>
                   <DiamondBadge size="md" />
                 </View>
-              </View>
+              </BlurView>
             )}
           </View>
-
         </Pressable>
       );
     },
-    [handleSelect, width, isPro, cardBgColor, tertiaryTextColor, textColor]
+    [handleSelect, width, isPro, cardBgColor, isDarkBackground, getDisplayUrl]
   );
 
   return (
     <>
-      <BottomSheet
-        ref={sheetRef}
-        isOpened={isOpened}
-        onIsOpenedChange={onIsOpenedChange}
-        title={characterName ? `${characterName}'s Media` : 'Media Gallery'}
-        isDarkBackground={isDarkBackground}
-        detents={[0.5, 0.95]}
+      <Modal
+        visible={isOpened}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => onIsOpenedChange(false)}
       >
-        {/* Tabs */}
-        <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
-          <Pressable
-            style={[
-              styles.tabButton,
-              selectedTab === 'video' && { backgroundColor: activeTabBgColor }
-            ]}
-            onPress={() => handleTabChange('video')}
-          >
-            <Text style={[
-              styles.tabText,
-              { color: selectedTab === 'video' ? textColor : secondaryTextColor }
-            ]}>
-              Video
+        <View style={[styles.container, { backgroundColor: sheetBgColor }]}>
+          <View style={styles.header}>
+            <View style={{ flex: 1 }} />
+            <Text style={[styles.headerTitle, { color: textColor }]}>
+              {characterName ? `${characterName}'s Media` : 'Media Gallery'}
             </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.tabButton,
-              selectedTab === 'photo' && { backgroundColor: activeTabBgColor }
-            ]}
-            onPress={() => handleTabChange('photo')}
-          >
-            <Text style={[
-              styles.tabText,
-              { color: selectedTab === 'photo' ? textColor : secondaryTextColor }
-            ]}>
-              Photo
-            </Text>
-          </Pressable>
-        </View>
-
-        {isLoading && items.length === 0 ? (
-          <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color={textColor} />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Pressable
+                style={[styles.closeButton, { backgroundColor: closeButtonBg }]}
+                onPress={() => onIsOpenedChange(false)}
+              >
+                <Ionicons name="close" size={20} color={textColor} />
+              </Pressable>
+            </View>
           </View>
-        ) : errorMessage ? (
-          <View style={styles.centerContent}>
-            <Text style={[styles.errorTitle, { color: textColor }]}>Unable to load media</Text>
-            <Text style={[styles.errorSubtitle, { color: secondaryTextColor }]}>{errorMessage}</Text>
-            <Pressable onPress={loadMedia} style={[styles.retryButton, { borderColor: textColor }]}>
-              <Text style={[styles.retryButtonText, { color: textColor }]}>Try again</Text>
+
+          <View style={[styles.tabsContainer, { backgroundColor: cardBgColor }]}>
+            <Pressable
+              style={[
+                styles.tabButton,
+                selectedTab === 'video' && { backgroundColor: activeTabBgColor }
+              ]}
+              onPress={() => handleTabChange('video')}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: selectedTab === 'video' ? textColor : secondaryTextColor }
+              ]}>
+                Video
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.tabButton,
+                selectedTab === 'photo' && { backgroundColor: activeTabBgColor }
+              ]}
+              onPress={() => handleTabChange('photo')}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: selectedTab === 'photo' ? textColor : secondaryTextColor }
+              ]}>
+                Photo
+              </Text>
             </Pressable>
           </View>
-        ) : currentItems.length === 0 ? (
-          <View style={styles.centerContent}>
-            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-              {selectedTab === 'video'
-                ? 'No videos available'
-                : 'No photos available'}
-            </Text>
-          </View>
-        ) : (
-          <View style={{ flex: 1, maxHeight: height * 0.8 }}>
-            <FlatList
-              data={currentItems}
-              keyExtractor={item => item.id}
-              renderItem={renderItem}
-              numColumns={2}
-              columnWrapperStyle={styles.columnWrapper}
-              contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        )}
-      </BottomSheet>
 
-      <MediaPreviewModal
-        item={previewItem}
-        onClose={() => setPreviewItem(null)}
-      />
+          {isLoading && items.length === 0 ? (
+            <View style={styles.centerContent}>
+              <ActivityIndicator size="large" color={textColor} />
+            </View>
+          ) : errorMessage ? (
+            <View style={styles.centerContent}>
+              <Text style={[styles.errorTitle, { color: textColor }]}>Unable to load media</Text>
+              <Text style={[styles.errorSubtitle, { color: secondaryTextColor }]}>{errorMessage}</Text>
+              <Pressable onPress={loadMedia} style={[styles.retryButton, { borderColor: textColor }]}>
+                <Text style={[styles.retryButtonText, { color: textColor }]}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : currentItems.length === 0 ? (
+            <View style={styles.centerContent}>
+              <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
+                {selectedTab === 'video'
+                  ? 'No videos available'
+                  : 'No photos available'}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={currentItems}
+                keyExtractor={item => item.id}
+                renderItem={renderItem}
+                numColumns={2}
+                columnWrapperStyle={styles.columnWrapper}
+                contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          )}
+
+          {/* Viewers nested inside the Modal View to ensure correct stacking context */}
+
+          {/* Video Lightbox */}
+          <VideoPreviewModal
+            item={previewVideoItem}
+            onClose={() => setPreviewVideoItem(null)}
+          />
+
+          {/* Image Lightbox */}
+          <ImageViewing
+            images={cameraRollImages}
+            imageIndex={currentImageIndex}
+            visible={isImageViewerVisible}
+            onRequestClose={() => setIsImageViewerVisible(false)}
+            swipeToCloseEnabled={true}
+            doubleTapToZoomEnabled={true}
+            presentationStyle="overFullScreen"
+            backgroundColor="#000"
+            FooterComponent={({ imageIndex }) => (
+              <View style={styles.imageViewerFooter}>
+                <Text style={styles.imageViewerFooterText}>
+                  {imageIndex + 1} / {cameraRollImages.length}
+                </Text>
+              </View>
+            )}
+          />
+        </View>
+      </Modal>
     </>
   );
 });
 
-const MediaPreviewModal: React.FC<{
+const VideoPreviewModal: React.FC<{
   item: MediaItem | null;
   onClose: () => void;
 }> = ({ item, onClose }) => {
@@ -305,7 +412,6 @@ const MediaPreviewModal: React.FC<{
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    console.log('[MediaPreviewModal] item changed:', item?.id, item?.url);
     if (!item && videoRef.current) {
       videoRef.current.stopAsync().catch(() => undefined);
     }
@@ -313,65 +419,64 @@ const MediaPreviewModal: React.FC<{
 
   if (!item) return null;
 
-  const isVideo = isVideoItem(item);
-
   return (
-    <Modal visible={true} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={true}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+    >
       <View style={styles.lightboxContainer}>
         <Pressable
-          style={[styles.lightboxCloseButton, { top: insets.top + 10 }]}
+          style={[styles.lightboxCloseButton, { top: insets.top + (Platform.OS === 'android' ? 20 : 10) }]}
           onPress={onClose}
           hitSlop={20}
         >
           <Ionicons name="close" size={28} color="#fff" />
         </Pressable>
 
-        {isVideo ? (
-          <Video
-            ref={ref => {
-              videoRef.current = ref;
-            }}
-            style={{ width, height: height * 0.8 }}
-            source={{ uri: item.url }}
-            useNativeControls
-            resizeMode="contain"
-            shouldPlay
-            isLooping
-          />
-        ) : (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              minWidth: width,
-              minHeight: height,
-            }}
-            maximumZoomScale={5}
-            minimumZoomScale={1}
-            bouncesZoom
-            bounces
-            alwaysBounceHorizontal
-            alwaysBounceVertical
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            centerContent
-            pinchGestureEnabled
-          >
-            <Image
-              source={{ uri: item.url }}
-              style={{ width, height: height * 0.9 }}
-              contentFit="contain"
-            />
-          </ScrollView>
-        )}
+        <Video
+          ref={ref => {
+            videoRef.current = ref;
+          }}
+          style={{ width, height: height * 0.8 }}
+          source={{ uri: item.url }}
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay
+          isLooping
+        />
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    minHeight: 56,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   tabsContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
@@ -438,37 +543,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  thumbnailFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  diamondBadgeContainer: {
-    // Center it
-  },
-  priceBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#FFD700',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  priceText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  mediaTitle: {
-    fontWeight: '600',
-    fontSize: 14,
-    paddingLeft: 4,
   },
   lightboxContainer: {
     flex: 1,
@@ -480,8 +559,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(50,50,50,0.5)',
     borderRadius: 20,
     padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
+  imageViewerFooter: {
+    flex: 1,
+    backgroundColor: "transparent",
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 40
+  },
+  imageViewerFooterText: {
+    color: '#fff',
+    fontSize: 16
+  }
 });

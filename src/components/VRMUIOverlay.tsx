@@ -11,6 +11,7 @@ import {
   Platform,
   UIManager,
   Keyboard,
+  Alert,
 } from "react-native";
 import { LiquidGlassView } from '@callstack/liquid-glass';
 import { Svg, Circle } from 'react-native-svg';
@@ -98,6 +99,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   if (isHidden) return null;
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showQuotaLabel, setShowQuotaLabel] = useState(false);
   const sceneActions = useSceneActions();
   // ... rest of component
 
@@ -329,15 +331,37 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
                 styles.menuLabel,
                 { opacity: expandAnimation }
               ]}>
-                Go Premium
+                Go Pro
               </Animated.Text>
             )}
           </View>
         )}
 
         {/* Always show remaining call time */}
+        {/* Always show remaining call time */}
         <View style={styles.callQuotaRow}>
-          <LiquidGlass isDarkBackground={isDarkBackground} style={[styles.iconButtonGlass, { borderWidth: 0, paddingLeft: 0, paddingRight: 0 }]}>
+          <LiquidGlass
+            isDarkBackground={isDarkBackground}
+            style={[styles.iconButtonGlass, { borderWidth: 0, paddingLeft: 0, paddingRight: 0 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              const timeString = formatRemainingTime(remainingQuotaSeconds);
+              const buttons = isPro
+                ? [{ text: "OK" }]
+                : [
+                  { text: "OK", style: "cancel" as const },
+                  {
+                    text: "Upgrade",
+                    onPress: () => sceneActions?.openSubscription(),
+                  },
+                ];
+              Alert.alert(
+                "Call Time Remaining",
+                `You have ${timeString} of voice call time remaining this month.${!isPro ? "\n\nUpgrade to Pro for more call time!" : ""}`,
+                buttons
+              );
+            }}
+          >
             <Svg width={44} height={44} style={StyleSheet.absoluteFill}>
               <Circle
                 cx={22}
@@ -355,7 +379,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
                 strokeWidth={2}
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 21}`}
-                strokeDashoffset={`${2 * Math.PI * 21 * (1 - Math.min(remainingQuotaSeconds / 600, 1))}`}
+                strokeDashoffset={`${2 * Math.PI * 21 * (1 - Math.min(remainingQuotaSeconds / (isPro ? 1800 : 30), 1))}`}
                 strokeLinecap="round"
                 rotation="-90"
                 origin="22, 22"
@@ -363,23 +387,26 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             </Svg>
             <IconPhone size={20} color={iconColor} />
           </LiquidGlass>
-          {(isExpanded || isInCall) && (
+          {(isExpanded || isInCall || showQuotaLabel) && (
             <Animated.Text style={[
               styles.menuLabel,
-              { opacity: isInCall ? 1 : expandAnimation }
+              { opacity: (isInCall || showQuotaLabel) ? 1 : expandAnimation }
             ]}>
-              {formatRemainingTime(remainingQuotaSeconds)}
+              Call Time {formatRemainingTime(remainingQuotaSeconds)}
             </Animated.Text>
           )}
         </View>
       </View>
 
-      <View style={[styles.rightColumn, isInCall && { opacity: 0 }]} pointerEvents={isInCall ? "none" : "box-none"}>
+      <View style={styles.rightColumn} pointerEvents="box-none">
         {menuItems.map((item, index) => {
           // Show only first 2 items when collapsed
-          const shouldShow = isExpanded || index < 3;
+          const shouldShow = isExpanded || index < 10;
 
           if (!shouldShow) return null;
+
+          // If in call, only show messages button
+          if (isInCall && item.key !== 'messages') return null;
 
           return (
             <AnimatedMenuItem
@@ -400,21 +427,23 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
         })}
 
         {/* Expand/Collapse button */}
-        <Pressable style={styles.expandRow} onPress={handleToggleExpand}>
-          {isExpanded && (
-            <Animated.Text
-              style={[
-                styles.menuLabel,
-                { opacity: expandAnimation }
-              ]}
-            >
-              Close
-            </Animated.Text>
-          )}
-          <Animated.View style={[styles.expandButton, arrowRotationStyle]}>
-            <ChevronIcon size={24} color={iconColor} />
-          </Animated.View>
-        </Pressable>
+        {/* {!isInCall && (
+          <Pressable style={styles.expandRow} onPress={handleToggleExpand}>
+            {isExpanded && (
+              <Animated.Text
+                style={[
+                  styles.menuLabel,
+                  { opacity: expandAnimation }
+                ]}
+              >
+                Close
+              </Animated.Text>
+            )}
+            <Animated.View style={[styles.expandButton, arrowRotationStyle]}>
+              <ChevronIcon size={24} color={iconColor} />
+            </Animated.View>
+          </Pressable>
+        )} */}
       </View>
     </View>
   );

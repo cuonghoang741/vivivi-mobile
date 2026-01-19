@@ -110,6 +110,28 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
       // loadedItems = loadedItems.filter((item) => item.available !== false);
 
+      // Auto-grant unowned characters for PRO users
+      if (isPro) {
+        const unownedItems = loadedItems.filter(
+          (item) => item.available !== false && !newOwnedSet.has(item.id)
+        );
+
+        if (unownedItems.length > 0) {
+          console.log(`[CharacterSheet] Auto-granting ${unownedItems.length} characters for PRO user`);
+          await Promise.all(
+            unownedItems.map(async (item) => {
+              try {
+                await assetRepository.createAsset(item.id, 'character');
+                newOwnedSet.add(item.id);
+              } catch (err) {
+                console.error(`[CharacterSheet] Failed to auto-grant character ${item.id}:`, err);
+              }
+            })
+          );
+          setOwnedCharacterIds(new Set(newOwnedSet));
+        }
+      }
+
       // 3. Sort using the freshly fetched ownership
       const sortedItems = loadedItems.sort((char1, char2) => {
         const isOwned1 = newOwnedSet.has(char1.id);
@@ -125,7 +147,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [isLoading, isPro]);
 
   useEffect(() => {
     if (isOpened) {
@@ -192,10 +214,8 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       // Already owned - select immediately
       selectCharacter(item);
     } else if (isPro) {
-      // PRO user: Select immediately, then unlock in background
-      selectCharacter(item);
-
-      // Do ownership operations in background (non-blocking)
+      // PRO user: Auto-unlock and select
+      // We must ensure the asset exists before selecting, because selectCharacter checks ownership via API
       (async () => {
         try {
           const assetRepository = new AssetRepository();
@@ -204,7 +224,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
           await assetRepository.createAsset(item.id, 'character');
           setOwnedCharacterIds(prev => new Set([...prev, item.id]));
 
-          // 2. Handle default background
+          // 2. Select immediately after granting
+          selectCharacter(item);
+
+          // 3. Handle default background
           if (item.background_default_id) {
             // Grant background ownership if needed
             const ownedBg = await assetRepository.fetchOwnedAssets('background');

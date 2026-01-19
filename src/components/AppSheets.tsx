@@ -147,32 +147,12 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
           isDarkBackground={isDarkBackground}
         />
       )}
-      <LevelSheet
-        isOpened={showLevelSheet}
-        onIsOpenedChange={setShowLevelSheet}
-        level={level}
-        xp={xp}
-        nextLevelXp={nextLevelXp}
-      />
+
       <EnergySheet
         isOpened={showEnergySheet}
         onIsOpenedChange={setShowEnergySheet}
         energy={energy}
         energyMax={energyMax}
-      />
-      <QuestSheet
-        isOpened={showQuestSheet}
-        onIsOpenedChange={setShowQuestSheet}
-        dailyState={quests.daily}
-        levelState={quests.level}
-        onRefreshDaily={quests.refreshDaily}
-        onClaimDaily={quests.claimDailyQuest}
-        onClaimLevel={quests.claimLevelQuest}
-        level={level}
-        xp={xp}
-        nextLevelXp={nextLevelXp}
-        initialTabRequest={questSheetTabRequest ?? undefined}
-        onRefreshLoginRewards={onRefreshLoginRewards}
       />
     </>
   );

@@ -121,7 +121,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   const isUserScrollingRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const opacityAnim = useRef(new Animated.Value(showChatList ? 1 : 0)).current;
-  const translateXAnim = useRef(new Animated.Value(showChatList ? 0 : 200)).current;
+  const translateXAnim = useRef(new Animated.Value(showChatList ? 0 : -200)).current;
   const typingOpacityAnim = useRef(new Animated.Value(isTyping ? 1 : 0)).current;
 
   // PanResponder for swipe left/right to toggle chat
@@ -174,7 +174,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         ...SPRING_CONFIG,
       }),
       Animated.spring(translateXAnim, {
-        toValue: showChatList ? 0 : 200,
+        toValue: showChatList ? 0 : -200,
         ...SPRING_CONFIG,
       }),
     ]).start();
@@ -231,11 +231,11 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         <View style={styles.quitButton}>
           <Button
             variant="liquid"
-            size="md"
+            size="lg"
             isIconOnly
-            startIcon={IconX}
+            startIcon={() => <IconX color={"black"} />}
             onPress={() => onToggleFullscreen?.(false)}
-            isDarkBackground={true}
+            isDarkBackground={false}
           />
         </View>
       )}
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     width: '77%',
     paddingTop: 4,
     // Limit height to prevent pushing input out of view
-    maxHeight: 200, // Compact height for overlay
+    maxHeight: 280, // Compact height for overlay
     // Ensure container is visible
     minHeight: 0,
   },
@@ -420,8 +420,8 @@ const styles = StyleSheet.create({
   },
   quitButton: {
     position: 'absolute',
-    top: 50, // Should be safe for most notches, or use insets from prop if needed
-    right: 20,
+    top: 55, // Should be safe for most notches, or use insets from prop if needed
+    right: 5,
     zIndex: 20,
   },
 });

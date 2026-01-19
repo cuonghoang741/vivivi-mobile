@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Skeleton } from '../ui/Skeleton';
 
 import { GoProButton } from '../GoProButton';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
@@ -19,6 +20,7 @@ import { useSceneActions } from '../../context/SceneActionsContext';
 import { DiamondBadge } from '../DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 import { LiquidGlass } from '../LiquidGlass';
+import { useVRMContext } from '../../context/VRMContext';
 
 interface CostumeSheetProps {
   isOpened: boolean;
@@ -50,6 +52,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
   const [ownedCostumeIds, setOwnedCostumeIds] = useState<Set<string>>(new Set());
   const { width, height } = useWindowDimensions();
   const { selectCostume } = useSceneActions();
+  const { currentCostume } = useVRMContext();
 
   // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
@@ -159,11 +162,17 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;
 
+      const isSelected = currentCostume ? item.id === currentCostume.id : false;
+
       return (
         <View style={[styles.itemContainer, { width: itemWidth }]}>
           <LiquidGlass
             onPress={() => handleSelect(item)}
-            style={[styles.imageContainer, { width: itemWidth, height: itemHeight }]}
+            style={[
+              styles.imageContainer,
+              { width: itemWidth, height: itemHeight },
+              isSelected && { borderWidth: 2, borderColor: '#fff' }
+            ]}
           >
             <View style={[styles.placeholder, { width: itemWidth, height: itemHeight }]} />
 
@@ -220,9 +229,26 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
+      const itemWidth = (width - 40 - 24) / 3;
+      const itemHeight = itemWidth / 0.7;
+      const skeletons = Array.from({ length: 15 }).map((_, i) => ({ id: i.toString() }));
+
       return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={textColor} />
+        <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+          <FlatList
+            data={skeletons}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={() => (
+              <View style={[styles.itemContainer, { width: itemWidth }]}>
+                <Skeleton width={itemWidth} height={itemHeight} borderRadius={16} />
+                <Skeleton width="80%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+              </View>
+            )}
+          />
         </View>
       );
     }

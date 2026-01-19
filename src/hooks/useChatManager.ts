@@ -25,6 +25,7 @@ type UseChatOptions = {
   onAgentReply?: (text: string) => void;
   onActionDetected?: (action: DetectedAction, userMessage: string) => void;
   isPro?: boolean;
+  characterName?: string;
 };
 
 const OVERLAY_LIMIT = 20;
@@ -248,6 +249,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
           chatService.sendMessageToGemini({
             text: trimmed,
             characterId,
+            characterName: options?.characterName || 'Unknown Character',
             history,
           }),
         ]);

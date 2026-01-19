@@ -1,5 +1,6 @@
 import { SUPABASE_URL } from '../config/supabase';
 import { getSupabaseAuthHeaders } from '../utils/supabaseHelpers';
+import { analyticsService } from './AnalyticsService';
 
 // MARK: - Voice Call Service
 /// Service for voice call business logic (database operations, transactions)
@@ -9,7 +10,7 @@ export class VoiceCallService {
   async createCallRow(characterId: string, agentId: string): Promise<string | null> {
     try {
       const headers = await getSupabaseAuthHeaders();
-      
+
       const body: any = {
         character_id: characterId,
         agent_id: agentId || null,
@@ -34,6 +35,8 @@ export class VoiceCallService {
 
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0 && data[0].id) {
+        // Track call start
+        analyticsService.logVoiceCallStart(characterId);
         return data[0].id;
       }
       return null;
@@ -69,6 +72,13 @@ export class VoiceCallService {
 
       if (!response.ok) {
         console.error('[VoiceCallService] Failed to finalize call row:', response.status);
+      } else {
+        // Track call end
+        analyticsService.logVoiceCallEnd(durationSeconds);
+        // Track spending if any
+        if (vcoinSpent > 0) {
+          analyticsService.logCurrencySpend(vcoinSpent, 0, 'voice_call');
+        }
       }
     } catch (error) {
       console.error('[VoiceCallService] Error finalizing call row:', error);

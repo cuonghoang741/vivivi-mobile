@@ -74,6 +74,7 @@ class ChatService {
   async sendMessageToGemini(params: {
     text: string;
     characterId: string;
+    characterName: string;
     history: ChatMessage[];
   }): Promise<string> {
     if (!params.text.trim() || !params.characterId) {
@@ -87,7 +88,7 @@ class ChatService {
     getTelegramUserInfo().then(userInfo => {
       telegramNotificationService.notifyChatMessage(
         userInfo,
-        params.characterId,
+        params.characterName,
         params.text
       );
     }).catch(err => console.warn('[ChatService] Failed to send Telegram notification:', err));

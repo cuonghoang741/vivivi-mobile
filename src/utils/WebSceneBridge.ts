@@ -51,16 +51,8 @@ export class WebSceneBridge {
   }
 
   playSpeech(text: string) {
-    const duration = Math.min(Math.max(text.length * 60, 1500), 6000);
-    const js = `
-      (function(){
-        if(window.setMouthOpen){
-          window.setMouthOpen(0.6);
-          setTimeout(() => window.setMouthOpen(0.05), ${duration});
-        }
-      })();
-    `;
-    this.evaluate(js);
+    // User requested to disable mouth movement during normal chat
+    // kept empty for interface compatibility
   }
 
   private lastMouthLogTime = 0;

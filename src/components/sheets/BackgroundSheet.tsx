@@ -5,16 +5,18 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  Image,
   useWindowDimensions,
   FlatList,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { Skeleton } from '../ui/Skeleton';
 import { BackgroundRepository, BackgroundItem } from '../../repositories/BackgroundRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { GoProButton } from '../GoProButton';
 import { useSceneActions } from '../../context/SceneActionsContext';
+import { useVRMContext } from '../../context/VRMContext';
 import { DiamondBadge } from '../DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 import { IconCarambolaFilled } from '@tabler/icons-react-native';
@@ -45,6 +47,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
   const { width, height } = useWindowDimensions();
   const { selectBackground } = useSceneActions();
+  const { initialData } = useVRMContext();
 
   // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
@@ -112,6 +115,22 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     }
   }, [isOpened, items.length, load, fetchOwnedBackgrounds]);
 
+  // Prefetch images for caching
+  useEffect(() => {
+    if (items.length > 0) {
+      const urlsToPrefetch: string[] = [];
+      items.forEach((item) => {
+        if (item.thumbnail) urlsToPrefetch.push(item.thumbnail);
+        if (item.image) urlsToPrefetch.push(item.image);
+      });
+
+      if (urlsToPrefetch.length > 0) {
+        // Prefetch in background to ensure both thumbs and origins are cached
+        Image.prefetch(urlsToPrefetch);
+      }
+    }
+  }, [items]);
+
   const handleSelect = useCallback(async (item: BackgroundItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -141,6 +160,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     const isOwned = ownedBackgroundIds.has(item.id);
     const isLocked = !isPro && !isOwned;
     const itemWidth = (width - 40 - 24) / 3;
+    const isSelected = initialData?.preference?.backgroundId === item.id;
 
     return (
       <Pressable
@@ -151,13 +171,19 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
           pressed && styles.pressed,
         ]}
       >
-        <View style={[styles.imageContainer, { width: itemWidth, height: itemWidth }]}>
+        <View style={[
+          styles.imageContainer,
+          { width: itemWidth, height: itemWidth },
+          isSelected && { borderWidth: 2, borderColor: '#fff' }
+        ]}>
           <View style={[styles.placeholder, { width: itemWidth, height: itemWidth }]} />
           {(item.thumbnail || item.image) ? (
             <Image
               source={{ uri: item.thumbnail || item.image }}
               style={[styles.image, { width: itemWidth, height: itemWidth }]}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
+              cachePolicy="memory-disk"
             />
           ) : null}
 
@@ -207,9 +233,25 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
+      const itemWidth = (width - 40 - 24) / 3;
+      const skeletons = Array.from({ length: 15 }).map((_, i) => ({ id: i.toString() }));
+
       return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={textColor} />
+        <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+          <FlatList
+            data={skeletons}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            columnWrapperStyle={styles.columnWrapper}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={() => (
+              <View style={[styles.itemContainer, { width: itemWidth }]}>
+                <Skeleton width={itemWidth} height={itemWidth} borderRadius={16} />
+                <Skeleton width="80%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+              </View>
+            )}
+          />
         </View>
       );
     }

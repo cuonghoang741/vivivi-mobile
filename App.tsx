@@ -58,6 +58,9 @@ import { Persistence } from './src/utils/persistence';
 import { oneSignalService } from './src/services/OneSignalService';
 import { analyticsService } from './src/services/AnalyticsService';
 import { OTAAutoUpdate } from './src/services/OTA-update/OTAAutoUpdate';
+import { AppsFlyerService } from './src/services/AppsFlyerService';
+import { FacebookService } from './src/services/FacebookService';
+import { TikTokService } from './src/services/TikTokService';
 
 type RootStackParamList = {
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
@@ -428,6 +431,7 @@ const AppContent = () => {
     onAgentReply: handleAgentReply,
     onActionDetected: handleActionDetected,
     isPro: isPro,
+    characterName: currentCharacter?.name || initialData?.character?.name,
   });
 
   // Memoize voice conversation callbacks to prevent recreation (like swift-version)
@@ -1331,12 +1335,21 @@ const AppContent = () => {
     setOverlayFlags(prev => ({ ...prev, showChatList: chatState.showChatList }));
   }, [chatState.showChatList]);
 
+  // Ref to ensure we only auto-open chat once per call session
+  const hasAutoOpenedChatForCall = useRef(false);
+
   useEffect(() => {
     // Show chat messages when call connects (voice or video)
-    if (voiceState.isConnected && !chatState.showChatList) {
-      setShowChatList(true);
+    if (voiceState.isConnected) {
+      if (!hasAutoOpenedChatForCall.current) {
+        setShowChatList(true);
+        hasAutoOpenedChatForCall.current = true;
+      }
+    } else {
+      // Reset flag when call ends
+      hasAutoOpenedChatForCall.current = false;
     }
-  }, [voiceState.isConnected, chatState.showChatList, setShowChatList]);
+  }, [voiceState.isConnected, setShowChatList]);
 
   useEffect(() => {
     return () => {
@@ -1555,6 +1568,28 @@ const AppContent = () => {
     // Note: RevenueCat is now initialized and managed by SubscriptionProvider
   }, [ensureInitialModelApplied, ensureWebBridge]);
 
+
+  const shouldShowSignIn = hasRestoredSession && !session;
+
+  // Preload random VRM files if waiting at SignIn screen
+  useEffect(() => {
+    if (shouldShowSignIn) {
+      const timer = setTimeout(() => {
+        console.log('⏳ [App] Triggering background preloading to cache VRMs...');
+        // We can just call loadRandomFiles to start the process in background
+        // even if covered by SignInScreen
+        webViewRef.current?.injectJavaScript(`
+          if(window.loadRandomFiles) {
+             console.log('Native forcing loadRandomFiles for caching...');
+             window.loadRandomFiles();
+          }
+          true;
+        `);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldShowSignIn]);
+
   useEffect(() => {
     setOverlayFlags(prev => ({
       ...prev,
@@ -1591,7 +1626,6 @@ const AppContent = () => {
     }
   };
 
-  const shouldShowSignIn = hasRestoredSession && !session;
   const shouldWaitForInitialData =
     !!session && (!initialData || initialDataLoading || !!initialDataError);
   const showMainExperience =
@@ -1678,18 +1712,25 @@ const AppContent = () => {
       console.log('[Onboarding Debug] hasCharacters:', hasCharacters);
 
       // Priority: OnboardingV2 > ImageOnboarding > NewUserGift
-      if (!hasCompletedOnboardingV2) {
+      if (hasCharacters) {
+        // User has completed OnboardingV2 and has characters (or is an old user)
+        console.log('[Onboarding Debug] -> User has characters, skipping OnboardingV2');
+
+        // If local flag is missing but user has characters, auto-fix it
+        if (!hasCompletedOnboardingV2) {
+          await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
+        }
+
+        setShowOnboardingV2(false);
+        setShowImageOnboarding(false);
+        // Check gift claim status directly
+        await checkGiftClaimStatus();
+      } else if (!hasCompletedOnboardingV2) {
         // New user who hasn't completed OnboardingV2 - show it
         console.log('[Onboarding Debug] -> Showing OnboardingV2');
         setShowOnboardingV2(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
-      } else if (hasCharacters) {
-        // User has completed OnboardingV2 and has characters
-        setShowOnboardingV2(false);
-        setShowImageOnboarding(false);
-        // Check gift claim status directly
-        await checkGiftClaimStatus();
       } else {
         // OnboardingV2 flag is set but no characters - something went wrong
         // Reset V2 flag and show V2 again
@@ -1898,26 +1939,26 @@ const AppContent = () => {
       return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
     }
 
-    if (showImageOnboarding) {
-      return (
-        <View style={styles.container}>
-          <StatusBar barStyle="light-content" />
-          <ImageOnboardingScreen
-            onComplete={handleImageOnboardingComplete}
-            onSkip={handleImageOnboardingSkip}
-          />
-        </View>
-      );
-    }
+    // if (showImageOnboarding) {
+    //   return (
+    //     <View style={styles.container}>
+    //       <StatusBar barStyle="light-content" />
+    //       <ImageOnboardingScreen
+    //         onComplete={handleImageOnboardingComplete}
+    //         onSkip={handleImageOnboardingSkip}
+    //       />
+    //     </View>
+    //   );
+    // }
 
-    if (showNewUserGift) {
-      return (
-        <View style={styles.container}>
-          <StatusBar barStyle="light-content" />
-          <NewUserGiftScreen onComplete={handleNewUserGiftComplete} />
-        </View>
-      );
-    }
+    // if (showNewUserGift) {
+    //   return (
+    //     <View style={styles.container}>
+    //       <StatusBar barStyle="light-content" />
+    //       <NewUserGiftScreen onComplete={handleNewUserGiftComplete} />
+    //     </View>
+    //   );
+    // }
 
     // if (shouldWaitForInitialData) {
     //   return (
@@ -1942,33 +1983,23 @@ const AppContent = () => {
     }
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: 'transparent' }]} pointerEvents="box-none">
         <StatusBar barStyle="light-content" />
-        <View style={{ zIndex: 100 }}>
-          <SceneHeader
-            characterName={characterTitle}
-            relationshipName={currentCharacter?.relationshipName}
-            relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
-            avatarUri={currentCharacter?.avatar}
-            onCharacterCardPress={handleCharacterCardPress}
-            onSettingsPress={handleOpenSettings}
-            onCharacterMenuPress={() => setShowCharacterSheet(true)}
-            isDarkBackground={isDarkBackground}
-          />
-        </View>
-        <Pressable
-          style={styles.webViewWrapper}
-          ref={snapshotViewRef as any}
-          collapsable={false}
-          onPress={() => Keyboard.dismiss()}
-        >
-          <VRMWebView
-            ref={webViewRef}
-            onModelReady={handleModelReady}
-            onMessage={handleMessage}
-            enableDebug={false}
-          />
-        </Pressable>
+        {!isChatFullScreen && (
+          <View style={{ zIndex: 100 }}>
+            <SceneHeader
+              characterName={characterTitle}
+              relationshipName={currentCharacter?.relationshipName}
+              relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
+              avatarUri={currentCharacter?.avatar}
+              onCharacterCardPress={handleCharacterCardPress}
+              onSettingsPress={handleOpenSettings}
+              onCharacterMenuPress={() => setShowCharacterSheet(true)}
+              isDarkBackground={isDarkBackground}
+            />
+          </View>
+        )}
+        {/* Persistent VRMWebView lifted out to root render */}
         <VoiceLoadingOverlay
           visible={voiceState.isBooting || voiceState.status === 'connecting'}
           characterName={characterTitle}
@@ -2252,7 +2283,33 @@ const AppContent = () => {
   };
 
   const content = renderContent();
-  return <SceneActionsProvider value={sceneActions}>{content}</SceneActionsProvider>;
+  return (
+    <SceneActionsProvider value={sceneActions}>
+      <View style={{ flex: 1, backgroundColor: 'pink' }}>
+        {/* Persistently Mounted VRMWebView */}
+        {!(Platform.OS === 'ios' && showSwiftUIDemo) && (
+          <View style={StyleSheet.absoluteFill}>
+            <Pressable
+              style={styles.webViewWrapper}
+              ref={snapshotViewRef as any}
+              collapsable={false}
+              onPress={() => Keyboard.dismiss()}
+            >
+              <VRMWebView
+                ref={webViewRef}
+                onModelReady={handleModelReady}
+                onMessage={handleMessage}
+                enableDebug={false}
+              />
+            </Pressable>
+          </View>
+        )}
+
+        {/* Application Content Overlays */}
+        {content}
+      </View>
+    </SceneActionsProvider>
+  );
 };
 
 // Wrapper for OnboardingV2Screen to use in navigation
@@ -2340,6 +2397,12 @@ const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({ onC
 };
 
 export default function App() {
+  useEffect(() => {
+    AppsFlyerService.init();
+    FacebookService.init();
+    TikTokService.init();
+  }, []);
+
   return (
     <ElevenLabsProvider>
       <VRMProvider>
@@ -2351,7 +2414,7 @@ export default function App() {
                   headerTransparent: true,
                   headerTitleAlign: 'center',
                   headerTintColor: '#fff',
-                  contentStyle: { backgroundColor: '#000' },
+                  contentStyle: { backgroundColor: 'pink' },
                 }}
               >
                 <Stack.Screen
@@ -2471,7 +2534,7 @@ const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, st
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: 'pink',
   },
   webViewWrapper: {
     flex: 1,

@@ -203,14 +203,14 @@ const PremiumBanner: React.FC<{
           <View style={styles.premiumHeader}>
             <Text style={styles.premiumTitle}>Roxie</Text>
             <View style={styles.premiumBadge}>
-              <Text style={styles.premiumBadgeText}>Premium</Text>
+              <Text style={styles.premiumBadgeText}>Pro</Text>
             </View>
           </View>
           <Text style={styles.premiumDescription}>
-            Unlock unlimited content and premium features.
+            Unlock unlimited content and pro features.
           </Text>
           <View style={styles.premiumButton}>
-            <Text style={styles.premiumButtonText}>Unlock Premium</Text>
+            <Text style={styles.premiumButtonText}>Unlock Pro</Text>
           </View>
         </View>
         <View style={styles.premiumIconContainer}>
@@ -770,7 +770,7 @@ const SubscriptionHistoryScreen: React.FC = () => {
                 {sub.status?.toUpperCase() ?? 'UNKNOWN'}
               </Text>
               <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
-                {sub.tier === 'pro' ? 'Premium' : 'Free'}
+                {sub.tier === 'pro' ? 'Pro' : 'Free'}
               </Text>
             </View>
           </View>
