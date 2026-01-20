@@ -29,6 +29,7 @@ interface BackgroundSheetProps {
   onOpenSubscription?: () => void;
   isDarkBackground?: boolean;
   isPro?: boolean;
+  currentBackgroundId?: string | null;
 }
 
 export type BackgroundSheetRef = BottomSheetRef;
@@ -39,6 +40,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
   onOpenSubscription,
   isDarkBackground = true,
   isPro = false,
+  currentBackgroundId,
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -160,7 +162,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     const isOwned = ownedBackgroundIds.has(item.id);
     const isLocked = !isPro && !isOwned;
     const itemWidth = (width - 40 - 24) / 3;
-    const isSelected = initialData?.preference?.backgroundId === item.id;
+    const isSelected = currentBackgroundId ? currentBackgroundId === item.id : initialData?.preference?.backgroundId === item.id;
 
     return (
       <Pressable
@@ -174,7 +176,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
         <View style={[
           styles.imageContainer,
           { width: itemWidth, height: itemWidth },
-          isSelected && { borderWidth: 2, borderColor: '#fff' }
+          isSelected && { borderWidth: 2, borderColor: isDarkBackground ? '#fff' : 'rgba(0,0,0,0.5)' }
         ]}>
           <View style={[styles.placeholder, { width: itemWidth, height: itemWidth }]} />
           {(item.thumbnail || item.image) ? (
@@ -348,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   image: {
-    borderRadius: 16,
+    borderRadius: 14,
   },
   darkenOverlay: {
     position: 'absolute',

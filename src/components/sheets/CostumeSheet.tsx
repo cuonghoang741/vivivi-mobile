@@ -122,11 +122,8 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
     const isOwned = ownedCostumeIds.has(item.id);
     const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
-    // If PRO, ignore streak requirements
-    const isStreakLocked = !isPro && isStreakItem && !isOwned && streakDays < (item.streak_days ?? 0);
-
-    // Streak locked items - open streak sheet
-    if (isStreakLocked) {
+    // User request: trigger StreakSheet for any unowned streak item if not Pro
+    if (isStreakItem && !isPro && !isOwned) {
       sheetRef.current?.dismiss();
       setTimeout(() => onOpenStreak?.(), 300);
       return;
@@ -171,7 +168,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
             style={[
               styles.imageContainer,
               { width: itemWidth, height: itemHeight },
-              isSelected && { borderWidth: 2, borderColor: '#fff' }
+              isSelected && { borderWidth: 2, borderColor: isDarkBackground ? '#fff' : 'rgba(0,0,0,0.5)' }
             ]}
           >
             <View style={[styles.placeholder, { width: itemWidth, height: itemHeight }]} />
@@ -224,7 +221,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
         </View>
       );
     },
-    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays]
+    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground]
   );
 
   const renderContent = () => {
@@ -345,7 +342,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   image: {
-    borderRadius: 16,
+    // borderRadius handled by container overflow: 'hidden'
   },
   imageBlurred: {
     opacity: 0.6,

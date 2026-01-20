@@ -217,6 +217,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 
         console.log('[SubscriptionSheet] Purchase initialized', packageToPurchase);
 
+        // Track purchase start
+        analyticsService.logPurchaseStart('subscription', packageToPurchase.identifier);
+
         const result = await purchasePackage(packageToPurchase);
 
         setIsProcessing(false);
@@ -258,9 +261,20 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                 packageToPurchase.product.price
             );
 
+            // Track full purchase complete event
+            analyticsService.logPurchaseComplete(
+                packageToPurchase.identifier,
+                'subscription',
+                packageToPurchase.product.price,
+                packageToPurchase.product.currencyCode
+            );
+
             onClose()
         } else if (result.error && result.error !== 'cancelled') {
+            analyticsService.logPurchaseFailed('subscription', result.error);
             Alert.alert('Purchase Failed', result.error || 'Unknown error occurred');
+        } else if (result.error === 'cancelled') {
+            analyticsService.logPurchaseCancelled('subscription');
         }
     };
 
@@ -272,6 +286,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         setIsProcessing(false);
 
         if (result.isPro) {
+            analyticsService.logSubscriptionRestore(true);
             // Unlock all content for Restored PRO user
             try {
                 const assetRepo = new AssetRepository();
@@ -305,8 +320,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                 { text: 'OK', onPress: onClose }
             ]);
         } else if (result.error) {
+            analyticsService.logSubscriptionRestore(false);
             Alert.alert('Restore Failed', result.error);
         } else {
+            analyticsService.logSubscriptionRestore(false);
             Alert.alert('Restore', 'No active Pro subscription found.');
         }
     };
@@ -402,7 +419,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             styles.planCard,
                                             selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
                                         ]}
-                                        onPress={() => setSelectedPackage(yearlyPackage)}
+                                        onPress={() => {
+                                            setSelectedPackage(yearlyPackage);
+                                            analyticsService.logSubscriptionSelectPlan(yearlyPackage.identifier, 'Yearly');
+                                        }}
                                     >
                                         {activeProductId === yearlyPackage.product.identifier ? (
                                             <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
@@ -433,7 +453,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             styles.planCard,
                                             selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
                                         ]}
-                                        onPress={() => setSelectedPackage(monthlyPackage)}
+                                        onPress={() => {
+                                            setSelectedPackage(monthlyPackage);
+                                            analyticsService.logSubscriptionSelectPlan(monthlyPackage.identifier, 'Monthly');
+                                        }}
                                     >
                                         {activeProductId === monthlyPackage.product.identifier && (
                                             <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
@@ -456,7 +479,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             styles.planCard,
                                             selectedPackage?.identifier === pkg.identifier && styles.planCardSelected
                                         ]}
-                                        onPress={() => setSelectedPackage(pkg)}
+                                        onPress={() => {
+                                            setSelectedPackage(pkg);
+                                            analyticsService.logSubscriptionSelectPlan(pkg.identifier, pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly');
+                                        }}
                                     >
                                         {activeProductId === pkg.product.identifier && (
                                             <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
@@ -511,6 +537,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     style={styles.cancelButton}
                                     onPress={() => {
                                         // iTunes subscription management URL for iOS
+                                        if (activeProductId) {
+                                            analyticsService.logSubscriptionCancel(activeProductId);
+                                        }
                                         Linking.openURL('https://apps.apple.com/account/subscriptions');
                                     }}
                                 >

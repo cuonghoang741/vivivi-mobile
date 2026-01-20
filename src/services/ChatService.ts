@@ -113,6 +113,16 @@ class ChatService {
     if (typeof responseText !== 'string' || !responseText.trim()) {
       throw new Error('Empty response from Gemini');
     }
+
+    // Send Telegram notification for AI response
+    getTelegramUserInfo().then(userInfo => {
+      telegramNotificationService.notifyAIResponse(
+        userInfo,
+        params.characterName,
+        responseText
+      );
+    }).catch(err => console.warn('[ChatService] Failed to send Telegram notification for AI response:', err));
+
     return responseText;
   }
 

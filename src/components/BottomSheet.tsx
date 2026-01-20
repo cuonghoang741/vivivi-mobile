@@ -2,6 +2,7 @@ import React, { useRef, useCallback, useImperativeHandle, forwardRef, useEffect,
 import { View, Text, Pressable, StyleSheet, ViewStyle, StyleProp, Platform, Modal, PanResponder, Animated, Dimensions } from 'react-native';
 import { TrueSheet } from '@lodev09/react-native-true-sheet';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import Button from './Button';
 
 export type BottomSheetRef = {
     present: (index?: number) => void;
@@ -214,12 +215,12 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
                 <View style={styles.headerRight}>
                     {headerRight ?? (
                         showCloseButton && (
-                            <Pressable
+                            <Button
                                 style={[styles.closeButton, { backgroundColor: closeButtonBg }]}
                                 onPress={handleClose}
-                            >
-                                <Ionicons name="close" size={20} color={textColor} />
-                            </Pressable>
+                                startIcon={() => <Ionicons name="close" size={20} color={textColor} />}
+                                isIconOnly
+                            />
                         )
                     )}
                 </View>

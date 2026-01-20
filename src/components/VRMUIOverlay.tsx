@@ -18,8 +18,6 @@ import { Svg, Circle } from 'react-native-svg';
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  IconMessage,
-  IconShirt,
   IconPhoto,
   IconVolume,
   IconVolumeOff,
@@ -36,8 +34,6 @@ import { LiquidGlass } from "./LiquidGlass";
 import { HapticPressable } from "./ui/HapticPressable";
 import { NotificationDot } from "./ui/NotificationDot";
 import StreakIcon from "../assets/icons/streak.svg";
-import GoProButton from "./GoProButton";
-import Button from "./Button";
 import DiamondPinkIcon from "../assets/icons/diamond-pink.svg";
 import { useSceneActions } from "../context/SceneActionsContext";
 
@@ -167,9 +163,17 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
           const dx = gestureState.dx;
           const dy = gestureState.dy;
 
-          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && onSwipeBackground) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onSwipeBackground(dx < 0 ? 1 : -1);
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && onToggleChatList) {
+            // Swipe Left (dx < 0) -> Hide (if shown)
+            if (dx < 0 && showChatList) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onToggleChatList();
+            }
+            // Swipe Right (dx > 0) -> Show (if hidden)
+            else if (dx > 0 && !showChatList) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onToggleChatList();
+            }
           } else if (Math.abs(dy) > 40 && canSwipeCharacter && onSwipeCharacter) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onSwipeCharacter(dy < 0 ? 1 : -1);
@@ -179,7 +183,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
           }
         },
       }),
-    [isInCall, isChatScrolling, onSwipeBackground, onSwipeCharacter, canSwipeCharacter]
+    [isInCall, isChatScrolling, onSwipeBackground, onSwipeCharacter, canSwipeCharacter, showChatList, onToggleChatList]
   );
 
   const insets = useSafeAreaInsets();
@@ -238,44 +242,51 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   };
 
   // Menu items configuration
-  const menuItems = [
-    {
-      key: 'streak',
-      label: 'Streak',
-      isStreakButton: true,
-      onPress: onCalendarPress,
-    },
-    {
-      key: 'outfit',
-      label: 'Outfit',
-      Icon: IconHanger,
-      onPress: onCostumePress,
-    },
-    {
-      key: 'background',
-      label: 'Background',
-      Icon: IconPhoto,
-      onPress: onBackgroundPress,
-    },
-    {
-      key: 'messages',
-      label: showChatList ? 'Hide Chat' : 'Show Chat',
-      Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
-      onPress: onToggleChatList,
-    },
-    {
-      key: 'music',
-      label: isBgmOn ? 'Music On' : 'Music Off',
-      Icon: isBgmOn ? IconVolume : IconVolumeOff,
-      onPress: onSpeakerPress,
-    },
-    // {
-    //   key: 'settings',
-    //   label: 'Settings',
-    //   Icon: IconSettings,
-    //   onPress: onSettingsPress,
-    // },
-  ];
+  const menuItems: {
+    key: string;
+    label: string;
+    Icon?: React.ElementType;
+    iconProps?: any;
+    isStreakButton?: boolean;
+    onPress?: () => void;
+  }[] = [
+      // {
+      //   key: 'streak',
+      //   label: 'Streak',
+      //   isStreakButton: true,
+      //   onPress: onCalendarPress,
+      // },
+      {
+        key: 'outfit',
+        label: 'Outfit',
+        Icon: IconHanger,
+        onPress: onCostumePress,
+      },
+      {
+        key: 'background',
+        label: 'Background',
+        Icon: IconPhoto,
+        onPress: onBackgroundPress,
+      },
+      {
+        key: 'messages',
+        label: showChatList ? 'Hide Chat' : 'Show Chat',
+        Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
+        onPress: onToggleChatList,
+      },
+      {
+        key: 'music',
+        label: isBgmOn ? 'Music On' : 'Music Off',
+        Icon: isBgmOn ? IconVolume : IconVolumeOff,
+        onPress: onSpeakerPress,
+      },
+      // {
+      //   key: 'settings',
+      //   label: 'Settings',
+      //   Icon: IconSettings,
+      //   onPress: onSettingsPress,
+      // },
+    ];
 
   // Format remaining time
   const formatRemainingTime = (seconds: number): string => {

@@ -25,11 +25,11 @@ import os from 'os';
 
 // Supabase config - use service key for admin access
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cjtghurczxqheqwegpiy.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdGdodXJjenhxaGVxd2VncGl5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM4MDAxMCwiZXhwIjoyMDc4OTU2MDEwfQ.1gDh3kIlmhl68xAvRO9QUBJxtWcP-UTZ7HINjE1t8zA';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '-UTZ7HINjE1t8zA';
 
 // S3/Cloudfly config
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || 'K6664GTMJ5XBEXZKHVON';
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || 'olWLllxMAKDktGCUoNBzGpAaIYianLEOBqje7WJP';
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
 const AWS_ENDPOINT = process.env.AWS_ENDPOINT || 'https://s3.cloudfly.vn';
 const AWS_BUCKET = process.env.AWS_BUCKET || 'roxie';
 const AWS_REGION = process.env.AWS_DEFAULT_REGION || 'us-east-1';

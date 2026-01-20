@@ -1549,10 +1549,7 @@ const AppContent = () => {
 
   const handleOpenStreak = useCallback(() => {
     setShowCostumeSheet(false);
-    setShowQuestSheet(true);
-    // Optionally open specifically to the check-in tab if supported, 
-    // but QuestSheet usually shows daily tasks/rewards by default or has tabs.
-    // Ideally we would pass a specific tab request if QuestSheet supports it.
+    streakSheetRef.current?.present();
   }, []);
 
   useEffect(() => {
@@ -2138,6 +2135,7 @@ const AppContent = () => {
           onOpenStreak={handleOpenStreak}
           isDarkBackground={isDarkBackground}
           isPro={isPro}
+          currentBackgroundId={currentBackgroundId}
         />
         <StreakSheet
           ref={streakSheetRef}

@@ -539,7 +539,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
   const getTitle = () => {
     switch (currentScreen.key) {
       case 'root': return 'Settings'; // No title in root to save space
-      case 'editProfile': return 'Personal Information';
+      case 'editProfile': return 'Information';
       case 'purchaseHistory': return 'History';
       case 'feedback': return currentScreen.kind === 'problem' ? 'Report Bug' : 'Feature Request';
       default: return 'Settings';
@@ -557,9 +557,13 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
       title={getTitle()}
       backgroundBlur='system-thick-material-dark'
       headerLeft={!isRootScreen ? (
-        <Pressable onPress={popScreen} style={{ padding: 8 }}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </Pressable>
+        <Button
+          variant="liquid"
+          isIconOnly
+          startIcon={() => <Ionicons name="chevron-back" size={24} color="#fff" />}
+          onPress={popScreen}
+          style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.15)' }}
+        />
       ) : undefined}
     >
       <View style={[styles.container, { maxHeight: height }]}>

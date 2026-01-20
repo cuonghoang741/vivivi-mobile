@@ -64,6 +64,7 @@ type AppSheetsProps = {
 
   // Pro status
   isPro?: boolean;
+  currentBackgroundId?: string | null;
 };
 
 export const AppSheets: React.FC<AppSheetsProps> = ({
@@ -100,6 +101,7 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
   onOpenSubscription,
   isDarkBackground = true,
   isPro = false,
+  currentBackgroundId,
 }) => {
   return (
     <>
@@ -109,6 +111,7 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         onOpenSubscription={onOpenSubscription}
         isDarkBackground={isDarkBackground}
         isPro={isPro}
+        currentBackgroundId={currentBackgroundId}
       />
       <CharacterSheet
         isOpened={showCharacterSheet}

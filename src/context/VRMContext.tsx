@@ -18,6 +18,9 @@ import { UserPreferencesService } from '../services/UserPreferencesService';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
 import { Persistence } from '../utils/persistence';
 import { BackgroundRepository } from '../repositories/BackgroundRepository';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CACHE_KEY_INITIAL_DATA = 'vrm_initial_data_v1';
 
 type InitialPreference = {
   costumeId?: string;
@@ -81,6 +84,7 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [initialData, setInitialData] = useState<InitialDataState | null>(null);
   const [initialDataLoading, setInitialDataLoading] = useState(false);
   const [initialDataError, setInitialDataError] = useState<Error | null>(null);
+  const [hasFetchedFreshData, setHasFetchedFreshData] = useState(false);
   const [currentCharacterState, setCurrentCharacterState] = useState<CharacterState | null>(
     null
   );
@@ -105,8 +109,26 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setInitialDataError(null);
       setHasAppliedInitialModel(false);
       setCurrentCharacterState(null); // Clear character state on logout/delete
+      setHasFetchedFreshData(false);
     }
   }, [authSnapshot.session]);
+
+  // Load initial data from cache on mount
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY_INITIAL_DATA);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          console.log('[VRMContext] Loaded initial data from cache');
+          setInitialData(parsed);
+        }
+      } catch (e) {
+        console.warn('[VRMContext] Failed to load cached initial data', e);
+      }
+    };
+    loadCache();
+  }, []);
 
   const seedPersistenceSelections = useCallback(
     async (character: CharacterItem, preference: InitialPreference) => {
@@ -285,6 +307,16 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         preference,
         fetchedAt: Date.now(),
       });
+
+      // Save to cache
+      AsyncStorage.setItem(CACHE_KEY_INITIAL_DATA, JSON.stringify({
+        character: currentCharacter,
+        ownedBackgroundIds: Array.from(ownedBackgroundIds),
+        preference,
+        fetchedAt: Date.now(),
+      })).catch(e => console.warn('[VRMContext] Failed to save cache:', e));
+
+      setHasFetchedFreshData(true);
       setInitialDataError(null);
       if (!skipModelReset) {
         setHasAppliedInitialModel(false);
@@ -411,9 +443,8 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (
-      initialData ||
+      hasFetchedFreshData ||
       initialDataLoading ||
-      initialDataError ||
       !authSnapshot.hasRestoredSession ||
       !authSnapshot.session
     ) {
@@ -425,9 +456,8 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     authSnapshot.hasRestoredSession,
     authSnapshot.session,
     bootstrapInitialData,
-    initialData,
+    hasFetchedFreshData,
     initialDataLoading,
-    initialDataError,
   ]);
 
   const value = useMemo(

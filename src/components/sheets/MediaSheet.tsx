@@ -134,11 +134,16 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
       selectedTab === 'video' ? isVideoItem(item) : !isVideoItem(item)
     );
     // Sort: Free first, then Premium
+    // Sort: Free first, then Premium/Pro
     return filtered.sort((a, b) => {
-      const isFreeA = (a.price_vcoin ?? 0) === 0 && (a.price_ruby ?? 0) === 0;
-      const isFreeB = (b.price_vcoin ?? 0) === 0 && (b.price_ruby ?? 0) === 0;
+      const isFreeA = (a.tier?.toLowerCase() === 'free') || ((a.price_vcoin ?? 0) === 0 && (a.price_ruby ?? 0) === 0 && a.tier?.toLowerCase() !== 'pro');
+      const isFreeB = (b.tier?.toLowerCase() === 'free') || ((b.price_vcoin ?? 0) === 0 && (b.price_ruby ?? 0) === 0 && b.tier?.toLowerCase() !== 'pro');
+
       if (isFreeA && !isFreeB) return -1;
       if (!isFreeA && isFreeB) return 1;
+
+      // Secondary sort to ensure stability (e.g. by name or ID) - optional but good practice
+      // For now just keep existing relative order if same tier
       return 0;
     });
   }, [items, selectedTab]);

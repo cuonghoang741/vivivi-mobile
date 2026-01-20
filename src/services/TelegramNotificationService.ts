@@ -14,7 +14,7 @@ interface UserInfo {
   userAge: string; // Time since user started using the app
 }
 
-type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription';
+type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription' | 'ai_response';
 
 interface NotificationPayload extends UserInfo {
   type: NotificationType;
@@ -83,6 +83,8 @@ User Age: ${userInfo.userAge}`;
         return 'NEW USER REGISTERED';
       case 'chat_message':
         return 'USER CHAT MESSAGE';
+      case 'ai_response':
+        return 'AI RESPONSE';
       case 'purchase_item':
         return 'USER PURCHASED ITEM';
       case 'subscription':
@@ -96,6 +98,12 @@ User Age: ${userInfo.userAge}`;
    * Send notification for various events
    */
   async sendNotification(payload: NotificationPayload): Promise<void> {
+    // Skip notification for users from Vietnam
+    if (payload.userCountry?.toUpperCase() === 'VN') {
+      console.log('[TelegramNotificationService] Skipping notification for VN user');
+      return;
+    }
+
     const title = this.getNotificationTitle(payload.type);
     const userInfo = this.formatUserInfo({
       userId: payload.userId,
@@ -137,6 +145,20 @@ User Age: ${userInfo.userAge}`;
       additionalData: {
         'Character': characterName,
         'Message': messagePreview.substring(0, 100) + (messagePreview.length > 100 ? '...' : ''),
+      },
+    });
+  }
+
+  /**
+   * Notify when AI responses
+   */
+  async notifyAIResponse(userInfo: UserInfo, characterName: string, responseMessage: string): Promise<void> {
+    await this.sendNotification({
+      ...userInfo,
+      type: 'ai_response',
+      additionalData: {
+        'Character': characterName,
+        'Response': responseMessage.substring(0, 100) + (responseMessage.length > 100 ? '...' : ''),
       },
     });
   }
