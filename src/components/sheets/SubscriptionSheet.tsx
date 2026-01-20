@@ -236,10 +236,12 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     bgRepo.fetchAllBackgrounds()
                 ]);
 
-                // Grant all characters
-                const charPromises = allChars.map(char =>
-                    assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
-                );
+                // Grant all characters (filter out coming soon)
+                const charPromises = allChars
+                    .filter(char => char.available !== false)
+                    .map(char =>
+                        assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
+                    );
 
                 // Grant all backgrounds
                 const bgPromises = allBgs.map(bg =>
@@ -298,10 +300,12 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     bgRepo.fetchAllBackgrounds()
                 ]);
 
-                // Grant all characters
-                const charPromises = allChars.map(char =>
-                    assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
-                );
+                // Grant all characters (filter out coming soon)
+                const charPromises = allChars
+                    .filter(char => char.available !== false)
+                    .map(char =>
+                        assetRepo.createAsset(char.id, 'character').catch(e => console.warn('Failed to grant char:', char.id, e))
+                    );
 
                 // Grant all backgrounds
                 const bgPromises = allBgs.map(bg =>

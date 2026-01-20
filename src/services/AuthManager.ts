@@ -178,6 +178,11 @@ export class AuthManager {
       this._session = session;
       this._user = user;
       this._hasRestoredSession = true;
+      // If we restored a session, we assume they are NOT new for now, 
+      // or we could run checkUserStatus here. 
+      // But typically restored sessions are existing users.
+      // Let's set it to false to be safe, so we don't accidentally trigger preview on cold start if logic is flaky.
+      this._isNewUser = false;
       this.notifyListeners();
     } catch (error) {
       console.error("Error restoring session:", error);
@@ -380,6 +385,7 @@ export class AuthManager {
     try {
       await this.client.auth.signOut();
       await revenueCatManager.logout();
+      this._isNewUser = null;
       this.setState({ session: null, user: null });
       analyticsService.logSignOut();
     } catch (error: any) {
@@ -411,14 +417,16 @@ export class AuthManager {
       }
 
       if (data.session && data.user) {
-        this.setState({
-          session: data.session,
-          user: data.user,
-        });
+        await this.checkUserStatus(data.user.id);
         analyticsService.logSignIn('email');
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
         await this.ensureUserCountry(data.user);
+
+        this.setState({
+          session: data.session,
+          user: data.user,
+        });
       }
 
       this.setState({ isLoading: false });
@@ -519,16 +527,18 @@ export class AuthManager {
         throw error;
       }
 
-      this.setState({
-        session: data.session ?? null,
-        user: data.user ?? null,
-      });
       if (data.user) {
+        await this.checkUserStatus(data.user.id);
         analyticsService.logSignIn('apple');
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
         await this.ensureUserCountry(data.user);
       }
+
+      this.setState({
+        session: data.session ?? null,
+        user: data.user ?? null,
+      });
     } catch (error: any) {
       if (error?.code === "ERR_CANCELED") {
         console.log("[AuthManager] User cancelled Sign in with Apple");
@@ -592,16 +602,18 @@ export class AuthManager {
           throw exchangeError;
         }
 
-        this.setState({
-          session: sessionData.session ?? null,
-          user: sessionData.user ?? null,
-        });
         if (sessionData.user) {
+          await this.checkUserStatus(sessionData.user.id);
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
           await this.ensureUserCountry(sessionData.user);
         }
+
+        this.setState({
+          session: sessionData.session ?? null,
+          user: sessionData.user ?? null,
+        });
         return;
       }
 
@@ -616,16 +628,18 @@ export class AuthManager {
           throw setSessionError;
         }
 
-        this.setState({
-          session: sessionData.session ?? null,
-          user: sessionData.user ?? null,
-        });
         if (sessionData.user) {
+          await this.checkUserStatus(sessionData.user.id);
           analyticsService.logSignIn('google');
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
           await this.ensureUserCountry(sessionData.user);
         }
+
+        this.setState({
+          session: sessionData.session ?? null,
+          user: sessionData.user ?? null,
+        });
         return;
       }
 
@@ -717,6 +731,66 @@ export class AuthManager {
    */
   getUserId(): string | null {
     return this._user?.id?.toLowerCase() || null;
+  }
+
+  // New property to track if user is new (checked during sign-in)
+  private _isNewUser: boolean | null = null;
+
+  get isNewUser(): boolean | null {
+    return this._isNewUser;
+  }
+
+  setIsNewUser(value: boolean) {
+    this._isNewUser = value;
+    // Also update notification listener to force re-render in App?
+    this.notifyListeners();
+  }
+
+  /**
+   * Internal helper to check if user is new based on assets
+   * Sets AsyncStorage flags to avoid flash in App.tsx
+   */
+  private async checkUserStatus(userId: string): Promise<void> {
+    try {
+      // Dynamic import to avoid circular dependency if any
+      const { default: AssetRepository } = await import('../repositories/AssetRepository');
+      const assetRepo = new AssetRepository();
+
+      // Check if user has any character assets
+      // Use count only for efficiency
+      const { count, error } = await this.client
+        .from('user_assets')
+        .select('*', { count: 'exact', head: true })
+        .eq('item_type', 'character')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.warn('[AuthManager] Failed to check assets, defaulting to existing user:', error);
+        this._isNewUser = false; // Safe fallback
+        await AsyncStorage.setItem('isNewUser', 'false');
+        return;
+      }
+
+      const isNew = count === 0;
+
+      this._isNewUser = isNew;
+
+      if (isNew) {
+        console.log('[AuthManager] Detected NEW user (no assets)');
+        await AsyncStorage.setItem('isNewUser', 'true');
+        // Ensure V2 flag is NOT set so onboarding triggers
+        // await AsyncStorage.removeItem('persist.hasCompletedOnboardingV2'); 
+      } else {
+        console.log('[AuthManager] Detected EXISTING user');
+        await AsyncStorage.setItem('isNewUser', 'false');
+        // Auto-fix V2 flag for existing users to prevent unnecessary onboarding
+        await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
+      }
+    } catch (error) {
+      console.warn('[AuthManager] Check user status failed:', error);
+      // Fallback: assume not new to be safe, or leave null to let App check
+      // this._isNewUser = false; 
+    }
   }
 }
 

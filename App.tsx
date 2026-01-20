@@ -114,7 +114,17 @@ const AppContent = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
   const [showNewUserGift, setShowNewUserGift] = useState(false);
-  const [showOnboardingV2, setShowOnboardingV2] = useState(false);
+
+
+  // Initialize from AuthManager flag if available to avoid flash
+  const [showOnboardingV2, setShowOnboardingV2] = useState(() => {
+    if (authManager.isNewUser !== null) {
+      console.log('[App] Initializing OnboardingV2 state from AuthManager:', authManager.isNewUser);
+      return authManager.isNewUser;
+    }
+    return false;
+  });
+
   const [showQuestSheet, setShowQuestSheet] = useState(false);
   const [questSheetTabRequest, setQuestSheetTabRequest] = useState<{ tab: 'daily' | 'level'; token: number } | null>(null);
   const [showEnergySheet, setShowEnergySheet] = useState(false);
@@ -1572,9 +1582,6 @@ const AppContent = () => {
   useEffect(() => {
     if (shouldShowSignIn) {
       const timer = setTimeout(() => {
-        console.log('⏳ [App] Triggering background preloading to cache VRMs...');
-        // We can just call loadRandomFiles to start the process in background
-        // even if covered by SignInScreen
         webViewRef.current?.injectJavaScript(`
           if(window.loadRandomFiles) {
              console.log('Native forcing loadRandomFiles for caching...');
@@ -1623,18 +1630,6 @@ const AppContent = () => {
     }
   };
 
-  const shouldWaitForInitialData =
-    !!session && (!initialData || initialDataLoading || !!initialDataError);
-  const showMainExperience =
-    hasRestoredSession &&
-    !!session &&
-    !shouldShowSignIn &&
-    !showOnboardingV2 &&
-    !showImageOnboarding &&
-    !showNewUserGift &&
-    !shouldWaitForInitialData &&
-    !(Platform.OS === 'ios' && showSwiftUIDemo);
-
   // Hide navigation header - we use custom SceneHeader
   useEffect(() => {
     if (navigation) {
@@ -1680,43 +1675,63 @@ const AppContent = () => {
     }
   }, []);
 
-  const checkIfNewUser = useCallback(async () => {
-    if (isCheckingNewUser) return;
-    setIsCheckingNewUser(true);
-    try {
-      await checkGiftClaimStatus();
-    } finally {
-      setIsCheckingNewUser(false);
+  const [isNewUserCheckComplete, setIsNewUserCheckComplete] = useState(false);
+
+  // Reset check status when session is cleared
+  useEffect(() => {
+    if (!session) {
+      setIsNewUserCheckComplete(false);
     }
-  }, [isCheckingNewUser, checkGiftClaimStatus]);
+  }, [session]);
 
   const checkIfNewUserForOnboarding = useCallback(async () => {
     if (isCheckingNewUser) return;
+
+    // Optimization: If AuthManager already determined status (fresh login), use it.
+    if (authManager.isNewUser !== null) {
+      console.log('[Onboarding] Using AuthManager status:', authManager.isNewUser);
+      if (authManager.isNewUser === true) {
+        setShowOnboardingV2(true);
+        setShowImageOnboarding(false);
+        setShowNewUserGift(false);
+      } else {
+        setShowOnboardingV2(false);
+        // Still might want to check gift status for existing users, but delay it to avoid blocking UI?
+        // For now, let's just proceed to main app.
+        checkGiftClaimStatus();
+      }
+      return;
+    }
+
     setIsCheckingNewUser(true);
 
     try {
+      // Check forced "isNewUser" flag first as requested for immediate redirect
+      const isNewUserFlag = await AsyncStorage.getItem('isNewUser');
+      if (isNewUserFlag === 'true') {
+        console.log('[Onboarding] Found isNewUser flag, forcing onboarding...');
+        setShowOnboardingV2(true);
+        setShowImageOnboarding(false);
+        setShowNewUserGift(false);
+        return;
+      }
+
       const assetRepo = new AssetRepository();
       const ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
       const hasCharacters = ownedCharacterIds.size > 0;
 
       const hasCompletedOnboardingV2 =
         (await AsyncStorage.getItem('persist.hasCompletedOnboardingV2')) === 'true';
-      const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
-
-      console.log('[Onboarding Debug] hasCompletedOnboardingV2:', hasCompletedOnboardingV2);
-      console.log('[Onboarding Debug] hasCompletedImageOnboarding:', hasCompletedImageOnboarding);
-      console.log('[Onboarding Debug] hasCharacters:', hasCharacters);
 
       // Priority: OnboardingV2 > ImageOnboarding > NewUserGift
       if (hasCharacters) {
-        // User has completed OnboardingV2 and has characters (or is an old user)
-        console.log('[Onboarding Debug] -> User has characters, skipping OnboardingV2');
-
         // If local flag is missing but user has characters, auto-fix it
         if (!hasCompletedOnboardingV2) {
           await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
         }
+
+        // Ensure isNewUser is false for existing users
+        await AsyncStorage.setItem('isNewUser', 'false');
 
         setShowOnboardingV2(false);
         setShowImageOnboarding(false);
@@ -1725,6 +1740,10 @@ const AppContent = () => {
       } else if (!hasCompletedOnboardingV2) {
         // New user who hasn't completed OnboardingV2 - show it
         console.log('[Onboarding Debug] -> Showing OnboardingV2');
+
+        // Set isNewUser flag
+        await AsyncStorage.setItem('isNewUser', 'true');
+
         setShowOnboardingV2(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
@@ -1733,88 +1752,31 @@ const AppContent = () => {
         // Reset V2 flag and show V2 again
         console.log('[Onboarding Debug] -> V2 completed but no characters, resetting V2 flag');
         await AsyncStorage.removeItem('persist.hasCompletedOnboardingV2');
+        await AsyncStorage.setItem('isNewUser', 'true');
+
         setShowOnboardingV2(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
       }
     } catch (error) {
       console.error('[App] Error checking new user for onboarding:', error);
+      // Fallback logic
       const hasCompletedOnboardingV2 =
         (await AsyncStorage.getItem('persist.hasCompletedOnboardingV2')) === 'true';
-      const hasCompletedImageOnboarding =
-        (await AsyncStorage.getItem('persist.hasCompletedImageOnboarding')) === 'true';
 
       if (!hasCompletedOnboardingV2) {
         setShowOnboardingV2(true);
         setShowImageOnboarding(false);
-        setShowNewUserGift(false);
-      } else if (!hasCompletedImageOnboarding) {
-        setShowOnboardingV2(false);
-        setShowImageOnboarding(true);
-        setShowNewUserGift(false);
       } else {
         setShowOnboardingV2(false);
         setShowImageOnboarding(false);
-        setShowNewUserGift(true);
+        setShowNewUserGift(false);
       }
     } finally {
       setIsCheckingNewUser(false);
+      setIsNewUserCheckComplete(true);
     }
   }, [isCheckingNewUser, checkGiftClaimStatus]);
-
-  const handleImageOnboardingComplete = useCallback(async () => {
-    await AsyncStorage.setItem('persist.hasCompletedImageOnboarding', 'true');
-    await AsyncStorage.setItem('persist.hasSeenImageOnboarding', 'true');
-    setShowImageOnboarding(false);
-    checkIfNewUser();
-  }, [checkIfNewUser]);
-
-  const handleImageOnboardingSkip = useCallback(async () => {
-    await AsyncStorage.setItem('persist.hasCompletedImageOnboarding', 'true');
-    await AsyncStorage.setItem('persist.hasSeenImageOnboarding', 'true');
-    setShowImageOnboarding(false);
-    checkIfNewUser();
-  }, [checkIfNewUser]);
-
-  const handleNewUserGiftComplete = useCallback(
-    async (characterId: string | null) => {
-      setShowNewUserGift(false);
-      if (characterId) {
-        try {
-          const userPrefsService = new UserPreferencesService();
-          await userPrefsService.saveCurrentCharacterId(characterId);
-        } catch (error) {
-          console.error('[App] Error saving character after gift:', error);
-        }
-      }
-      await Promise.all([refreshInitialData(), refreshCurrency()]);
-    },
-    [refreshInitialData, refreshCurrency]
-  );
-
-  const handleOnboardingV2Complete = useCallback(
-    async (data: {
-      userName: string;
-      userAge: number;
-      selectedCharacterId: string;
-      characterNickname: string;
-    }) => {
-      console.log('[App] OnboardingV2 completed:', data);
-      setShowOnboardingV2(false);
-
-      // Save character preference
-      try {
-        const userPrefsService = new UserPreferencesService();
-        await userPrefsService.saveCurrentCharacterId(data.selectedCharacterId);
-      } catch (error) {
-        console.error('[App] Error saving character after onboarding:', error);
-      }
-
-      // Refresh initial data to load the selected character
-      await Promise.all([refreshInitialData(), refreshCurrency()]);
-    },
-    [refreshInitialData, refreshCurrency]
-  );
 
   const handleCharacterSelectionComplete = useCallback(
     async (character: CharacterItem) => {
@@ -1901,6 +1863,8 @@ const AppContent = () => {
 
       // 3. Mark OnboardingV2 as done and hide it
       await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
+      await AsyncStorage.setItem('isNewUser', 'false');
+      authManager.setIsNewUser(false);
       setShowOnboardingV2(false);
 
       // 4. Refresh data
@@ -1932,43 +1896,17 @@ const AppContent = () => {
       );
     }
 
-    if (showOnboardingV2) {
+    console.log("CharacterSelectionScreen", !!session, authManager.isNewUser)
+
+    // PRIORITIZE: If AuthManager detected a new user during sign-in, go STRAIGHT to Preview.
+    // This avoids the "Checking profile..." flash.
+    if (session && authManager.isNewUser === true) {
       return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
     }
 
-    // if (showImageOnboarding) {
-    //   return (
-    //     <View style={styles.container}>
-    //       <StatusBar barStyle="light-content" />
-    //       <ImageOnboardingScreen
-    //         onComplete={handleImageOnboardingComplete}
-    //         onSkip={handleImageOnboardingSkip}
-    //       />
-    //     </View>
-    //   );
-    // }
-
-    // if (showNewUserGift) {
-    //   return (
-    //     <View style={styles.container}>
-    //       <StatusBar barStyle="light-content" />
-    //       <NewUserGiftScreen onComplete={handleNewUserGiftComplete} />
-    //     </View>
-    //   );
-    // }
-
-    // if (shouldWaitForInitialData) {
-    //   return (
-    //     <View style={styles.container}>
-    //       <StatusBar barStyle="light-content" />
-    //       <InitialLoadingScreen
-    //         loading={initialDataLoading}
-    //         error={initialDataError?.message ?? null}
-    //         onRetry={refreshInitialData}
-    //       />
-    //     </View>
-    //   );
-    // }
+    if (showOnboardingV2) {
+      return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
+    }
 
     if (Platform.OS === 'ios' && showSwiftUIDemo) {
       return (
@@ -2337,8 +2275,6 @@ const OnboardingV2ScreenWrapper: React.FC = () => {
   );
 };
 
-// Character Selection Screen for new users - loads characters and navigates to preview
-// Custom props for CharacterSelectionScreen
 interface CharacterSelectionScreenProps {
   onComplete: (character: CharacterItem) => void;
 }
@@ -2367,18 +2303,6 @@ const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({ onC
     loadFreeCharacters();
   }, []);
 
-  // if (isLoading) {
-  //   return (
-  //     <View style={styles.container}>
-  //       <StatusBar barStyle="light-content" />
-  //       <View style={styles.loadingState}>
-  //         <ActivityIndicator size="large" color="#FF2F71" />
-  //         <Text style={{ color: '#fff', marginTop: 16 }}>Loading characters...</Text>
-  //       </View>
-  //     </View>
-  //   );
-  // }
-
   if (error || characters.length === 0) {
     return (
       <View style={styles.container}>
@@ -2389,8 +2313,6 @@ const CharacterSelectionScreen: React.FC<CharacterSelectionScreenProps> = ({ onC
     );
   }
 
-  // Render CharacterPreviewScreen directly (embedded mode)
-  // Pass onComplete to act as the "Select"/Continue action
   return <CharacterPreviewScreen characters={characters} initialIndex={0} onSelect={onComplete} />;
 };
 
