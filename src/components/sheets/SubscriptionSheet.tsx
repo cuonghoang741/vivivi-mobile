@@ -36,8 +36,6 @@ import Icon5 from '../../assets/icons/subscriptions/1.svg';
 import Icon6 from '../../assets/icons/subscriptions/6.svg';
 import { IconX } from '@tabler/icons-react-native';
 
-const { height } = Dimensions.get('window');
-
 const DEFAULT_VIDEO_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
 
 const SUBSCRIPTION_FEATURES = [
@@ -66,13 +64,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         isPro,
         isLoading: contextLoading,
         packages,
-        packagesLoaded,
         customerInfo,
         purchasePackage,
         restorePurchases,
     } = useSubscription();
-
-    console.log("packages", packages)
 
     // Map of local video assets by character order
     const LOCAL_VIDEOS: Record<number, any> = {

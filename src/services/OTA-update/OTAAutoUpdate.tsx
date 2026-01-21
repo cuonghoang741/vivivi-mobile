@@ -52,7 +52,7 @@ export const OTAAutoUpdate: React.FC<OTAAutoUpdateProps> = () => {
       <View style={styles.row}>
         <ActivityIndicator size="small" color="#fff" />
         <Text style={styles.text}>
-          {updateInfo.isInstalling ? 'Installing update...' : 'Downloading update...'}
+          {updateInfo.isInstalling ? 'Installing update... ' : 'Downloading update...'}
         </Text>
       </View>
 
@@ -63,7 +63,7 @@ export const OTAAutoUpdate: React.FC<OTAAutoUpdateProps> = () => {
               <LinearGradient
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
-                colors={['#0a7ea4', '#17a6c4']}
+                colors={['#ec4899', '#db2777']}
                 style={styles.progressBarFillGradient}
               />
             </View>
@@ -91,10 +91,10 @@ export const OTAAutoUpdate: React.FC<OTAAutoUpdateProps> = () => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#1f2937e6', // gray-800 with opacity
+    backgroundColor: '#1f293787', // gray-800 with opacity
     borderRadius: 12,
     padding: 16,
     zIndex: 9999,
