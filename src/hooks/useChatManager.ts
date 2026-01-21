@@ -251,6 +251,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
             characterId,
             characterName: options?.characterName || 'Unknown Character',
             history,
+            isPro: options?.isPro,
           }),
         ]);
 

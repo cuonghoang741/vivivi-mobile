@@ -8,20 +8,44 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
+// Hardcoded Telegram Credentials to match client service
+const TELEGRAM_BOT_TOKEN = '7450216881:AAEfiWq4TGQ371gixL2oVKBepBH3BTAfDUA';
+const TELEGRAM_CHAT_ID = '-1003509600397';
+const TELEGRAM_MESSAGE_THREAD_ID = '686';
+
+async function sendTelegramError(error: string, context: string) {
+    try {
+        const message = `<b>🚨 GEMINI API ERROR</b>\n\nContext: ${context}\nError: ${error}`;
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: TELEGRAM_CHAT_ID,
+                message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
+                text: message,
+                parse_mode: 'HTML'
+            })
+        });
+    } catch (e) {
+        console.error('Failed to send Telegram notification:', e);
+    }
+}
+
 // Retry helper function for Gemini API calls
 async function fetchWithRetry(
     url: string,
     options: RequestInit,
-    maxRetries: number = 5,
-    initialDelayMs: number = 1000
+    maxRetries: number = 1, // Reduced to 1 retry (2 attempts total)
+    initialDelayMs: number = 1000,
+    contextInfo: string = ''
 ): Promise<Response> {
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
         try {
             const response = await fetch(url, options);
 
-            // If response is ok or it's a client error (4xx), don't retry
+            // If response is ok or it's a client error (4xx), don't retry, return immediately
             if (response.ok || (response.status >= 400 && response.status < 500)) {
                 return response;
             }
@@ -29,20 +53,27 @@ async function fetchWithRetry(
             // Server error (5xx) - retry
             const errorText = await response.text();
             lastError = new Error(`Gemini API error: ${response.status} - ${errorText}`);
-            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
+            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries + 1} failed with status ${response.status}`);
         } catch (error) {
             // Network error - retry
             lastError = error instanceof Error ? error : new Error(String(error));
-            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries} failed with error: ${lastError.message}`);
+            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries + 1} failed with error: ${lastError.message}`);
         }
 
         // Wait before retrying (exponential backoff)
-        if (attempt < maxRetries) {
+        if (attempt <= maxRetries) {
             const delay = initialDelayMs * Math.pow(2, attempt - 1);
             console.log(`[gemini-chat] Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
+
+    // If we reach here, all attempts failed
+    const finalErrorMessage = lastError ? lastError.message : 'Unknown error after retries';
+    console.error(`[gemini-chat] All retry attempts failed: ${finalErrorMessage}`);
+
+    // Send Telegram Notification
+    await sendTelegramError(finalErrorMessage, contextInfo);
 
     throw lastError || new Error('All retry attempts failed');
 }
@@ -53,6 +84,9 @@ serve(async (req) => {
             headers: corsHeaders
         });
     }
+
+    let requestBody: any = {};
+
     try {
         const clientIdHeader = req.headers.get('X-Client-Id') || req.headers.get('x-client-id') || '';
         const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
@@ -66,7 +100,9 @@ serve(async (req) => {
             }
         });
         const body = await req.json();
+        requestBody = body; // Store for context
         const { message, character_id, user_id, client_id, conversation_history } = body;
+
         if (!message || !character_id) {
             return new Response(JSON.stringify({
                 error: "Missing required fields: message and character_id"
@@ -118,9 +154,35 @@ serve(async (req) => {
         const geminiRequestBody = {
             contents
         };
+        // Check for Pro subscription
+        let isPro = false;
+        const bodyIsPro = body.is_pro;
+        if (typeof bodyIsPro === 'boolean') {
+            // Trust the client to save a DB query
+            isPro = bodyIsPro;
+        } else if (user_id) {
+            try {
+                const { data: subData } = await supabaseClient
+                    .from('subscriptions')
+                    .select('status, expires_at')
+                    .eq('user_id', user_id)
+                    .in('status', ['active', 'trialing'])
+                    .gt('expires_at', new Date().toISOString())
+                    .maybeSingle();
+
+                if (subData) isPro = true;
+            } catch { }
+        }
+
         let systemInstructionText = '';
         if (characterInstruction) systemInstructionText = characterInstruction;
+
+        // Append User Status
+        const userStatusInfo = `\n\n[User Status: ${isPro ? 'Pro' : 'Free'}]`;
+        systemInstructionText += userStatusInfo;
+
         if (currentMemory) systemInstructionText = systemInstructionText ? `${systemInstructionText}\n\n## Previous Memory/Context:\n${currentMemory}` : `## Previous Memory/Context:\n${currentMemory}`;
+
         if (systemInstructionText) geminiRequestBody.systemInstruction = {
             parts: [
                 {
@@ -128,15 +190,24 @@ serve(async (req) => {
                 }
             ]
         };
+
+        // Context info for error reporting
+        const contextInfo = `User: ${user_id || client_id || 'Unknown'}\nCharacter: ${character_id}`;
+
         const geminiResponse = await fetchWithRetry(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(geminiRequestBody)
-        });
+        }, 1, 1000, contextInfo);
+
         if (!geminiResponse.ok) {
             const errorText = await geminiResponse.text();
+
+            // Send Telegram Notification for API level errors (after retries returned non-ok)
+            await sendTelegramError(`${geminiResponse.status} - ${errorText}`, contextInfo);
+
             return new Response(JSON.stringify({
                 error: `Gemini API error: ${geminiResponse.status}`,
                 details: errorText
@@ -154,7 +225,10 @@ serve(async (req) => {
             const candidate = geminiData.candidates?.[0];
             if (candidate?.content?.parts?.[0]?.text) responseText = candidate.content.parts[0].text;
             else throw new Error('Unexpected Gemini response structure');
-        } catch (error) {
+        } catch (error: any) {
+            // Send Telegram Notification for parsing errors
+            await sendTelegramError(`Parsing Error: ${error?.message || String(error)}\nData: ${JSON.stringify(geminiData)}`, contextInfo);
+
             return new Response(JSON.stringify({
                 error: 'Failed to parse Gemini response',
                 details: JSON.stringify(geminiData)
@@ -220,9 +294,15 @@ serve(async (req) => {
             },
             status: 200
         });
-    } catch (error) {
+    } catch (error: any) {
+        // Top level catch - unexpected errors
+        try {
+            const contextInfo = `Request Body: ${JSON.stringify(requestBody).substring(0, 200)}...`;
+            await sendTelegramError(error?.message || String(error), contextInfo);
+        } catch { }
+
         return new Response(JSON.stringify({
-            error: error.message
+            error: error?.message || String(error)
         }), {
             status: 500,
             headers: {

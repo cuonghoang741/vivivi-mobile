@@ -12,6 +12,7 @@ import { ensureClientId, clearClientId } from "../utils/clientId";
 import { getSupabaseAuthHeaders } from "../utils/supabaseHelpers";
 import { analyticsService } from "./AnalyticsService";
 import { revenueCatManager } from "./RevenueCatManager";
+import { telegramNotificationService } from "./TelegramNotificationService";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -397,6 +398,57 @@ export class AuthManager {
   }
 
   /**
+   * Notify Telegram about new user registration
+   */
+  private async notifyNewUserToTelegram(user: User): Promise<void> {
+    try {
+      // Check if this is a fresh registration (created within last 60 mins)
+      const createdAt = new Date(user.created_at);
+      const now = new Date();
+      const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+
+      console.log(`[AuthManager] Checking new user notification. Created: ${user.created_at}, Diff: ${diffInMinutes.toFixed(2)} mins, UserID: ${user.id}, IsNewUserFlag: ${this._isNewUser}`);
+
+      // Notify if created recently OR if flagged as new user (0 assets found)
+      // This covers cases where user "deleted" account (cleared assets) and re-joined
+      if (diffInMinutes <= 60 || this._isNewUser === true) {
+        const key = `telegram_notified_new_user_${user.id}`;
+        const hasNotified = await AsyncStorage.getItem(key);
+
+        if (!hasNotified) {
+          console.log('[AuthManager] Sending new user notification to Telegram...');
+          const meta = user.user_metadata || {};
+          const name = meta.full_name || meta.display_name || meta.name || user.email || "Unknown";
+
+          // Fallback for country if metadata is missing/stale
+          let country = meta.country;
+          if (!country) {
+            const locales = getLocales();
+            country = locales?.[0]?.regionCode || "Unknown";
+          }
+
+          await telegramNotificationService.notifyNewUser({
+            userId: user.id,
+            userName: name,
+            userCountry: country,
+            userAge: diffInMinutes <= 60 ? "New Registration" : "Re-registration (Reset)",
+            isPro: revenueCatManager.isProUser(),
+          });
+
+          await AsyncStorage.setItem(key, "true");
+          console.log('[AuthManager] Notification sent and flagged as done.');
+        } else {
+          console.log('[AuthManager] Notification already sent for this user.');
+        }
+      } else {
+        console.log('[AuthManager] User account is too old for "New User" notification and not flagged as new.');
+      }
+    } catch (error) {
+      console.warn("[AuthManager] Failed to notify Telegram:", error);
+    }
+  }
+
+  /**
    * Sign in with email and password
    */
   async signInWithEmail(
@@ -422,6 +474,7 @@ export class AuthManager {
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
         await this.ensureUserCountry(data.user);
+        await this.notifyNewUserToTelegram(data.user);
 
         this.setState({
           session: data.session,
@@ -468,6 +521,7 @@ export class AuthManager {
         });
         await revenueCatManager.login(data.user.id);
         await this.ensureUserCountry(data.user);
+        await this.notifyNewUserToTelegram(data.user);
       }
 
       this.setState({ isLoading: false });
@@ -533,6 +587,7 @@ export class AuthManager {
         analyticsService.setUserId(data.user.id);
         await revenueCatManager.login(data.user.id);
         await this.ensureUserCountry(data.user);
+        await this.notifyNewUserToTelegram(data.user);
       }
 
       this.setState({
@@ -608,6 +663,7 @@ export class AuthManager {
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
           await this.ensureUserCountry(sessionData.user);
+          await this.notifyNewUserToTelegram(sessionData.user);
         }
 
         this.setState({
@@ -634,6 +690,7 @@ export class AuthManager {
           analyticsService.setUserId(sessionData.user.id);
           await revenueCatManager.login(sessionData.user.id);
           await this.ensureUserCountry(sessionData.user);
+          await this.notifyNewUserToTelegram(sessionData.user);
         }
 
         this.setState({

@@ -558,7 +558,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                     {!isOnboardingFlow && !canSelect && (
                         <TouchableOpacity style={styles.goProButton} onPress={handleUpgradeToPro}>
                             <DiamondIcon width={24} height={24} />
-                            <Text style={styles.goProButtonText}>Go Pro</Text>
+                            <Text style={styles.goProButtonText}>Unlock All</Text>
                         </TouchableOpacity>
                     )}
 

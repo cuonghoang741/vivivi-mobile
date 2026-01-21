@@ -12,6 +12,7 @@ interface UserInfo {
   userName: string;
   userCountry: string;
   userAge: string; // Time since user started using the app
+  isPro?: boolean;
 }
 
 type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription' | 'ai_response';
@@ -36,7 +37,7 @@ class TelegramNotificationService {
   /**
    * Send a notification to Telegram
    */
-  private async sendToTelegram(message: string): Promise<void> {
+  private async sendToTelegram(message: string): Promise<number | null> {
     try {
       const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
@@ -56,11 +57,44 @@ class TelegramNotificationService {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('[TelegramNotificationService] Failed to send message:', errorData);
+        return null;
       } else {
+        const data = await response.json();
         console.log('[TelegramNotificationService] Message sent successfully');
+        return data.result?.message_id || null;
       }
     } catch (error) {
       console.error('[TelegramNotificationService] Error sending message:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Pin a message in Telegram
+   */
+  private async pinMessage(messageId: number): Promise<void> {
+    try {
+      const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/pinChatMessage`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          message_id: messageId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[TelegramNotificationService] Failed to pin message:', errorData);
+      } else {
+        console.log('[TelegramNotificationService] Message pinned successfully');
+      }
+    } catch (error) {
+      console.error('[TelegramNotificationService] Error pinning message:', error);
     }
   }
 
@@ -69,7 +103,7 @@ class TelegramNotificationService {
    */
   private formatUserInfo(userInfo: UserInfo): string {
     return `User ID: ${userInfo.userId}
-User Name: ${userInfo.userName}
+User Name: ${userInfo.userName}${userInfo.isPro ? ' <b>[ PRO 🌟 ]</b>' : ''}
 User Country: ${userInfo.userCountry}
 User Age: ${userInfo.userAge}`;
   }
@@ -80,28 +114,28 @@ User Age: ${userInfo.userAge}`;
   private getNotificationTitle(type: NotificationType): string {
     switch (type) {
       case 'new_user':
-        return 'NEW USER REGISTERED';
+        return '🆕 NEW USER REGISTERED';
       case 'chat_message':
-        return 'USER CHAT MESSAGE';
+        return '👤 USER CHAT MESSAGE';
       case 'ai_response':
-        return 'AI RESPONSE';
+        return '🤖 AI RESPONSE';
       case 'purchase_item':
-        return 'USER PURCHASED ITEM';
+        return '🛍️ USER PURCHASED ITEM';
       case 'subscription':
-        return 'USER SUBSCRIBED';
+        return '💎 USER SUBSCRIBED';
       default:
-        return 'NOTIFICATION';
+        return '🔔 NOTIFICATION';
     }
   }
 
   /**
    * Send notification for various events
    */
-  async sendNotification(payload: NotificationPayload): Promise<void> {
+  async sendNotification(payload: NotificationPayload): Promise<number | null> {
     // Skip notification for users from Vietnam
-    if (payload.userCountry?.toUpperCase() === 'VN') {
-      console.log('[TelegramNotificationService] Skipping notification for VN user');
-      return;
+    if (payload.userCountry?.toUpperCase() === 'VN' && (payload.type === 'chat_message' || payload.type === 'ai_response')) {
+      console.log('[TelegramNotificationService] Skipping chat notification for VN user');
+      return null;
     }
 
     const title = this.getNotificationTitle(payload.type);
@@ -110,6 +144,7 @@ User Age: ${userInfo.userAge}`;
       userName: payload.userName,
       userCountry: payload.userCountry,
       userAge: payload.userAge,
+      isPro: payload.isPro,
     });
 
     let message = `<b>${title}</b>\n\n${userInfo}`;
@@ -122,17 +157,21 @@ User Age: ${userInfo.userAge}`;
       message += `\n\n${additionalInfo}`;
     }
 
-    await this.sendToTelegram(message);
+    return await this.sendToTelegram(message);
   }
 
   /**
    * Notify when a new user registers
    */
   async notifyNewUser(userInfo: UserInfo): Promise<void> {
-    await this.sendNotification({
+    const messageId = await this.sendNotification({
       ...userInfo,
       type: 'new_user',
     });
+
+    if (messageId) {
+      await this.pinMessage(messageId);
+    }
   }
 
   /**
@@ -144,7 +183,7 @@ User Age: ${userInfo.userAge}`;
       type: 'chat_message',
       additionalData: {
         'Character': characterName,
-        'Message': messagePreview.substring(0, 100) + (messagePreview.length > 100 ? '...' : ''),
+        '👤 Message': messagePreview.substring(0, 100) + (messagePreview.length > 100 ? '...' : ''),
       },
     });
   }
@@ -158,7 +197,7 @@ User Age: ${userInfo.userAge}`;
       type: 'ai_response',
       additionalData: {
         'Character': characterName,
-        'Response': responseMessage.substring(0, 100) + (responseMessage.length > 100 ? '...' : ''),
+        '🤖 Response': responseMessage.substring(0, 100) + (responseMessage.length > 100 ? '...' : ''),
       },
     });
   }
@@ -193,7 +232,7 @@ User Age: ${userInfo.userAge}`;
     planName: string,
     productId: string
   ): Promise<void> {
-    await this.sendNotification({
+    const messageId = await this.sendNotification({
       ...userInfo,
       type: 'subscription',
       additionalData: {
@@ -201,6 +240,10 @@ User Age: ${userInfo.userAge}`;
         'Product ID': productId,
       },
     });
+
+    if (messageId) {
+      await this.pinMessage(messageId);
+    }
   }
 }
 

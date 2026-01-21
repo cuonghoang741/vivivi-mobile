@@ -158,7 +158,7 @@ const PremiumBanner: React.FC<{
             <View style={styles.premiumHeader}>
               <Text style={styles.premiumTitle}>Roxie</Text>
               <View style={styles.premiumBadge}>
-                <Text style={styles.premiumBadgeText}>Premium</Text>
+                <Text style={styles.premiumBadgeText}>Pro</Text>
               </View>
               <View style={styles.activeBadge}>
                 <Text style={styles.activeBadgeText}>Active</Text>
@@ -383,12 +383,24 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
   const handleLogout = useCallback(async () => {
     try {
       setIsLoggingOut(true);
-      await authManager.logout();
+      // Close the sheet first
       onClose();
+
+      // Wait for the sheet animation to finish before actually logging out (redirecting)
+      setTimeout(async () => {
+        try {
+          await authManager.logout();
+        } catch (error: any) {
+          console.warn('Logout failed:', error);
+          // If we fail to logout, we might want to show an alert, 
+          // but the sheet is already closed. 
+          // Since logout mainly clears local state, it rarely fails in a blocking way.
+        }
+      }, 500);
+
     } catch (error: any) {
-      Alert.alert('Sign out failed', error?.message);
-    } finally {
       setIsLoggingOut(false);
+      Alert.alert('Sign out failed', error?.message);
     }
   }, [onClose]);
 

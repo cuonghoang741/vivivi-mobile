@@ -12,7 +12,7 @@ type GoProButtonProps = {
 
 export const GoProButton: React.FC<GoProButtonProps> = ({
     onPress,
-    label = 'Go Pro',
+    label = 'Unlock All',
 }) => {
     const { isPro } = useSubscription();
 

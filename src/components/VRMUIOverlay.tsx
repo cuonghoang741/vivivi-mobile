@@ -342,7 +342,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
                 styles.menuLabel,
                 { opacity: expandAnimation }
               ]}>
-                Go Pro
+                Unlock All
               </Animated.Text>
             )}
           </View>

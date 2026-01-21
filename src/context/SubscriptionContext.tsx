@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 import { authManager } from '../services/AuthManager';
 import { getSupabaseClient } from '../services/supabase';
 import { callQuotaService } from '../services/CallQuotaService';
+import { telegramNotificationService } from '../services/TelegramNotificationService';
+import { getTelegramUserInfo } from '../utils/telegramUserHelper';
 
 // RevenueCat Public SDK Keys
 // const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
@@ -299,6 +301,23 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 customerInfo,
                 isLoading: false,
             }));
+
+            // Send Telegram notification
+            try {
+                const userInfo = await getTelegramUserInfo();
+                // Ensure PRO badge is visible immediately
+                if (isPro) userInfo.isPro = true;
+
+                telegramNotificationService.notifySubscription(
+                    userInfo,
+                    pkg.identifier,
+                    customerInfo.entitlements.active['pro']?.productIdentifier ||
+                    customerInfo.entitlements.active['premium']?.productIdentifier ||
+                    pkg.product.identifier
+                ).catch(e => console.warn('[SubscriptionContext] Failed to send Telegram notification:', e));
+            } catch (error) {
+                console.warn('[SubscriptionContext] Error preparing Telegram notification:', error);
+            }
 
             return { success: isPro };
         } catch (error: any) {

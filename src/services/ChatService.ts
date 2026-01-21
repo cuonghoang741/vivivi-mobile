@@ -76,6 +76,7 @@ class ChatService {
     characterId: string;
     characterName: string;
     history: ChatMessage[];
+    isPro?: boolean;
   }): Promise<string> {
     if (!params.text.trim() || !params.characterId) {
       throw new Error('Missing message or character id');
@@ -102,6 +103,7 @@ class ChatService {
         character_id: params.characterId,
         conversation_history,
         user_id: userId,
+        is_pro: params.isPro,
       },
     });
 

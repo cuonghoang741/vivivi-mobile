@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, ScrollView, TouchableOpacity, PermissionsAndroid, KeyboardAvoidingView, Pressable, Linking, PanResponder, Animated } from 'react-native';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -53,7 +53,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
 import { ToastStackView } from './src/components/toast/ToastStackView';
-import { RewardClaimOverlay, RewardClaimOverlayHelpers, type RewardItem } from './src/components/toast/RewardClaimOverlay';
+import { RewardClaimOverlay, type RewardItem } from './src/components/toast/RewardClaimOverlay';
 import { Persistence } from './src/utils/persistence';
 import { oneSignalService } from './src/services/OneSignalService';
 import { analyticsService } from './src/services/AnalyticsService';
@@ -83,8 +83,6 @@ const AppContent = () => {
   const {
     authState,
     initialData,
-    initialDataLoading,
-    initialDataError,
     refreshInitialData,
     ensureInitialModelApplied,
     currentCharacter,
@@ -92,16 +90,13 @@ const AppContent = () => {
     setCurrentCostume,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
-  const userId = session?.user?.id ?? null;
 
   const navigation = useNavigation<ExperienceNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'Experience'>>();
   const webViewRef = useRef<any>(null);
   const snapshotViewRef = useRef<View | null>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
-  const characterRepoRef = useRef<CharacterRepository | null>(null);
   const lastBgmBeforeVoiceRef = useRef(false);
-  const chatListWasVisibleBeforeCameraRef = useRef(false);
   const [showSwiftUIDemo, setShowSwiftUIDemo] = useState(false);
   const [showCallEndedModal, setShowCallEndedModal] = useState(false);
   const [overlayFlags, setOverlayFlags] = useState({

@@ -3,6 +3,7 @@
  */
 
 import { authManager } from '../services/AuthManager';
+import { revenueCatManager } from '../services/RevenueCatManager';
 import { getLocales } from 'expo-localization';
 
 interface TelegramUserInfo {
@@ -10,6 +11,7 @@ interface TelegramUserInfo {
   userName: string;
   userCountry: string;
   userAge: string; // Time since user started using the app (e.g., "5d 3h", "2h 30m")
+  isPro: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
       userName: 'Unknown',
       userCountry: 'Unknown',
       userAge: 'Unknown',
+      isPro: false,
     };
   }
 
@@ -67,10 +70,15 @@ export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
     console.warn('[TelegramUserHelper] Failed to get country:', e);
   }
 
+  const isPro = revenueCatManager.isProUser();
+
+  console.log("isProssxx", isPro)
+
   return {
     userId,
     userName: displayName,
     userCountry,
     userAge,
+    isPro,
   };
 }
