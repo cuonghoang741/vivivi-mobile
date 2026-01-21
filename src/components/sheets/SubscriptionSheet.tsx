@@ -72,6 +72,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         restorePurchases,
     } = useSubscription();
 
+    console.log("packages", packages)
+
     // Map of local video assets by character order
     const LOCAL_VIDEOS: Record<number, any> = {
         1: require('../../assets/videos/1.mp4'),
@@ -87,16 +89,38 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     // Find yearly and monthly packages
     const yearlyPackage = packages.find(p =>
         p.packageType === 'ANNUAL' ||
+        p.packageType === 'LIFETIME' ||
         p.identifier.toLowerCase().includes('year') ||
         p.identifier.toLowerCase().includes('annual') ||
         p.product.title.toLowerCase().includes('year') ||
-        p.product.title.toLowerCase().includes('annual')
+        p.product.title.toLowerCase().includes('annual') ||
+        p.product.identifier.toLowerCase().includes('year') ||
+        p.product.identifier.toLowerCase().includes('annual')
     );
     const monthlyPackage = packages.find(p =>
         p.packageType === 'MONTHLY' ||
         p.identifier.toLowerCase().includes('month') ||
-        p.product.title.toLowerCase().includes('month')
+        p.product.title.toLowerCase().includes('month') ||
+        p.product.identifier.toLowerCase().includes('month')
     );
+
+    // Calculate discount percentage
+    const discountPercentage = React.useMemo(() => {
+        if (!yearlyPackage || !monthlyPackage) return null;
+
+        const monthlyPrice = monthlyPackage.product.price;
+        const yearlyPrice = yearlyPackage.product.price;
+
+        if (monthlyPrice <= 0) return null;
+
+        const yearlyCostOfMonthly = monthlyPrice * 12;
+        const savings = yearlyCostOfMonthly - yearlyPrice;
+        const percentage = Math.round((savings / yearlyCostOfMonthly) * 100);
+
+        if (percentage <= 0) return null;
+
+        return `${percentage}% OFF`;
+    }, [yearlyPackage, monthlyPackage]);
 
     // Track view
     useEffect(() => {
@@ -187,15 +211,19 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                     // Try to find yearly
                     packageToPurchase = offerings.availablePackages.find(
                         p => p.packageType === 'ANNUAL' ||
+                            p.packageType === 'LIFETIME' ||
                             p.identifier.toLowerCase().includes('year') ||
-                            p.identifier.toLowerCase().includes('annual')
+                            p.identifier.toLowerCase().includes('annual') ||
+                            p.product.identifier.toLowerCase().includes('year') ||
+                            p.product.identifier.toLowerCase().includes('annual')
                     );
 
                     // If no yearly, try monthly
                     if (!packageToPurchase) {
                         packageToPurchase = offerings.availablePackages.find(
                             p => p.packageType === 'MONTHLY' ||
-                                p.identifier.toLowerCase().includes('month')
+                                p.identifier.toLowerCase().includes('month') ||
+                                p.product.identifier.toLowerCase().includes('month')
                         );
                     }
 
@@ -432,9 +460,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
                                                 <Text style={styles.blueBadgeText}>ACTIVE</Text>
                                             </View>
-                                        ) : (selectedPackage?.identifier === yearlyPackage.identifier && (
+                                        ) : (selectedPackage?.identifier === yearlyPackage.identifier && discountPercentage && (
                                             <View style={styles.blueBadge}>
-                                                <Text style={styles.blueBadgeText}>80% OFF</Text>
+                                                <Text style={styles.blueBadgeText}>{discountPercentage}</Text>
                                             </View>
                                         ))}
                                         <Text style={styles.planName}>Yearly</Text>
