@@ -54,10 +54,10 @@ function withIOS(config, { appId, displayName, clientToken }) {
     FB_QUERY_SCHEMES.forEach((s) => existing.add(s));
     plist.LSApplicationQueriesSchemes = Array.from(existing);
 
-    if (!plist.NSUserTrackingUsageDescription) {
-      plist.NSUserTrackingUsageDescription =
-        'We use tracking to provide personalized experience and improve our services.';
-    }
+    // if (!plist.NSUserTrackingUsageDescription) {
+    //   plist.NSUserTrackingUsageDescription =
+    //     'We use tracking to provide personalized experience and improve our services.';
+    // }
 
     return cfg;
   });

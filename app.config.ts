@@ -45,8 +45,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'We need permission to add media files to your Photo Library when you save them.',
       NSMicrophoneUsageDescription:
         'We need access to your Microphone for voice conversations with VRM characters.',
-      NSUserTrackingUsageDescription:
-        'This identifier will be used to deliver personalized ads to you.',
+      // NSUserTrackingUsageDescription:
+      //   'This identifier will be used to deliver personalized ads to you.',
     },
     requireFullScreen: false,
     usesAppleSignIn: true,

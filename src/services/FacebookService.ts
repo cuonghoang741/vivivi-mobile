@@ -60,7 +60,7 @@ export const FacebookService = {
      * Most init is handled by the native manifest/plist
      */
     init: () => {
-        Settings.setAdvertiserTrackingEnabled(true);
+        Settings.setAdvertiserTrackingEnabled(false);
         Settings.setAutoLogAppEventsEnabled(true);
         Settings.initializeSDK();
         console.log('[Facebook] SDK Initialized');

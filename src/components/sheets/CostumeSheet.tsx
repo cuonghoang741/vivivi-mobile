@@ -203,9 +203,9 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
             {/* Lock overlay content */}
             {(isProLocked || isStreakLocked) ? (
               <View style={styles.lockContentContainer}>
-                <View style={[styles.lockIconCircle, isStreakLocked && styles.glassCircle]}>
+                {/* <View style={[styles.lockIconCircle, isStreakLocked && styles.glassCircle]}>
                   <Ionicons name="lock-closed" size={16} color="#fff" />
-                </View>
+                </View> */}
 
                 {isStreakLocked && (
                   <Text style={styles.streakLockText}>

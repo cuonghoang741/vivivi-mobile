@@ -210,7 +210,7 @@ const PremiumBanner: React.FC<{
             Unlock unlimited content and pro features.
           </Text>
           <View style={styles.premiumButton}>
-            <Text style={styles.premiumButtonText}>Unlock Pro</Text>
+            <Text style={styles.premiumButtonText}>Unlock All</Text>
           </View>
         </View>
         <View style={styles.premiumIconContainer}>
