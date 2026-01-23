@@ -183,7 +183,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         if (customerInfo) {
             const activeEntitlement = customerInfo.entitlements.active['pro'] ||
                 customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['roxie_pro'];
+                customerInfo.entitlements.active['yukie_pro'];
             if (activeEntitlement) {
                 setActiveProductId(activeEntitlement.productIdentifier);
             }
@@ -357,8 +357,6 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
 
     const videoSource = backgroundVideo || DEFAULT_VIDEO_URL;
 
-    console.log("videoSource", videoSource)
-
     return (
         <Modal
             visible={isOpened}
@@ -413,7 +411,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             >
                                 <View style={styles.heroContent}>
                                     <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                                        <Text style={styles.proBadgeTextName}>Roxie</Text>
+                                        <Text style={styles.proBadgeTextName}>Yukie</Text>
                                         <LinearGradient
                                             colors={['#FFD91B', '#FFE979']}
                                             start={{ x: 0, y: 0 }}

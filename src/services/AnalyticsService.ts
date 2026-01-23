@@ -46,6 +46,7 @@ export const AnalyticsEvents = {
   DANCE_TRIGGER: 'dance_trigger',
   LOVE_TRIGGER: 'love_trigger',
   CAPTURE_PHOTO: 'capture_photo',
+  ACTION_SUGGESTED: 'action_suggested',
 
   // Purchase Events  
   PURCHASE_START: 'purchase_start',
@@ -340,6 +341,14 @@ class AnalyticsService {
     await this.logEvent(AnalyticsEvents.CAPTURE_PHOTO, {
       character_id: characterId,
       background_id: backgroundId
+    });
+  }
+
+  async logActionSuggested(action: string, confidence: number, parameters?: any): Promise<void> {
+    await this.logEvent(AnalyticsEvents.ACTION_SUGGESTED, {
+      action,
+      confidence,
+      parameters: JSON.stringify(parameters || {})
     });
   }
 

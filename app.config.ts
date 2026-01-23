@@ -7,12 +7,12 @@ const EAS_PROJECT_ID = '05bd0c6c-5433-4468-a849-ccee180ba617'; // Will be set af
 const PROJECT_SLUG = 'vivivi';
 
 // App production config
-const APP_NAME = 'Roxie';
+const APP_NAME = 'Yukie';
 const BUNDLE_IDENTIFIER = 'com.vivivi';
-const PACKAGE_NAME = 'com.eduto.roxie';
+const PACKAGE_NAME = 'com.eduto.yukie';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
-const SCHEME = 'roxie';
+const SCHEME = 'yukie';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
@@ -106,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       './withFacebookConfig',
       {
         appId: '1217703997132677',
-        displayName: 'Roxie',
+        displayName: 'Yukie',
         clientToken: 'bf147c448ca2780663c32b64a6aff490',
       },
     ],

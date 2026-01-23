@@ -33,11 +33,12 @@ class MediaRequestService {
                 return null;
             }
 
-            // 3. Filter by accessibility logic removed to allow locked preview
-            // We now pick random content from ALL media of that type.
-            // The UI will handle locking/blurring if user is not Pro.
-
-            const accessibleMedia = typeFiltered;
+            // 3. Filter by tier if not Pro
+            let accessibleMedia = typeFiltered;
+            if (!isPro) {
+                console.log('[MediaRequestService] User is not Pro, filtering for free media only');
+                accessibleMedia = typeFiltered.filter(item => item.tier === 'free');
+            }
 
             if (accessibleMedia.length === 0) {
                 console.log('[MediaRequestService] No media found');
@@ -50,6 +51,39 @@ class MediaRequestService {
 
         } catch (error) {
             console.warn('[MediaRequestService] Error fetching media:', error);
+            return null;
+        }
+    }
+    async getProMedia(
+        characterId: string,
+        type: 'photo' | 'video'
+    ): Promise<MediaItem | null> {
+        try {
+            // 1. Fetch all available media for the character
+            const allMedia = await this.mediaRepository.fetchAllMedia(characterId);
+
+            if (!allMedia || allMedia.length === 0) {
+                return null;
+            }
+
+            // 2. Filter by type and force tier='pro'
+            const filtered = allMedia.filter(item => {
+                const isVideo = item.content_type?.startsWith('video') || item.url.endsWith('.mp4') || item.url.endsWith('.mov');
+                const matchType = type === 'video' ? isVideo : !isVideo;
+                return matchType && item.tier === 'pro';
+            });
+
+            if (filtered.length === 0) {
+                console.log('[MediaRequestService] No Pro media found for', type);
+                return null;
+            }
+
+            // 3. Pick a random item
+            const randomIndex = Math.floor(Math.random() * filtered.length);
+            return filtered[randomIndex];
+
+        } catch (error) {
+            console.warn('[MediaRequestService] Error fetching pro media:', error);
             return null;
         }
     }

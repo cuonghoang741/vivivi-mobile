@@ -49,9 +49,19 @@ const AVAILABLE_ACTIONS = [
         examples: ["đổi quần áo đi", "thay đồ khác", "change your outfit", "mặc đồ khác đi"]
     },
     {
+        action: "send_nude_media",
+        description: "User specifically asks for nude, suggestive, NSFW, or sexy photos/videos (e.g. 'send nude', 'sexy photo', 'hot video')",
+        examples: ["gửi ảnh nude đi", "send nude", "sexy photo", "gửi ảnh nóng", "video khiêu gợi"]
+    },
+    {
+        action: "become_nude",
+        description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
+        examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", "show pussy", "show boobs"]
+    },
+    {
         action: "change_character",
         description: "User wants to switch to a different character entirely",
-        examples: ["đổi nhân vật khác", "I want to talk to someone else", "switch character"]
+        examples: ["đổi nhân vật khác", "I want to talk to someone else", "switch character", "Do you have friend?"]
     },
     {
         action: "play_animation",
@@ -66,7 +76,7 @@ const AVAILABLE_ACTIONS = [
     {
         action: "start_video_call",
         description: "User wants to start a video call with camera",
-        examples: ["video call", "gọi video đi", "muốn nhìn thấy mặt em"]
+        examples: ["video call", "gọi video đi", "muốn nhìn thấy mặt em", "I miss you"]
     },
     {
         action: "open_subscription",
@@ -96,6 +106,8 @@ IMPORTANT RULES:
 5. Only return action when user is giving a COMMAND or EXPLICIT REQUEST
 6. For play_animation, try to match user's request to the most appropriate animation name
 7. If user says something emotional like "hôn anh" (kiss me), "vui lên" (be happy), "giận đi" (be angry), these ARE animation requests
+9. For 'become_nude', words like "cởi", "cởi đồ", "nude", "naked", "lột" relating to the 3D model are indicators.
+10. If user asks for "nude photo", "sexy video", "hot picture", use 'send_nude_media', NOT 'send_photo' or 'become_nude'.
 
 Return ONLY a JSON object with this exact format:
 {"action": "action_name", "confidence": 0.0-1.0, "parameters": {"animationName": "Animation Name"}, "reasoning": "brief explanation"}

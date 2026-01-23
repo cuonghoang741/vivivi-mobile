@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { chatService } from '../services/ChatService';
 import { streakService } from '../services/StreakService';
 import { actionDetectionService, DetectedAction } from '../services/ActionDetectionService';
+import { analyticsService } from '../services/AnalyticsService';
 import { mediaRequestService } from '../services/MediaRequestService';
 import { ChatMessage, ChatViewState } from '../types/chat';
 import { QuestProgressTracker } from '../utils/QuestProgressTracker';
@@ -258,21 +259,52 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         // Handle action if detected with high confidence
         if (detectedAction.action !== 'none' && detectedAction.confidence >= ACTION_CONFIDENCE_THRESHOLD) {
           console.log('[useChatManager] Action detected:', detectedAction);
+
+          // Log analytics
+          analyticsService.logActionSuggested(
+            detectedAction.action,
+            detectedAction.confidence,
+            detectedAction.parameters
+          );
+
           actionCallback?.(detectedAction, trimmed);
 
           // Handle Media Requests
-          if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video') {
-            const type = detectedAction.action === 'send_photo' ? 'photo' : 'video';
+          if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video' || detectedAction.action === 'send_nude_media') {
+            const isNudeRequest = detectedAction.action === 'send_nude_media';
+            let type: 'photo' | 'video' = 'photo';
+
+            if (detectedAction.action === 'send_video') {
+              type = 'video';
+            } else if (isNudeRequest) {
+              // Infer type from text for nude request
+              const lowerText = trimmed.toLowerCase();
+              if (lowerText.includes('video') || lowerText.includes('clip') || lowerText.includes('quay')) {
+                type = 'video';
+              }
+            }
+
             const isPro = options?.isPro ?? false;
 
+            // Promise to fetch media
+            const mediaPromise = isNudeRequest
+              ? mediaRequestService.getProMedia(characterId, type)
+              : mediaRequestService.getAccessibleMedia(characterId, type, isPro);
+
             // Fetch accessible media
-            mediaRequestService.getAccessibleMedia(characterId, type, isPro)
+            mediaPromise
               .then(media => {
                 if (media) {
                   // Add media message after a short natural delay
                   setTimeout(() => {
                     addMediaMessage(media);
                   }, 1500);
+                } else if (isNudeRequest && !isPro) {
+                  // If no Pro media found (maybe database empty) OR user is free and we want to upsell?
+                  // Actually getProMedia returns null if none found.
+                  // If we found nothing, maybe send a text saying "I don't have those yet"?
+                  // But if we found it, it's sent.
+                  // Note: getProMedia returns items even if !isPro. The UI handles blurring.
                 }
               })
               .catch(err => console.warn('[useChatManager] Failed to fetch media request:', err));
@@ -287,7 +319,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         console.warn('[useChatManager] sendText failed', error);
         setState(prev => ({ ...prev, isTyping: false }));
         const errorMessage = createLocalMessage(
-          'Sorry, I could not reach Roxie right now. Please try again in a moment.',
+          'Sorry, I could not reach Yukie right now. Please try again in a moment.',
           true
         );
         appendMessage(errorMessage);

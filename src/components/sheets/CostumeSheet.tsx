@@ -88,7 +88,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
       const filtered = costumes.filter(costume => costume.available !== false);
 
-      // Sort: Owned first, then streak items, then others
+      // Sort: Owned first, then streak items, then natural order (Tier ASC from DB)
       const sorted = filtered.sort((a, b) => {
         const ownedA = ownedSet.has(a.id);
         const ownedB = ownedSet.has(b.id);
@@ -122,6 +122,8 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
     const isOwned = ownedCostumeIds.has(item.id);
     const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
+    const isFree = item.tier === 'free';
+
     // User request: trigger StreakSheet for any unowned streak item if not Pro
     if (isStreakItem && !isPro && !isOwned) {
       sheetRef.current?.dismiss();
@@ -129,10 +131,10 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       return;
     }
 
-    // If PRO or already owned, can select directly
-    if (isPro || isOwned) {
-      // If PRO but not owned, auto-add to owned assets
-      if (isPro && !isOwned) {
+    // If PRO, Free tier, or already owned, can select directly
+    if (isPro || isOwned || isFree) {
+      // If (PRO or Free) but not owned, auto-add to owned assets
+      if ((isPro || isFree) && !isOwned) {
         try {
           const assetRepository = new AssetRepository();
           await assetRepository.createAsset(item.id, 'character_costume');
@@ -143,7 +145,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       }
       void selectCostume(item);
     } else {
-      // Not PRO and not owned - open subscription
+      // Not PRO, not Free, not owned - open subscription
       sheetRef.current?.dismiss();
       setTimeout(() => onOpenSubscription?.(), 300);
     }
@@ -153,8 +155,10 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     ({ item }: { item: CostumeItem }) => {
       const isOwned = ownedCostumeIds.has(item.id);
       const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
+      const isFree = item.tier === 'free';
       const isStreakLocked = !isPro && isStreakItem && !isOwned && streakDays < (item.streak_days ?? 0);
-      const isProLocked = !isPro && !isOwned && !isStreakItem;
+      // Locked if: Not Pro AND Not Owned AND Not Streak Item AND Not Free
+      const isProLocked = !isPro && !isOwned && !isStreakItem && !isFree;
 
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;

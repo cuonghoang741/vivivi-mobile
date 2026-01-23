@@ -34,13 +34,13 @@ class VideoCacheServiceImpl {
             const dirInfo = await FileSystem.getInfoAsync(VIDEO_CACHE_DIR);
             if (!dirInfo.exists) {
                 await FileSystem.makeDirectoryAsync(VIDEO_CACHE_DIR, { intermediates: true });
-                console.log('[VideoCacheService] Created cache directory');
+                //console.log('[VideoCacheService] Created cache directory');
             }
 
             // Load existing cache entries
             await this.loadExistingCache();
             this.initialized = true;
-            console.log('[VideoCacheService] Initialized with', this.cache.size, 'cached videos');
+            //console.log('[VideoCacheService] Initialized with', this.cache.size, 'cached videos');
         } catch (error) {
             console.error('[VideoCacheService] Failed to initialize:', error);
         }
@@ -138,14 +138,14 @@ class VideoCacheServiceImpl {
         // Return cached URI if already downloaded
         const cachedUri = this.getCachedUri(url);
         if (cachedUri) {
-            console.log('[VideoCacheService] Video already cached:', url.slice(-50));
+            //console.log('[VideoCacheService] Video already cached:', url.slice(-50));
             return cachedUri;
         }
 
         // Return existing download promise if in progress
         const existingPromise = this.downloadPromises.get(url);
         if (existingPromise) {
-            console.log('[VideoCacheService] Download already in progress:', url.slice(-50));
+            //console.log('[VideoCacheService] Download already in progress:', url.slice(-50));
             return existingPromise;
         }
 
@@ -169,7 +169,7 @@ class VideoCacheServiceImpl {
         const localUri = VIDEO_CACHE_DIR + filename;
 
         try {
-            console.log('[VideoCacheService] Starting download:', url.slice(-50));
+            //console.log('[VideoCacheService] Starting download:', url.slice(-50));
 
             // Check cache size before downloading
             await this.ensureCacheSpace();
@@ -215,7 +215,7 @@ class VideoCacheServiceImpl {
         const validUrls = urls.filter((url): url is string => !!url);
         const results = new Map<string, string | null>();
 
-        console.log('[VideoCacheService] Preloading', validUrls.length, 'videos');
+        //console.log('[VideoCacheService] Preloading', validUrls.length, 'videos');
 
         // Download in parallel with a concurrency limit
         const concurrencyLimit = 3;
@@ -274,7 +274,7 @@ class VideoCacheServiceImpl {
                 await FileSystem.deleteAsync(oldest.entry.localUri, { idempotent: true });
                 this.cache.delete(oldest.url);
                 totalSize -= oldest.entry.size;
-                console.log('[VideoCacheService] Removed old cache entry:', oldest.entry.localUri.slice(-50));
+                //console.log('[VideoCacheService] Removed old cache entry:', oldest.entry.localUri.slice(-50));
             } catch (error) {
                 console.warn('[VideoCacheService] Failed to remove cache entry:', error);
             }
@@ -290,7 +290,7 @@ class VideoCacheServiceImpl {
             await FileSystem.makeDirectoryAsync(VIDEO_CACHE_DIR, { intermediates: true });
             this.cache.clear();
             this.downloadPromises.clear();
-            console.log('[VideoCacheService] Cache cleared');
+            //console.log('[VideoCacheService] Cache cleared');
         } catch (error) {
             console.error('[VideoCacheService] Failed to clear cache:', error);
         }

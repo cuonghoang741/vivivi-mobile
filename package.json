@@ -1,6 +1,6 @@
 {
   "name": "native-version",
-  "version": "1.0.36",
+  "version": "1.0.37",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -72,6 +72,7 @@
     "onesignal-expo-plugin": "^2.0.3",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-animatable": "^1.4.0",
     "react-native-appsflyer": "^6.17.8",
     "react-native-fbsdk-next": "^13.4.1",
     "react-native-image-viewing": "^0.2.2",

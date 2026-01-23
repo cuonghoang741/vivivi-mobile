@@ -80,7 +80,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
       const ownedSet = new Set(ownedIds);
       setOwnedBackgroundIds(ownedSet);
 
-      // Sort: Owned first, then others
+      // Sort: Owned first, then natural order (Tier ASC from DB)
       const sorted = availableBackgrounds.sort((a, b) => {
         const isOwned1 = ownedSet.has(a.id);
         const isOwned2 = ownedSet.has(b.id);
@@ -137,11 +137,12 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const isOwned = ownedBackgroundIds.has(item.id);
+    const isFree = item.tier === 'free';
 
-    // If PRO or already owned, can select directly
-    if (isPro || isOwned) {
-      // If PRO but not owned, auto-add to owned assets
-      if (isPro && !isOwned) {
+    // If PRO, Free tier, or already owned, can select directly
+    if (isPro || isOwned || isFree) {
+      // If (PRO or Free) but not owned, auto-add to owned assets
+      if ((isPro || isFree) && !isOwned) {
         try {
           const assetRepository = new AssetRepository();
           await assetRepository.createAsset(item.id, 'background');
@@ -152,7 +153,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
       }
       void selectBackground(item);
     } else {
-      // Not PRO and not owned - open subscription
+      // Not PRO, Not Free, not owned - open subscription
       sheetRef.current?.dismiss();
       setTimeout(() => onOpenSubscription?.(), 300);
     }
@@ -160,7 +161,8 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
 
   const renderItem = ({ item }: { item: BackgroundItem }) => {
     const isOwned = ownedBackgroundIds.has(item.id);
-    const isLocked = !isPro && !isOwned;
+    const isFree = item.tier === 'free';
+    const isLocked = !isPro && !isOwned && !isFree;
     const itemWidth = (width - 40 - 24) / 3;
     const isSelected = currentBackgroundId ? currentBackgroundId === item.id : initialData?.preference?.backgroundId === item.id;
 

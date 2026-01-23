@@ -123,7 +123,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                         }
 
                         // 0. Check for local video asset first (NEW)
-                        // Parse order to number to handle cases like "0001" -> 1
+                        // Parse order to number to handle cases like "001" -> 1
                         const orderNum = char.order ? parseInt(String(char.order), 10) : null;
 
                         console.log(`[CharacterPreview] Checking local video for ${char.name}, order raw: "${char.order}", parsed: ${orderNum}`);
@@ -304,7 +304,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
 
     const handleUpgradeToPro = useCallback(() => {
         Alert.alert(
-            'Upgrade to Roxie Pro',
+            'Upgrade to Yukie Pro',
             'Unlock all characters, costumes, and backgrounds with a Pro subscription.',
             [
                 { text: 'Maybe Later', style: 'cancel' },

@@ -25,6 +25,7 @@ export class BackgroundRepository extends BaseRepository {
       .select('id,name,thumbnail,image,video_url,created_at,public,tier,available,price_vcoin,price_ruby,is_dark')
       .eq('public', true)
       .eq('available', true)
+      .order('tier', { ascending: true }) // Prioritize free tier
       .order('created_at', { ascending: true });
 
     if (error) {

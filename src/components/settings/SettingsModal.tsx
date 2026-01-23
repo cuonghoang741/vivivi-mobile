@@ -156,7 +156,7 @@ const PremiumBanner: React.FC<{
         >
           <View style={styles.premiumContent}>
             <View style={styles.premiumHeader}>
-              <Text style={styles.premiumTitle}>Roxie</Text>
+              <Text style={styles.premiumTitle}>Yukie</Text>
               <View style={styles.premiumBadge}>
                 <Text style={styles.premiumBadgeText}>Pro</Text>
               </View>
@@ -201,7 +201,7 @@ const PremiumBanner: React.FC<{
       >
         <View style={styles.premiumContent}>
           <View style={styles.premiumHeader}>
-            <Text style={styles.premiumTitle}>Roxie</Text>
+            <Text style={styles.premiumTitle}>Yukie</Text>
             <View style={styles.premiumBadge}>
               <Text style={styles.premiumBadgeText}>Pro</Text>
             </View>

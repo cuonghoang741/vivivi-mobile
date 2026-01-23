@@ -18,6 +18,8 @@ export type ActionType =
     | 'start_voice_call'
     | 'start_video_call'
     | 'open_subscription'
+    | 'become_nude' // Added nude action
+    | 'send_nude_media'
     | 'none';
 
 export interface DetectedAction {
@@ -79,7 +81,8 @@ class ActionDetectionService {
                 'send_photo', 'send_video',
                 'change_background', 'change_costume', 'change_character',
                 'play_animation', 'start_voice_call', 'start_video_call',
-                'open_subscription', 'none'
+                'open_subscription', 'become_nude', 'send_nude_media', // Added nude actions
+                'none'
             ];
 
             const action = validActions.includes(parsed.action) ? parsed.action : 'none';

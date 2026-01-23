@@ -225,7 +225,7 @@ export const SignInScreen: React.FC<Props> = ({
                 )}
               </TouchableOpacity>
             )}
-            {onSignInWithGoogle ? (
+            {onSignInWithGoogle && (Platform.OS !== 'ios' || __DEV__) ? (
               <TouchableOpacity
                 activeOpacity={0.85}
                 disabled={disableAuthButtons}

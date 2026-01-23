@@ -6,6 +6,7 @@ import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-na
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { mediaDevices, MediaStream, RTCView } from '@livekit/react-native-webrtc';
+import { BlurView } from 'expo-blur';
 import { VRMWebView } from './src/components/VRMWebView';
 import { VRMUIOverlay } from './src/components/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
@@ -88,11 +89,13 @@ const AppContent = () => {
     currentCharacter,
     setCurrentCharacterState,
     setCurrentCostume,
+    currentCostume,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
 
   const navigation = useNavigation<ExperienceNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'Experience'>>();
+  const pendingNudeRevertRef = useRef(false);
   const webViewRef = useRef<any>(null);
   const snapshotViewRef = useRef<View | null>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
@@ -141,6 +144,7 @@ const AppContent = () => {
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
   const [isDancing, setIsDancing] = useState(false);
+  const [isCharacterBlurred, setIsCharacterBlurred] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
     title: string;
@@ -384,10 +388,12 @@ const AppContent = () => {
         break;
 
       case 'change_costume':
+        setIsCharacterBlurred(false);
         setShowCostumeSheet(true);
         break;
 
       case 'change_character':
+        setIsCharacterBlurred(false);
         setShowCharacterSheet(true);
         break;
 
@@ -398,6 +404,94 @@ const AppContent = () => {
           webBridgeRef.current?.loadAnimationByName(action.parameters.animationName);
         } else {
           webBridgeRef.current?.triggerDance();
+        }
+        break;
+
+      case 'become_nude':
+        console.log('[App] Handling become_nude action');
+        if (currentCharacter) {
+          console.log("currentCharacter", currentCharacter)
+          // Find full character object to get order
+          const charItem = allCharacters.find(c => c.id === currentCharacter.id);
+          const order = charItem?.order;
+
+          if (order) {
+            // Apply blur
+            setIsCharacterBlurred(true);
+
+            // If NOT Pro, show uncensored alert immediately
+            if (!isPro) {
+              Alert.alert(
+                'Unlock All',
+                'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
+                [
+                  {
+                    text: 'Go Back',
+                    style: 'cancel',
+                    onPress: async () => {
+                      // Revert costume
+                      if (currentCharacter && webViewRef.current) {
+                        try {
+                          const currentCostumeId = currentCostume?.id;
+                          if (currentCostumeId) {
+                            await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                          } else {
+                            // Fallback to default or base
+                            const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                            if (fullChar?.default_costume_id) {
+                              await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                            } else if (fullChar?.base_model_url) {
+                              await UserCharacterPreferenceService.loadFallbackModel(
+                                currentCharacter.name,
+                                fullChar.base_model_url,
+                                webViewRef,
+                                currentCharacter.id
+                              );
+                            }
+                          }
+                          // Wait for reload then unblur
+                          setTimeout(() => setIsCharacterBlurred(false), 1000);
+                        } catch (e) {
+                          console.warn("Revert failed", e);
+                          setIsCharacterBlurred(false);
+                        }
+                      } else {
+                        setIsCharacterBlurred(false);
+                      }
+                    }
+                  },
+                  {
+                    text: 'Upgrade',
+                    onPress: () => {
+                      pendingNudeRevertRef.current = true;
+                      setShowSubscriptionSheet(true);
+                      // Keep blurred
+                    }
+                  }
+                ]
+              );
+            }
+
+            // Load model regardless (visual is blurred, so loading behind blur is fine/good UX for instant reveal)
+            // Or should we BLOCK loading if not pro? 
+            // The prompt says "nếu là tài khoản free thì bị blur khi become_nude, và hiện lên popup".
+            // It suggests blur happens when nude. 
+            // If we don't load nude model, there is nothing to blur (except normal model).
+            // Let's load it so if they upgrade it reveals.
+            const orderStr = String(order).padStart(3, '0');
+            const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
+            const nudeModelName = `${orderStr}_nude.vrm`;
+
+            console.log("nudeUrl", nudeUrl)
+
+            // Inject JS to load model
+            if (webViewRef.current) {
+              const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const escapedName = nudeModelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+              webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+            }
+          }
         }
         break;
 
@@ -417,7 +511,7 @@ const AppContent = () => {
       default:
         break;
     }
-  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation]);
+  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation, currentCharacter, allCharacters]);
 
   const {
     state: chatState,
@@ -2192,10 +2286,52 @@ const AppContent = () => {
 
         <SubscriptionSheet
           isOpened={showSubscriptionSheet}
-          onClose={() => setShowSubscriptionSheet(false)}
+          onClose={async () => {
+            setShowSubscriptionSheet(false);
+
+            // If we were in a pending nude revert state (user canceled upgrade flow)
+            if (pendingNudeRevertRef.current) {
+              pendingNudeRevertRef.current = false;
+
+              // Revert to normal costume/character
+              if (currentCharacter && webViewRef.current) {
+                try {
+                  const currentCostumeId = currentCostume?.id;
+                  if (currentCostumeId) {
+                    await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                  } else {
+                    const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                    if (fullChar?.default_costume_id) {
+                      await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                    } else if (fullChar?.base_model_url) {
+                      await UserCharacterPreferenceService.loadFallbackModel(
+                        currentCharacter.name,
+                        fullChar.base_model_url,
+                        webViewRef,
+                        currentCharacter.id
+                      );
+                    }
+                  }
+                  // Wait for reload then unblur
+                  setTimeout(() => setIsCharacterBlurred(false), 1000);
+                } catch (e) {
+                  console.warn("Revert failed", e);
+                  setIsCharacterBlurred(false);
+                }
+              } else {
+                setIsCharacterBlurred(false);
+              }
+            }
+          }}
           onPurchaseSuccess={() => {
             console.log('[App] Purchase success callback, refreshing quota...');
             refreshQuota();
+
+            // If they bought pro while in nude flow, let them see it!
+            if (pendingNudeRevertRef.current) {
+              pendingNudeRevertRef.current = false;
+              setIsCharacterBlurred(false);
+            }
           }}
         />
         <CallEndedModal
@@ -2233,6 +2369,13 @@ const AppContent = () => {
                 enableDebug={false}
               />
             </Pressable>
+            {isCharacterBlurred && (
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                intensity={60}
+                tint={isDarkBackground ? 'dark' : 'light'}
+              />
+            )}
           </View>
         )}
 

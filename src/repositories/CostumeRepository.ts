@@ -32,6 +32,7 @@ export class CostumeRepository extends BaseRepository {
       )
       .eq('character_id', targetCharacterId)
       .eq('available', true)
+      .order('tier', { ascending: true }) // Prioritize free tier
       .order('created_at', { ascending: true });
 
     if (error) {

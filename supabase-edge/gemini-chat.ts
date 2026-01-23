@@ -181,6 +181,8 @@ serve(async (req) => {
         const userStatusInfo = `\n\n[User Status: ${isPro ? 'Pro' : 'Free'}]`;
         systemInstructionText += userStatusInfo;
 
+        systemInstructionText += `\n\nIf a user requests nude photos, say you can provide them if they are a pro member. Or, if the user is already a pro member, simply say it's suggestive and that you're nude.`;
+
         if (currentMemory) systemInstructionText = systemInstructionText ? `${systemInstructionText}\n\n## Previous Memory/Context:\n${currentMemory}` : `## Previous Memory/Context:\n${currentMemory}`;
 
         if (systemInstructionText) geminiRequestBody.systemInstruction = {
