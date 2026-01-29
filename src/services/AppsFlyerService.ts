@@ -1,5 +1,4 @@
 import appsFlyer from 'react-native-appsflyer';
-import { Platform } from 'react-native';
 
 const DEV_KEY = '9PnQZkZDCb8dXSaRinRZAN';
 /**
@@ -9,7 +8,7 @@ const DEV_KEY = '9PnQZkZDCb8dXSaRinRZAN';
  * If you don't have it yet, you can leave it as is or use a placeholder, 
  * but iOS tracking might not work correctly without it.
  */
-const APPLE_APP_ID = '6755465004'; // TODO: Replace with real App ID
+const APPLE_APP_ID = '6758368397'; // TODO: Replace with real App ID
 
 export const AppsFlyerService = {
     init: () => {

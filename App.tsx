@@ -143,6 +143,8 @@ const AppContent = () => {
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+  const [isVrmMode, setIsVrmMode] = useState(false);
+  const vrmModeAnim = useRef(new Animated.Value(1)).current; // 1 = overlays visible, 0 = hidden
   const [isDancing, setIsDancing] = useState(false);
   const [isCharacterBlurred, setIsCharacterBlurred] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
@@ -308,6 +310,34 @@ const AppContent = () => {
       QuestProgressTracker.setDelegate(null);
     };
   }, [quests.trackProgress]);
+
+  // Enable/disable OrbitControls in WebView when vrmMode changes
+  useEffect(() => {
+    // Animate overlays
+    Animated.timing(vrmModeAnim, {
+      toValue: isVrmMode ? 0 : 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+
+    if (webViewRef.current) {
+      if (isVrmMode) {
+        // Enable controls when entering VRM mode
+        const js = `window.setControlsEnabled && window.setControlsEnabled(true); true;`;
+        webViewRef.current.injectJavaScript(js);
+        console.log('[App] Set WebView OrbitControls enabled: true');
+      } else {
+        // Disable controls AND reset camera when exiting VRM mode
+        const js = `
+          if (window.setControlsEnabled) window.setControlsEnabled(false);
+          if (window.resetCamera) window.resetCamera();
+          true;
+        `;
+        webViewRef.current.injectJavaScript(js);
+        console.log('[App] Set WebView OrbitControls enabled: false & Reset Camera');
+      }
+    }
+  }, [isVrmMode]);
 
   // Load all characters and owned characters
   useEffect(() => {
@@ -2010,7 +2040,19 @@ const AppContent = () => {
       <View style={[styles.container, { backgroundColor: 'transparent' }]} pointerEvents="box-none">
         <StatusBar barStyle="light-content" />
         {!isChatFullScreen && (
-          <View style={{ zIndex: 100 }}>
+          <Animated.View
+            style={{
+              zIndex: 100,
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-50, 0],
+                })
+              }]
+            }}
+            pointerEvents={isVrmMode ? 'none' : 'auto'}
+          >
             <SceneHeader
               characterName={characterTitle}
               relationshipName={currentCharacter?.relationshipName}
@@ -2021,7 +2063,7 @@ const AppContent = () => {
               onCharacterMenuPress={() => setShowCharacterSheet(true)}
               isDarkBackground={isDarkBackground}
             />
-          </View>
+          </Animated.View>
         )}
         {/* Persistent VRMWebView lifted out to root render */}
         <VoiceLoadingOverlay
@@ -2040,7 +2082,7 @@ const AppContent = () => {
           isBgmOn={isBgmOn}
           remainingQuotaSeconds={remainingQuotaSeconds}
           isInCall={isCameraMode || voiceState.isConnected}
-          isHidden={isChatFullScreen}
+          isHidden={isChatFullScreen || isVrmMode}
           onBackgroundPress={() => setShowBackgroundSheet(true)}
           onCostumePress={() => setShowCostumeSheet(true)}
           onCalendarPress={handleCalendarPress}
@@ -2053,8 +2095,63 @@ const AppContent = () => {
           canSwipeCharacter={allCharacters.length > 1}
           isPro={isPro}
         />
+        {/* Invisible tap zone in center area to enter VRM mode - only show when NOT in vrmMode */}
+        {!isVrmMode && (
+          <Pressable
+            style={{
+              position: 'absolute',
+              top: '25%',
+              left: '15%',
+              right: '15%',
+              height: '35%',
+              // backgroundColor: 'rgba(255,0,0,0.1)', // Uncomment to debug tap area
+            }}
+            onPress={() => {
+              console.log('[App] Center tap - entering VRM mode');
+              Keyboard.dismiss();
+              setIsVrmMode(true);
+            }}
+          />
+        )}
+        {/* Exit VRM mode button - only show when in vrmMode */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 60,
+            right: 16,
+            zIndex: 999,
+            opacity: vrmModeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0], // Opposite - show when vrmMode is active
+            }),
+            transform: [{
+              scale: vrmModeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0.5],
+              })
+            }]
+          }}
+          pointerEvents={isVrmMode ? 'auto' : 'none'}
+        >
+          <Pressable
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => {
+              console.log('[App] Exit VRM mode');
+              setIsVrmMode(false);
+            }}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </Pressable>
+        </Animated.View>
         <CameraPreviewOverlay
-          visible={showCameraPreview && !!cameraStream}
+          visible={!isVrmMode && showCameraPreview && !!cameraStream}
           stream={cameraStream}
           onClose={handleCameraOverlayClose}
         />
@@ -2063,13 +2160,22 @@ const AppContent = () => {
             <Text style={styles.savedToastText}>Saved to Photos</Text>
           </View>
         ) : null}
-        <View
+        <Animated.View
           style={[
             styles.chatOverlay,
             { bottom: keyboardHeight },
-            isChatFullScreen && { top: 0, paddingBottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' }
+            isChatFullScreen && { top: 0, paddingBottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
+            {
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [100, 0],
+                })
+              }]
+            }
           ]}
-          pointerEvents="box-none"
+          pointerEvents={isVrmMode ? 'none' : 'box-none'}
         >
           <ChatBottomOverlay
             messages={chatState.messages}
@@ -2106,19 +2212,33 @@ const AppContent = () => {
             isFullScreen={isChatFullScreen}
             onToggleFullscreen={setIsChatFullScreen}
           />
-        </View>
-        {/* Hide CharacterQuickSwitcher when in call mode */}
+        </Animated.View>
         {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
         {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
-          <CharacterQuickSwitcher
-            characters={allCharacters}
-            currentIndex={currentCharacterIndex}
-            onCharacterTap={handleCharacterSelectByIndex}
-            onAddCharacter={() => setShowCharacterSheet(true)}
-            isInputActive={isKeyboardVisible || chatState.showChatList}
-            keyboardHeight={0}
-            isModelLoading={false}
-          />
+          <Animated.View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              zIndex: 90,
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [80, 0],
+                })
+              }]
+            }}
+            pointerEvents={isVrmMode ? 'none' : 'box-none'}
+          >
+            <CharacterQuickSwitcher
+              characters={allCharacters}
+              currentIndex={currentCharacterIndex}
+              onCharacterTap={handleCharacterSelectByIndex}
+              onAddCharacter={() => setShowCharacterSheet(true)}
+              isInputActive={isKeyboardVisible || chatState.showChatList}
+              keyboardHeight={0}
+              isModelLoading={false}
+            />
+          </Animated.View>
         )}
         <AppSheets
           showQuestSheet={showQuestSheet}

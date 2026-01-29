@@ -69,8 +69,26 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const { setCurrentCharacterState } = useVRMContext();
 
     // Support both props (embedded mode) and route params (navigation mode)
-    const characters = props.characters || route.params?.characters || [];
-    const initialIdx = props.initialIndex ?? route.params?.initialIndex ?? 0;
+    // Support both props (embedded mode) and route params (navigation mode)
+    const rawCharacters = props.characters || route.params?.characters || [];
+
+    // Filter to only show FREE characters per user request
+    const characters = useMemo(() => {
+        const filtered = rawCharacters.filter(c => c.tier === 'free');
+        // Log to confirm filtering is working
+        console.log(`[CharacterPreview] Filtering: ${filtered.length} free characters out of ${rawCharacters.length} total`);
+        return filtered;
+    }, [rawCharacters]);
+
+    const rawInitialIdx = props.initialIndex ?? route.params?.initialIndex ?? 0;
+
+    // Calculate the new initial index based on the filtered list
+    const initialIdx = useMemo(() => {
+        if (!rawCharacters[rawInitialIdx]) return 0;
+        const targetId = rawCharacters[rawInitialIdx].id;
+        const indexInFiltered = characters.findIndex(c => c.id === targetId);
+        return indexInFiltered >= 0 ? indexInFiltered : 0;
+    }, [characters, rawCharacters, rawInitialIdx]);
     const isViewMode = props.isViewMode ?? route.params?.isViewMode ?? false;
 
     // Determine if this is onboarding flow (no ownedCharacterIds provided)
@@ -82,7 +100,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const [currentIndex, setCurrentIndex] = useState(initialIdx);
     const character = characters[currentIndex];
     const isOwned = character ? ownedCharacterIds.has(character.id) : false;
-    const canSelect = isOwned || isPro;
+    const canSelect = isOwned || isPro || character?.tier === 'free';
 
     // Store all video sources (URL string or Asset ID number)
     const [characterVideoSources, setCharacterVideoSources] = useState<Map<string, any>>(new Map());
@@ -304,7 +322,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
 
     const handleUpgradeToPro = useCallback(() => {
         Alert.alert(
-            'Upgrade to Yukie Pro',
+            'Upgrade to Bonie Pro',
             'Unlock all characters, costumes, and backgrounds with a Pro subscription.',
             [
                 { text: 'Maybe Later', style: 'cancel' },

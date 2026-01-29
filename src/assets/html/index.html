@@ -227,7 +227,60 @@
 
         // === Inlined from config.js ===
         const mixamoVRMRigMap = { "mixamorigHips": "hips", "mixamorigSpine": "spine", "mixamorigSpine1": "chest", "mixamorigSpine2": "upperChest", "mixamorigNeck": "neck", "mixamorigHead": "head", "mixamorigLeftShoulder": "leftShoulder", "mixamorigLeftArm": "leftUpperArm", "mixamorigLeftForeArm": "leftLowerArm", "mixamorigLeftHand": "leftHand", "mixamorigLeftHandThumb1": "leftThumbMetacarpal", "mixamorigLeftHandThumb2": "leftThumbProximal", "mixamorigLeftHandThumb3": "leftThumbDistal", "mixamorigLeftHandIndex1": "leftIndexProximal", "mixamorigLeftHandIndex2": "leftIndexIntermediate", "mixamorigLeftHandIndex3": "leftIndexDistal", "mixamorigLeftHandMiddle1": "leftMiddleProximal", "mixamorigLeftHandMiddle2": "leftMiddleIntermediate", "mixamorigLeftHandMiddle3": "leftMiddleDistal", "mixamorigLeftHandRing1": "leftRingProximal", "mixamorigLeftHandRing2": "leftRingIntermediate", "mixamorigLeftHandRing3": "leftRingDistal", "mixamorigLeftHandPinky1": "leftLittleProximal", "mixamorigLeftHandPinky2": "leftLittleIntermediate", "mixamorigLeftHandPinky3": "leftLittleDistal", "mixamorigRightShoulder": "rightShoulder", "mixamorigRightArm": "rightUpperArm", "mixamorigRightForeArm": "rightLowerArm", "mixamorigRightHand": "rightHand", "mixamorigRightHandThumb1": "rightThumbMetacarpal", "mixamorigRightHandThumb2": "rightThumbProximal", "mixamorigRightHandThumb3": "rightThumbDistal", "mixamorigRightHandIndex1": "rightIndexProximal", "mixamorigRightHandIndex2": "rightIndexIntermediate", "mixamorigRightHandIndex3": "rightIndexDistal", "mixamorigRightHandMiddle1": "rightMiddleProximal", "mixamorigRightHandMiddle2": "rightMiddleIntermediate", "mixamorigRightHandMiddle3": "rightMiddleDistal", "mixamorigRightHandRing1": "rightRingProximal", "mixamorigRightHandRing2": "rightRingIntermediate", "mixamorigRightHandRing3": "rightRingDistal", "mixamorigRightHandPinky1": "rightLittleProximal", "mixamorigRightHandPinky2": "rightLittleIntermediate", "mixamorigRightHandPinky3": "rightLittleDistal", "mixamorigLeftUpLeg": "leftUpperLeg", "mixamorigLeftLeg": "leftLowerLeg", "mixamorigLeftFoot": "leftFoot", "mixamorigLeftToeBase": "leftToes", "mixamorigRightUpLeg": "rightUpperLeg", "mixamorigRightLeg": "rightLowerLeg", "mixamorigRightFoot": "rightFoot", "mixamorigRightToeBase": "rightToes" };
-        const genericVRMRigMap = { "Hips": "hips", "Spine": "spine", "Chest": "chest", "UpperChest": "upperChest", "Neck": "neck", "Head": "head", "LeftShoulder": "leftShoulder", "LeftUpperArm": "leftUpperArm", "LeftLowerArm": "leftLowerArm", "LeftHand": "leftHand", "RightShoulder": "rightShoulder", "RightUpperArm": "rightUpperArm", "RightLowerArm": "rightLowerArm", "RightHand": "rightHand", "LeftUpperLeg": "leftUpperLeg", "LeftLowerLeg": "leftLowerLeg", "LeftFoot": "leftFoot", "LeftToes": "leftToes", "RightUpperLeg": "rightUpperLeg", "RightLowerLeg": "rightLowerLeg", "RightFoot": "rightFoot", "RightToes": "rightToes", "hips": "hips", "spine": "spine", "chest": "chest", "upper_chest": "upperChest", "neck": "neck", "head": "head", "shoulder.L": "leftShoulder", "upper_arm.L": "leftUpperArm", "forearm.L": "leftLowerArm", "hand.L": "leftHand", "shoulder.R": "rightShoulder", "upper_arm.R": "rightUpperArm", "forearm.R": "rightLowerArm", "hand.R": "rightHand", "thigh.L": "leftUpperLeg", "shin.L": "leftLowerLeg", "foot.L": "leftFoot", "toe.L": "leftToes", "thigh.R": "rightUpperLeg", "shin.R": "rightLowerLeg", "foot.R": "rightFoot", "toe.R": "rightToes" };
+        const genericVRMRigMap = {
+            // Body bones
+            "Hips": "hips", "Spine": "spine", "Chest": "chest", "UpperChest": "upperChest", "Neck": "neck", "Head": "head",
+            "LeftShoulder": "leftShoulder", "LeftUpperArm": "leftUpperArm", "LeftLowerArm": "leftLowerArm", "LeftHand": "leftHand",
+            "RightShoulder": "rightShoulder", "RightUpperArm": "rightUpperArm", "RightLowerArm": "rightLowerArm", "RightHand": "rightHand",
+            "LeftUpperLeg": "leftUpperLeg", "LeftLowerLeg": "leftLowerLeg", "LeftFoot": "leftFoot", "LeftToes": "leftToes",
+            "RightUpperLeg": "rightUpperLeg", "RightLowerLeg": "rightLowerLeg", "RightFoot": "rightFoot", "RightToes": "rightToes",
+            // Blender-style naming
+            "hips": "hips", "spine": "spine", "chest": "chest", "upper_chest": "upperChest", "neck": "neck", "head": "head",
+            "shoulder.L": "leftShoulder", "upper_arm.L": "leftUpperArm", "forearm.L": "leftLowerArm", "hand.L": "leftHand",
+            "shoulder.R": "rightShoulder", "upper_arm.R": "rightUpperArm", "forearm.R": "rightLowerArm", "hand.R": "rightHand",
+            "thigh.L": "leftUpperLeg", "shin.L": "leftLowerLeg", "foot.L": "leftFoot", "toe.L": "leftToes",
+            "thigh.R": "rightUpperLeg", "shin.R": "rightLowerLeg", "foot.R": "rightFoot", "toe.R": "rightToes",
+            // Left thumb
+            "LeftThumbProximal": "leftThumbMetacarpal", "LeftThumbIntermediate": "leftThumbProximal", "LeftThumbDistal": "leftThumbDistal",
+            "thumb.01.L": "leftThumbMetacarpal", "thumb.02.L": "leftThumbProximal", "thumb.03.L": "leftThumbDistal",
+            "L_Thumb1": "leftThumbMetacarpal", "L_Thumb2": "leftThumbProximal", "L_Thumb3": "leftThumbDistal",
+            // Left index
+            "LeftIndexProximal": "leftIndexProximal", "LeftIndexIntermediate": "leftIndexIntermediate", "LeftIndexDistal": "leftIndexDistal",
+            "f_index.01.L": "leftIndexProximal", "f_index.02.L": "leftIndexIntermediate", "f_index.03.L": "leftIndexDistal",
+            "L_Index1": "leftIndexProximal", "L_Index2": "leftIndexIntermediate", "L_Index3": "leftIndexDistal",
+            // Left middle
+            "LeftMiddleProximal": "leftMiddleProximal", "LeftMiddleIntermediate": "leftMiddleIntermediate", "LeftMiddleDistal": "leftMiddleDistal",
+            "f_middle.01.L": "leftMiddleProximal", "f_middle.02.L": "leftMiddleIntermediate", "f_middle.03.L": "leftMiddleDistal",
+            "L_Middle1": "leftMiddleProximal", "L_Middle2": "leftMiddleIntermediate", "L_Middle3": "leftMiddleDistal",
+            // Left ring
+            "LeftRingProximal": "leftRingProximal", "LeftRingIntermediate": "leftRingIntermediate", "LeftRingDistal": "leftRingDistal",
+            "f_ring.01.L": "leftRingProximal", "f_ring.02.L": "leftRingIntermediate", "f_ring.03.L": "leftRingDistal",
+            "L_Ring1": "leftRingProximal", "L_Ring2": "leftRingIntermediate", "L_Ring3": "leftRingDistal",
+            // Left little/pinky
+            "LeftLittleProximal": "leftLittleProximal", "LeftLittleIntermediate": "leftLittleIntermediate", "LeftLittleDistal": "leftLittleDistal",
+            "f_pinky.01.L": "leftLittleProximal", "f_pinky.02.L": "leftLittleIntermediate", "f_pinky.03.L": "leftLittleDistal",
+            "L_Pinky1": "leftLittleProximal", "L_Pinky2": "leftLittleIntermediate", "L_Pinky3": "leftLittleDistal",
+            // Right thumb
+            "RightThumbProximal": "rightThumbMetacarpal", "RightThumbIntermediate": "rightThumbProximal", "RightThumbDistal": "rightThumbDistal",
+            "thumb.01.R": "rightThumbMetacarpal", "thumb.02.R": "rightThumbProximal", "thumb.03.R": "rightThumbDistal",
+            "R_Thumb1": "rightThumbMetacarpal", "R_Thumb2": "rightThumbProximal", "R_Thumb3": "rightThumbDistal",
+            // Right index
+            "RightIndexProximal": "rightIndexProximal", "RightIndexIntermediate": "rightIndexIntermediate", "RightIndexDistal": "rightIndexDistal",
+            "f_index.01.R": "rightIndexProximal", "f_index.02.R": "rightIndexIntermediate", "f_index.03.R": "rightIndexDistal",
+            "R_Index1": "rightIndexProximal", "R_Index2": "rightIndexIntermediate", "R_Index3": "rightIndexDistal",
+            // Right middle
+            "RightMiddleProximal": "rightMiddleProximal", "RightMiddleIntermediate": "rightMiddleIntermediate", "RightMiddleDistal": "rightMiddleDistal",
+            "f_middle.01.R": "rightMiddleProximal", "f_middle.02.R": "rightMiddleIntermediate", "f_middle.03.R": "rightMiddleDistal",
+            "R_Middle1": "rightMiddleProximal", "R_Middle2": "rightMiddleIntermediate", "R_Middle3": "rightMiddleDistal",
+            // Right ring
+            "RightRingProximal": "rightRingProximal", "RightRingIntermediate": "rightRingIntermediate", "RightRingDistal": "rightRingDistal",
+            "f_ring.01.R": "rightRingProximal", "f_ring.02.R": "rightRingIntermediate", "f_ring.03.R": "rightRingDistal",
+            "R_Ring1": "rightRingProximal", "R_Ring2": "rightRingIntermediate", "R_Ring3": "rightRingDistal",
+            // Right little/pinky
+            "RightLittleProximal": "rightLittleProximal", "RightLittleIntermediate": "rightLittleIntermediate", "RightLittleDistal": "rightLittleDistal",
+            "f_pinky.01.R": "rightLittleProximal", "f_pinky.02.R": "rightLittleIntermediate", "f_pinky.03.R": "rightLittleDistal",
+            "R_Pinky1": "rightLittleProximal", "R_Pinky2": "rightLittleIntermediate", "R_Pinky3": "rightLittleDistal"
+        };
         const combinedRigMap = { ...genericVRMRigMap, ...mixamoVRMRigMap };
         const vrmFiles = [
             "001/001_vrm/001_01.vrm",
@@ -241,7 +294,46 @@
         const VRM_BASE_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/';
         const FBX_BASE_URL = 'https://n6n.top/Anim/';
         // Background music is controlled exclusively by Swift; no HTML-side audio.
-        const namePatterns = { hips: /hip/i, spine: /spine/i, chest: /chest|spine1/i, upperChest: /upperchest|spine2/i, neck: /neck/i, head: /head/i, leftShoulder: /l(eft)?[-_\s]?shoulder/i, leftUpperArm: /l(eft)?[-_\s]?(upper)?[-_\s]?arm/i, leftLowerArm: /l(eft)?[-_\s]?(lower|fore)[-_\s]?arm/i, leftHand: /l(eft)?[-_\s]?hand/i, rightShoulder: /r(ight)?[-_\s]?shoulder/i, rightUpperArm: /r(ight)?[-_\s]?(upper)?[-_\s]?arm/i, rightLowerArm: /r(ight)?[-_\s]?(lower|fore)[-_\s]?arm/i, rightHand: /r(ight)?[-_\s]?hand/i, leftUpperLeg: /l(eft)?[-_\s]?(upper|up)[-_\s]?leg|l(eft)?[-_\s]?thigh/i, leftLowerLeg: /l(eft)?[-_\s]?(lower)?[-_\s]?leg|l(eft)?[-_\s]?(shin|calf)/i, leftFoot: /l(eft)?[-_\s]?foot/i, leftToes: /l(eft)?[-_\s]?(toe|toebase)/i, rightUpperLeg: /r(ight)?[-_\s]?(upper|up)[-_\s]?leg|r(ight)?[-_\s]?thigh/i, rightLowerLeg: /r(ight)?[-_\s]?(lower)?[-_\s]?leg|r(ight)?[-_\s]?(shin|calf)/i, rightFoot: /r(ight)?[-_\s]?foot/i, rightToes: /r(ight)?[-_\s]?(toe|toebase)/i };
+        const namePatterns = {
+            // Body bones
+            hips: /hip/i, spine: /spine/i, chest: /chest|spine1/i, upperChest: /upperchest|spine2/i, neck: /neck/i, head: /head/i,
+            leftShoulder: /l(eft)?[-_\s]?shoulder/i, leftUpperArm: /l(eft)?[-_\s]?(upper)?[-_\s]?arm/i, leftLowerArm: /l(eft)?[-_\s]?(lower|fore)[-_\s]?arm/i, leftHand: /l(eft)?[-_\s]?hand$/i,
+            rightShoulder: /r(ight)?[-_\s]?shoulder/i, rightUpperArm: /r(ight)?[-_\s]?(upper)?[-_\s]?arm/i, rightLowerArm: /r(ight)?[-_\s]?(lower|fore)[-_\s]?arm/i, rightHand: /r(ight)?[-_\s]?hand$/i,
+            leftUpperLeg: /l(eft)?[-_\s]?(upper|up)[-_\s]?leg|l(eft)?[-_\s]?thigh/i, leftLowerLeg: /l(eft)?[-_\s]?(lower)?[-_\s]?leg|l(eft)?[-_\s]?(shin|calf)/i, leftFoot: /l(eft)?[-_\s]?foot/i, leftToes: /l(eft)?[-_\s]?(toe|toebase)/i,
+            rightUpperLeg: /r(ight)?[-_\s]?(upper|up)[-_\s]?leg|r(ight)?[-_\s]?thigh/i, rightLowerLeg: /r(ight)?[-_\s]?(lower)?[-_\s]?leg|r(ight)?[-_\s]?(shin|calf)/i, rightFoot: /r(ight)?[-_\s]?foot/i, rightToes: /r(ight)?[-_\s]?(toe|toebase)/i,
+            // Left fingers
+            leftThumbMetacarpal: /l(eft)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(1|meta|proximal)/i,
+            leftThumbProximal: /l(eft)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(2|inter)/i,
+            leftThumbDistal: /l(eft)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(3|distal)/i,
+            leftIndexProximal: /l(eft)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(1|proximal)/i,
+            leftIndexIntermediate: /l(eft)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(2|inter)/i,
+            leftIndexDistal: /l(eft)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(3|distal)/i,
+            leftMiddleProximal: /l(eft)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(1|proximal)/i,
+            leftMiddleIntermediate: /l(eft)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(2|inter)/i,
+            leftMiddleDistal: /l(eft)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(3|distal)/i,
+            leftRingProximal: /l(eft)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(1|proximal)/i,
+            leftRingIntermediate: /l(eft)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(2|inter)/i,
+            leftRingDistal: /l(eft)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(3|distal)/i,
+            leftLittleProximal: /l(eft)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(1|proximal)/i,
+            leftLittleIntermediate: /l(eft)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(2|inter)/i,
+            leftLittleDistal: /l(eft)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(3|distal)/i,
+            // Right fingers
+            rightThumbMetacarpal: /r(ight)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(1|meta|proximal)/i,
+            rightThumbProximal: /r(ight)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(2|inter)/i,
+            rightThumbDistal: /r(ight)?[-_\s]?(hand[-_\s]?)?thumb[-_\s]?(3|distal)/i,
+            rightIndexProximal: /r(ight)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(1|proximal)/i,
+            rightIndexIntermediate: /r(ight)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(2|inter)/i,
+            rightIndexDistal: /r(ight)?[-_\s]?(hand[-_\s]?)?index[-_\s]?(3|distal)/i,
+            rightMiddleProximal: /r(ight)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(1|proximal)/i,
+            rightMiddleIntermediate: /r(ight)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(2|inter)/i,
+            rightMiddleDistal: /r(ight)?[-_\s]?(hand[-_\s]?)?middle[-_\s]?(3|distal)/i,
+            rightRingProximal: /r(ight)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(1|proximal)/i,
+            rightRingIntermediate: /r(ight)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(2|inter)/i,
+            rightRingDistal: /r(ight)?[-_\s]?(hand[-_\s]?)?ring[-_\s]?(3|distal)/i,
+            rightLittleProximal: /r(ight)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(1|proximal)/i,
+            rightLittleIntermediate: /r(ight)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(2|inter)/i,
+            rightLittleDistal: /r(ight)?[-_\s]?(hand[-_\s]?)?(little|pinky)[-_\s]?(3|distal)/i
+        };
         // === End inlined config ===
 
         // === Background preloading and cache ===
@@ -510,8 +602,26 @@
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.screenSpacePanning = true;
         controls.target.set(0.0, 1.05, 0.0);
+
+        // Enable all interactions
+        controls.enableRotate = true;   // Rotate with 1 finger swipe
+        controls.enableZoom = true;     // Zoom with pinch
+        controls.enablePan = true;      // Pan with 2 finger swipe
+
+        // Set zoom limits
+        controls.minDistance = 1.0;     // Minimum zoom (closest)
+        controls.maxDistance = 10.0;    // Maximum zoom (farthest)
+
+        // Set rotation limits (optional - prevent flipping upside down)
+        controls.minPolarAngle = Math.PI * 0.2;  // ~36 degrees from top
+        controls.maxPolarAngle = Math.PI * 0.85; // ~153 degrees from top
+
+        // Smooth damping for nicer feel
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+
         controls.update();
-        controls.enabled = false;
+        controls.enabled = false; // Initially disabled, enabled via setControlsEnabled()
 
         const scene = new THREE.Scene();
 
@@ -602,6 +712,38 @@
         };
 
         window.isCallModeActive = function () { return !!__callMode; };
+
+        // Public API for native: enable/disable OrbitControls (for VRM mode - user can rotate/zoom)
+        window.setControlsEnabled = function (enabled) {
+            try {
+                controls.enabled = !!enabled;
+                console.log('[WebView] OrbitControls enabled:', controls.enabled);
+            } catch (e) {
+                console.error('[WebView] Failed to set controls enabled:', e);
+            }
+        };
+
+        window.isControlsEnabled = function () {
+            return controls ? controls.enabled : false;
+        };
+
+        // Public API for native: reset camera to default position
+        window.resetCamera = function () {
+            try {
+                // Force update targets based on current mode
+                __updateCameraTargetsForMode();
+
+                // Immediately snap camera and target to desired positions
+                // We use the desired positions calculated by __updateCameraTargetsForMode
+                camera.position.copy(__camDesiredPos);
+                controls.target.copy(__camDesiredTarget);
+                controls.update();
+
+                console.log('[WebView] Camera reset to default');
+            } catch (e) {
+                console.error('[WebView] Failed to reset camera:', e);
+            }
+        };
 
         const helperRoot = new THREE.Group();
         helperRoot.renderOrder = 10000;

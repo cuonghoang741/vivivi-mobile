@@ -8,7 +8,7 @@ import { telegramNotificationService } from '../services/TelegramNotificationSer
 import { getTelegramUserInfo } from '../utils/telegramUserHelper';
 
 // RevenueCat Public SDK Keys
-const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+const REVENUECAT_API_KEY_IOS = 'appl_aCCQNfQZVWWNlqjWANUqDSeeKxj';
 // const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
 const REVENUECAT_API_KEY_ANDROID = 'test_wVyIadouWMklglQRNajjGPxGCAc';
 
@@ -89,7 +89,20 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
 
         try {
+            console.log('[SubscriptionProvider] Fetching offerings...');
             const offerings = await Purchases.getOfferings();
+
+            // Debug: Log all offerings info
+            console.log('[SubscriptionProvider] DEBUG - All offerings:', JSON.stringify({
+                current: offerings.current?.identifier,
+                allKeys: Object.keys(offerings.all),
+                currentPackages: offerings.current?.availablePackages?.map(p => ({
+                    id: p.identifier,
+                    productId: p.product.identifier,
+                    priceString: p.product.priceString,
+                })),
+            }, null, 2));
+
             if (offerings.current) {
                 setState(prev => ({
                     ...prev,
@@ -98,9 +111,12 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     packagesLoaded: true,
                 }));
                 console.log('[SubscriptionProvider] Packages loaded:', offerings.current?.availablePackages.length);
+            } else {
+                console.warn('[SubscriptionProvider] No current offering found! Check RevenueCat dashboard.');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('[SubscriptionProvider] Failed to load packages:', error);
+            console.error('[SubscriptionProvider] Error details:', error?.message, error?.code, error?.underlyingErrorMessage);
         }
     }, [isConfigured]);
 

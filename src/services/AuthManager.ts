@@ -179,11 +179,20 @@ export class AuthManager {
       this._session = session;
       this._user = user;
       this._hasRestoredSession = true;
-      // If we restored a session, we assume they are NOT new for now, 
-      // or we could run checkUserStatus here. 
-      // But typically restored sessions are existing users.
-      // Let's set it to false to be safe, so we don't accidentally trigger preview on cold start if logic is flaky.
-      this._isNewUser = false;
+      this._hasRestoredSession = true;
+
+      // Check persisted "isNewUser" state
+      const isNewUserFlag = await AsyncStorage.getItem('isNewUser');
+      if (isNewUserFlag === 'true') {
+        console.log('[AuthManager] Restored session: Detected pending new user flow (isNewUser=true)');
+        this._isNewUser = true;
+      } else if (isNewUserFlag === 'false') {
+        this._isNewUser = false;
+      } else {
+        // If flag is missing, leave as null to let App.tsx perform a fresh check (safe fallback)
+        this._isNewUser = null;
+      }
+
       this.notifyListeners();
     } catch (error) {
       console.error("Error restoring session:", error);

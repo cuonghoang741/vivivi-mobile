@@ -3,16 +3,16 @@ import { version } from './package.json';
 import './scripts/generateHtmlContent';
 
 // EAS config
-const EAS_PROJECT_ID = '05bd0c6c-5433-4468-a849-ccee180ba617'; // Will be set after running 'eas init'
-const PROJECT_SLUG = 'vivivi';
+const EAS_PROJECT_ID = '77fa2a05-e69e-4a7e-9b3a-55605ac724be'; // Will be set after running 'eas init'
+const PROJECT_SLUG = 'bonie';
 
 // App production config
-const APP_NAME = 'Yukie';
-const BUNDLE_IDENTIFIER = 'com.vivivi';
-const PACKAGE_NAME = 'com.eduto.yukie';
+const APP_NAME = 'Bonie';
+const BUNDLE_IDENTIFIER = 'com.bonie';
+const PACKAGE_NAME = 'com.eduto.Bonie';
 const ICON = './assets/icon.png';
-const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
-const SCHEME = 'yukie';
+const ANDROID_ICON_FOREGROUND = './assets/icon.png';
+const SCHEME = 'bonie';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
@@ -28,7 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: {
       projectId: EAS_PROJECT_ID,
     },
-    oneSignalAppId: '52139459-74d3-47a7-9f5c-80e07e93265c',
+    oneSignalAppId: '54df7d38-70c4-4cd8-8ec5-2d40c1706650',
   },
 
   ios: {
@@ -106,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       './withFacebookConfig',
       {
         appId: '1217703997132677',
-        displayName: 'Yukie',
+        displayName: 'Bonie',
         clientToken: 'bf147c448ca2780663c32b64a6aff490',
       },
     ],
@@ -117,7 +117,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         image: './assets/splash-screen.png',
         resizeMode: 'contain',
-        backgroundColor: '#000000',
+        backgroundColor: '#F0447C',
       },
     ],
     [

@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyATBhKht0GM9PgoYDuKFL2dgbu0FXCgoS8</string>
+	<string>AIzaSyC0hjHJ-6umJ8B-j25yXvSZlLO_NpIilLA</string>
 	<key>GCM_SENDER_ID</key>
-	<string>878321311166</string>
+	<string>622179956749</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.vivivi</string>
+	<string>com.bonie</string>
 	<key>PROJECT_ID</key>
-	<string>roxie-1d2a0</string>
+	<string>bonie-1ff27</string>
 	<key>STORAGE_BUCKET</key>
-	<string>roxie-1d2a0.firebasestorage.app</string>
+	<string>bonie-1ff27.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
-	<true></true>
+	<false></false>
 	<key>IS_APPINVITE_ENABLED</key>
 	<true></true>
 	<key>IS_GCM_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:878321311166:ios:793b8a4d47ff2edb9fedef</string>
+	<string>1:622179956749:ios:c6c0f093506d042fe33d44</string>
 </dict>
 </plist>

@@ -12,7 +12,7 @@ type CharacterCardProps = {
 
 const ProBadge = ({ tier }: { tier?: string }) => {
   if (!tier || tier === 'free') return null;
-  
+
   return (
     <View style={styles.proBadge}>
       <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
@@ -60,16 +60,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ item, isOwned, sty
         ) : (
           <View style={styles.placeholder} />
         )}
-        
+
         {/* Dark overlay for unowned */}
         {!isOwned && <View style={styles.darkenOverlay} />}
-        
+
         {/* Gradient overlay */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.85)']}
           style={styles.gradient}
         />
-        
+
         {/* Top-left badges */}
         <View style={styles.topLeftBadges}>
           {!isOwned && (
@@ -81,10 +81,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ item, isOwned, sty
             <PriceBadgesView vcoin={item.price_vcoin} ruby={item.price_ruby} />
           )}
         </View>
-        
+
         {/* Lock icon center */}
         {!isOwned && <LockIcon />}
-        
+
         {/* Bottom content */}
         <View style={styles.bottomContent}>
           <View style={styles.nameRow}>

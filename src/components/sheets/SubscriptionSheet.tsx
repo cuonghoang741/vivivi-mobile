@@ -30,7 +30,6 @@ import { BackgroundRepository } from '../../repositories/BackgroundRepository';
 // Icons
 import Icon1 from '../../assets/icons/subscriptions/4.svg';
 import Icon2 from '../../assets/icons/subscriptions/2.svg';
-import Icon3 from '../../assets/icons/subscriptions/3.svg';
 import Icon4 from '../../assets/icons/subscriptions/5.svg';
 import Icon5 from '../../assets/icons/subscriptions/1.svg';
 import Icon6 from '../../assets/icons/subscriptions/6.svg';
@@ -41,8 +40,8 @@ const DEFAULT_VIDEO_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/v
 const SUBSCRIPTION_FEATURES = [
     { icon: Icon1, text: 'Unlimited messages, no daily limits' },
     { icon: Icon2, text: 'Access secreted photos and videos' },
-    { icon: Icon3, text: '30 minutes of video calls each month' },
-    { icon: Icon4, text: 'Unlock 15+ and all upcoming girlfriends' },
+    // { icon: Icon3, text: '30 minutes of video calls each month' },
+    { icon: Icon4, text: 'Unlock all girlfriends' },
     { icon: Icon5, text: 'Unlimited outfits' },
     { icon: Icon6, text: 'Unlimited backgrounds' },
 ];
@@ -80,6 +79,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
+
+    console.log("packagesxxx,", packages)
 
     // Find yearly and monthly packages
     const yearlyPackage = packages.find(p =>
@@ -183,7 +184,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         if (customerInfo) {
             const activeEntitlement = customerInfo.entitlements.active['pro'] ||
                 customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['yukie_pro'];
+                customerInfo.entitlements.active['bonie_pro'];
             if (activeEntitlement) {
                 setActiveProductId(activeEntitlement.productIdentifier);
             }
@@ -411,7 +412,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             >
                                 <View style={styles.heroContent}>
                                     <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                                        <Text style={styles.proBadgeTextName}>Yukie</Text>
+                                        <Text style={styles.proBadgeTextName}>Bonie</Text>
                                         <LinearGradient
                                             colors={['#FFD91B', '#FFE979']}
                                             start={{ x: 0, y: 0 }}
@@ -518,10 +519,6 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                         <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
                                     </Pressable>
                                 ))}
-
-                                {(contextLoading || isProcessing) && packages.length === 0 && (
-                                    <ActivityIndicator color="#FFE66D" size="large" style={{ marginVertical: 20 }} />
-                                )}
                             </View>
 
                             <Pressable
@@ -547,13 +544,13 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             </Pressable>
 
                             <View style={styles.footerLinks}>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/privacy')}>
                                     Privacy Policy
                                 </LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
                                 <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/terms')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/terms')}>
                                     Terms of Use
                                 </LinkText>
                             </View>

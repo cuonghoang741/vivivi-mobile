@@ -8,8 +8,8 @@ import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
 // Supabase config - use service key for admin access
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cjtghurczxqheqwegpiy.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdGdodXJjenhxaGVxd2VncGl5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzM4MDAxMCwiZXhwIjoyMDc4OTU2MDEwfQ.1gDh3kIlmhl68xAvRO9QUBJxtWcP-UTZ7HINjE1t8zA';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nechphdcnvhzcshytszt.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..zM3eE1OAWeq6zIuWLHH50kYANrb8KeYbTU3eofQpKpQ';
 console.log(SUPABASE_URL);
 console.log(SUPABASE_SERVICE_KEY);
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);

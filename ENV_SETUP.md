@@ -9,8 +9,8 @@ Dự án sử dụng environment variables để cấu hình Supabase connection
 Tạo file `.env` trong thư mục root của dự án:
 
 ```bash
-EXPO_PUBLIC_SUPABASE_URL=https://cjtghurczxqheqwegpiy.supabase.co
-EXPO_PUBLIC_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdGdodXJjenhxaGVxd2VncGl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzODAwMTAsImV4cCI6MjA3ODk1NjAxMH0.l2IvbVrPipNQpGxQrRNCBRDfxyZCOO756PNFABYPOCQ
+EXPO_PUBLIC_SUPABASE_URL=https://nechphdcnvhzcshytszt.supabase.co
+EXPO_PUBLIC_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lY2hwaGRjbnZoemNzaHl0c3p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNTkzNzUsImV4cCI6MjA4NDkzNTM3NX0.zd_Fuu5IYxuNimgFJQE9_j1poSfngB3G_o5uQWv0kAY
 ```
 
 ### Lưu ý
@@ -26,7 +26,7 @@ EXPO_PUBLIC_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config/supabase';
 
 // Values sẽ tự động lấy từ process.env.EXPO_PUBLIC_* hoặc fallback
-console.log(SUPABASE_URL); // https://cjtghurczxqheqwegpiy.supabase.co
+console.log(SUPABASE_URL); // https://nechphdcnvhzcshytszt.supabase.co
 ```
 
 ### EAS Build
@@ -38,7 +38,7 @@ Khi build với EAS, cần set environment variables trong EAS dashboard hoặc 
   "build": {
     "production": {
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://cjtghurczxqheqwegpiy.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://nechphdcnvhzcshytszt.supabase.co",
         "EXPO_PUBLIC_SUPABASE_KEY": "your-key-here"
       }
     }
@@ -49,7 +49,7 @@ Khi build với EAS, cần set environment variables trong EAS dashboard hoặc 
 Hoặc sử dụng EAS Secrets:
 
 ```bash
-eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value "https://cjtghurczxqheqwegpiy.supabase.co"
+eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value "https://nechphdcnvhzcshytszt.supabase.co"
 eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_KEY --value "your-key-here"
 ```
 
