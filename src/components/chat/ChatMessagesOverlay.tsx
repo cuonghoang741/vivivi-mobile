@@ -94,7 +94,7 @@ const ChatOverlayItem: React.FC<ChatOverlayItemProps> = ({
     >
       <ChatMessageBubble
         message={message}
-        alignLeft={message.isAgent}
+        alignLeft={true}
         onPress={() => onMessagePress?.(message)}
         variant={variant}
       />

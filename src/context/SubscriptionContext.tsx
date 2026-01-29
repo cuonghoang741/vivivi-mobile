@@ -98,19 +98,33 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 allKeys: Object.keys(offerings.all),
                 currentPackages: offerings.current?.availablePackages?.map(p => ({
                     id: p.identifier,
+                    packageType: p.packageType,
                     productId: p.product.identifier,
                     priceString: p.product.priceString,
                 })),
             }, null, 2));
 
             if (offerings.current) {
+                const packages = offerings.current.availablePackages;
+
+                // Check for missing package types to help with debugging
+                const hasMonthly = packages.some(p => p.packageType === 'MONTHLY' || p.identifier.toLowerCase().includes('month'));
+                const hasAnnual = packages.some(p => p.packageType === 'ANNUAL' || p.identifier.toLowerCase().includes('year') || p.identifier.toLowerCase().includes('annual'));
+
+                if (!hasMonthly) {
+                    console.warn('[SubscriptionProvider] ⚠️ WARNING: Monthly package missing from current offering. Check RevenueCat dashboard.');
+                }
+                if (!hasAnnual) {
+                    console.warn('[SubscriptionProvider] ⚠️ WARNING: Annual package missing from current offering. Check RevenueCat dashboard.');
+                }
+
                 setState(prev => ({
                     ...prev,
                     offerings: offerings.current,
-                    packages: offerings.current?.availablePackages || [],
+                    packages: packages || [],
                     packagesLoaded: true,
                 }));
-                console.log('[SubscriptionProvider] Packages loaded:', offerings.current?.availablePackages.length);
+                console.log('[SubscriptionProvider] Packages loaded:', packages.length);
             } else {
                 console.warn('[SubscriptionProvider] No current offering found! Check RevenueCat dashboard.');
             }

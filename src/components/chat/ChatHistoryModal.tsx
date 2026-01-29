@@ -241,13 +241,13 @@ export const ChatHistoryModal: React.FC<Props> = ({
   const shouldShowDateHeader = useCallback((index: number) => {
     if (index === 0) return true;
     if (index >= messages.length) return false;
-    
+
     const current = new Date(messages[index].createdAt);
     const previous = new Date(messages[index - 1].createdAt);
-    
+
     const currentDay = new Date(current.getFullYear(), current.getMonth(), current.getDate());
     const previousDay = new Date(previous.getFullYear(), previous.getMonth(), previous.getDate());
-    
+
     return currentDay.getTime() !== previousDay.getTime();
   }, [messages]);
 
@@ -303,10 +303,10 @@ export const ChatHistoryModal: React.FC<Props> = ({
             <Animated.View
               style={[
                 styles.messageContainer,
-                item.isAgent ? styles.agentContainer : styles.userContainer,
+                styles.agentContainer, // Use agentContainer style (left align) for all
               ]}
             >
-              <ChatMessageBubble message={item} alignLeft={item.isAgent} />
+              <ChatMessageBubble message={item} alignLeft={true} />
               {showTime && (
                 <Animated.View
                   style={[
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   timestampRight: {
-    textAlign: 'right',
+    textAlign: 'left',
   },
   loadMoreTrigger: {
     alignItems: 'center',

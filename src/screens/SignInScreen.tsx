@@ -171,7 +171,7 @@ export const SignInScreen: React.FC<Props> = ({
       {/* Background Video */}
       <View style={styles.videoSection}>
         <Video
-          source={{ uri: 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4' }}
+          source={require('../assets/videos/preview.mp4')}
           style={StyleSheet.absoluteFill}
           resizeMode={ResizeMode.COVER}
           isLooping

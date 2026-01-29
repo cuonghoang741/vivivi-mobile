@@ -24,7 +24,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
 
   const containerStyles = [
     !isMedia && styles.bubble,
-    !isMedia && (alignLeft ? styles.agentBubble : styles.userBubble),
+    !isMedia && (message.isAgent ? styles.agentBubble : styles.userBubble),
     !isMedia && variant === 'compact' && styles.compactBubble,
     isMedia && styles.mediaContainer,
   ];
@@ -83,7 +83,7 @@ const renderTextContent = (
       <Text
         style={[
           styles.text,
-          alignLeft ? styles.agentText : styles.userText,
+          message.isAgent ? styles.agentText : styles.userText,
           variant === 'compact' && styles.compactText,
         ]}
         numberOfLines={undefined}
