@@ -9,9 +9,9 @@ const corsHeaders = {
 };
 
 // Hardcoded Telegram Credentials to match client service
-const TELEGRAM_BOT_TOKEN = '7450216881:AAEfiWq4TGQ371gixL2oVKBepBH3BTAfDUA';
-const TELEGRAM_CHAT_ID = '-1003509600397';
-const TELEGRAM_MESSAGE_THREAD_ID = '686';
+const TELEGRAM_BOT_TOKEN = '8014102522:AAG5vWRg3UGi7phtyQmoEWygwSOcDrak9vs';
+const TELEGRAM_CHAT_ID = '-5289533975';
+const TELEGRAM_MESSAGE_THREAD_ID = '1';
 
 async function sendTelegramError(error: string, context: string) {
     try {
@@ -21,7 +21,7 @@ async function sendTelegramError(error: string, context: string) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: TELEGRAM_CHAT_ID,
-                message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
+                // message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
                 text: message,
                 parse_mode: 'HTML'
             })

@@ -1441,11 +1441,6 @@
   resolved "https://registry.yarnpkg.com/@callstack/liquid-glass/-/liquid-glass-0.6.1.tgz#4b84a17161b4122cccfecd2615bda01f341b21da"
   integrity sha512-8YbxSLLezrE5yF7/DeZ17RdBITmXf18SCAWaCxcnE/YwaYMpew8q3QUshbAUuZi16R7bpcNhbTsj6xBAStsJcQ==
 
-"@config-plugins/react-native-webrtc@^13.0.0":
-  version "13.0.0"
-  resolved "https://registry.yarnpkg.com/@config-plugins/react-native-webrtc/-/react-native-webrtc-13.0.0.tgz#8242d5afd89e269630918c448ac1503fd84fdc41"
-  integrity sha512-EtRRLXmsU4GcDA3TgIxtqg++eh/CjbI6EV8N/1EFQTtaWI2lpww0fg+S0wd+ndXE0dFWaLqUFvZuyTAaAoOSeA==
-
 "@egjs/hammerjs@^2.0.17":
   version "2.0.17"
   resolved "https://registry.yarnpkg.com/@egjs/hammerjs/-/hammerjs-2.0.17.tgz#5dc02af75a6a06e4c2db0202cae38c9263895124"
@@ -2234,21 +2229,6 @@
   version "0.2.10"
   resolved "https://registry.yarnpkg.com/@floating-ui/utils/-/utils-0.2.10.tgz#a2a1e3812d14525f725d011a73eceb41fef5bc1c"
   integrity sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==
-
-"@gorhom/bottom-sheet@^5.2.8":
-  version "5.2.8"
-  resolved "https://registry.yarnpkg.com/@gorhom/bottom-sheet/-/bottom-sheet-5.2.8.tgz#25e49122c30ffe83d3813b3bcf3dec39f3359aeb"
-  integrity sha512-+N27SMpbBxXZQ/IA2nlEV6RGxL/qSFHKfdFKcygvW+HqPG5jVNb1OqehLQsGfBP+Up42i0gW5ppI+DhpB7UCzA==
-  dependencies:
-    "@gorhom/portal" "1.0.14"
-    invariant "^2.2.4"
-
-"@gorhom/portal@1.0.14":
-  version "1.0.14"
-  resolved "https://registry.yarnpkg.com/@gorhom/portal/-/portal-1.0.14.tgz#1953edb76aaba80fb24021dc774550194a18e111"
-  integrity sha512-MXyL4xvCjmgaORr/rtryDNFy3kU4qUbKlwtQqqsygd0xX3mhKjOLn6mQK8wfu0RkoE0pBE0nAasRoHua+/QZ7A==
-  dependencies:
-    nanoid "^3.3.1"
 
 "@grpc/grpc-js@~1.9.0":
   version "1.9.15"
@@ -5059,7 +5039,7 @@ expo-json-utils@~0.15.0:
   resolved "https://registry.yarnpkg.com/expo-json-utils/-/expo-json-utils-0.15.0.tgz#6723574814b9e6b0a90e4e23662be76123ab6ae9"
   integrity sha512-duRT6oGl80IDzH2LD2yEFWNwGIC2WkozsB6HF3cDYNoNNdUvFk6uN3YiwsTsqVM/D0z6LEAQ01/SlYvN+Fw0JQ==
 
-expo-keep-awake@~15.0.7, expo-keep-awake@~15.0.8:
+expo-keep-awake@~15.0.8:
   version "15.0.8"
   resolved "https://registry.yarnpkg.com/expo-keep-awake/-/expo-keep-awake-15.0.8.tgz#911c5effeba9baff2ccde79ef0ff5bf856215f8d"
   integrity sha512-YK9M1VrnoH1vLJiQzChZgzDvVimVoriibiDIFLbQMpjYBnvyfUeHJcin/Gx1a+XgupNXy92EQJLgI/9ZuXajYQ==
@@ -5081,11 +5061,6 @@ expo-linking@~8.0.10, expo-linking@~8.0.9:
   dependencies:
     expo-constants "~18.0.12"
     invariant "^2.2.4"
-
-expo-liquid-glass-view@^0.1.9:
-  version "0.1.9"
-  resolved "https://registry.yarnpkg.com/expo-liquid-glass-view/-/expo-liquid-glass-view-0.1.9.tgz#fb9c8e1a57ddbc14ac76f7736cfbb97cbf91097a"
-  integrity sha512-Ed6qwyRbhoyAQtnLCdMxh6/iGwc3UTPhnzSjnPaI83EA1YnY1quqbv5QA+5OZV8zOZtnz3cd377RoY979z0fQg==
 
 expo-localization@~17.0.8:
   version "17.0.8"
@@ -5125,11 +5100,6 @@ expo-modules-core@3.0.29:
   dependencies:
     invariant "^2.2.4"
 
-expo-secure-store@~15.0.8:
-  version "15.0.8"
-  resolved "https://registry.yarnpkg.com/expo-secure-store/-/expo-secure-store-15.0.8.tgz#678065599bb76061b5a85b15b9426bf7a11089ae"
-  integrity sha512-lHnzvRajBu4u+P99+0GEMijQMFCOYpWRO4dWsXSuMt77+THPIGjzNvVKrGSl6mMrLsfVaKL8BpwYZLGlgA+zAw==
-
 expo-server@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/expo-server/-/expo-server-1.0.5.tgz#2d52002199a2af99c2c8771d0657916004345ca9"
@@ -5161,11 +5131,6 @@ expo-system-ui@^6.0.8:
   dependencies:
     "@react-native/normalize-colors" "0.81.5"
     debug "^4.3.2"
-
-expo-tracking-transparency@^6.0.8:
-  version "6.0.8"
-  resolved "https://registry.yarnpkg.com/expo-tracking-transparency/-/expo-tracking-transparency-6.0.8.tgz#26db308b735ddc2e1d42720b77966ad3261aabd7"
-  integrity sha512-4/NW47Kmrtj3J0udUmzxiq01gRY+vG8wFsUop6CTOVWlk+2MypjDFwBSscHcyiS2dJGNQLOQSBZ1RNhLdgSBOQ==
 
 expo-updates-interface@~2.0.0:
   version "2.0.0"
@@ -6712,7 +6677,7 @@ mz@^2.7.0:
     object-assign "^4.0.1"
     thenify-all "^1.0.0"
 
-nanoid@^3.3.1, nanoid@^3.3.11, nanoid@^3.3.7:
+nanoid@^3.3.11, nanoid@^3.3.7:
   version "3.3.11"
   resolved "https://registry.yarnpkg.com/nanoid/-/nanoid-3.3.11.tgz#4f4f112cefbe303202f2199838128936266d185b"
   integrity sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==

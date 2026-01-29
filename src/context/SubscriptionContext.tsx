@@ -93,16 +93,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const offerings = await Purchases.getOfferings();
 
             // Debug: Log all offerings info
-            console.log('[SubscriptionProvider] DEBUG - All offerings:', JSON.stringify({
-                current: offerings.current?.identifier,
-                allKeys: Object.keys(offerings.all),
-                currentPackages: offerings.current?.availablePackages?.map(p => ({
-                    id: p.identifier,
-                    packageType: p.packageType,
-                    productId: p.product.identifier,
-                    priceString: p.product.priceString,
-                })),
-            }, null, 2));
+            // console.log('[SubscriptionProvider] DEBUG - All offerings:', offerings);
 
             if (offerings.current) {
                 const packages = offerings.current.availablePackages;

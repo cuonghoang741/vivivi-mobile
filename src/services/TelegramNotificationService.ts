@@ -3,9 +3,9 @@
  * Events: New User, Chat Message, Purchase Item, Subscription
  */
 
-const TELEGRAM_BOT_TOKEN = '7450216881:AAEfiWq4TGQ371gixL2oVKBepBH3BTAfDUA';
-const TELEGRAM_CHAT_ID = '-1003509600397';
-const TELEGRAM_MESSAGE_THREAD_ID = '686';
+const TELEGRAM_BOT_TOKEN = '8014102522:AAG5vWRg3UGi7phtyQmoEWygwSOcDrak9vs';
+const TELEGRAM_CHAT_ID = '-5289533975';
+const TELEGRAM_MESSAGE_THREAD_ID = '1';
 
 interface UserInfo {
   userId: string;
@@ -48,7 +48,7 @@ class TelegramNotificationService {
         },
         body: JSON.stringify({
           chat_id: TELEGRAM_CHAT_ID,
-          message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
+          // message_thread_id: TELEGRAM_MESSAGE_THREAD_ID,
           text: message,
           parse_mode: 'HTML',
         }),
@@ -116,9 +116,9 @@ User Age: ${userInfo.userAge}`;
       case 'new_user':
         return '🆕 NEW USER REGISTERED';
       case 'chat_message':
-        return '👤 USER CHAT MESSAGE';
+        return '👤 USER';
       case 'ai_response':
-        return '🤖 AI RESPONSE';
+        return '🤖 AI';
       case 'purchase_item':
         return '🛍️ USER PURCHASED ITEM';
       case 'subscription':
