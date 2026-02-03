@@ -205,7 +205,7 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                 if (!canSelect) {
                     // Show upgrade prompt
                     Alert.alert(
-                        'Upgrade to Lusty Pro',
+                        'Upgrade to Evee Pro',
                         'Unlock all characters, costumes, and backgrounds with a Pro subscription.',
                         [
                             { text: 'Maybe Later', style: 'cancel' },

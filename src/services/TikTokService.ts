@@ -42,7 +42,7 @@ type EventParams = Record<string, string | number | boolean | undefined>;
  * - TikTok App ID: From TikTok Business Center
  */
 const APPLE_APP_ID = '6755465004';
-const ANDROID_PACKAGE = 'com.eduto.lusty';
+const ANDROID_PACKAGE = 'com.eduto.evee';
 const TIKTOK_APP_ID = '7595783343162048529';
 
 // Track initialization state

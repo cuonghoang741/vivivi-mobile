@@ -4,15 +4,15 @@ import './scripts/generateHtmlContent';
 
 // EAS config
 const EAS_PROJECT_ID = '36b98113-e855-4db8-86f8-5a95bba200a9'; // Will be set after running 'eas init'
-const PROJECT_SLUG = 'lusty';
+const PROJECT_SLUG = 'evee';
 
 // App production config
-const APP_NAME = 'Lusty';
-const BUNDLE_IDENTIFIER = 'com.lusty';
-const PACKAGE_NAME = 'com.eduto.Lusty';
+const APP_NAME = 'Evee';
+const BUNDLE_IDENTIFIER = 'com.evee';
+const PACKAGE_NAME = 'com.eduto.Evee';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/icon.png';
-const SCHEME = 'lusty';
+const SCHEME = 'evee';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
@@ -106,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       './withFacebookConfig',
       {
         appId: '1217703997132677',
-        displayName: 'Lusty',
+        displayName: 'Evee',
         clientToken: 'bf147c448ca2780663c32b64a6aff490',
       },
     ],

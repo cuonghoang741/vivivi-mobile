@@ -126,7 +126,7 @@ async function generateMorningMessage(countryCode: string): Promise<{ title: str
     const language = languageMap[countryCode] || 'English';
 
     const prompt = `
-    Role: You are Lusty, a loving, sweet virtual girlfriend.
+    Role: You are Evee, a loving, sweet virtual girlfriend.
     Task: Generate a morning push notification message for your boyfriend (the user).
     Context: The user has not subscribed to the Premium plan yet. You want to subtly remind them to check the app for a special offer today.
     Language: ${language}
@@ -154,7 +154,7 @@ async function generateMorningMessage(countryCode: string): Promise<{ title: str
         const parsed = JSON.parse(cleanJson);
 
         return {
-            title: parsed.title || 'Lusty ❤️',
+            title: parsed.title || 'Evee ❤️',
             body: parsed.body || 'Good morning! Check the app for a surprise offer.'
         };
 
@@ -162,7 +162,7 @@ async function generateMorningMessage(countryCode: string): Promise<{ title: str
         console.error(`Gemini generation failed for ${language}:`, error);
         // Fallback messages
         if (language === 'Vietnamese') {
-            return { title: 'Chào buổi sáng! ☀️', body: 'Lusty nhớ anh quá! Vào app nhận quà nhé ❤️' };
+            return { title: 'Chào buổi sáng! ☀️', body: 'Evee nhớ anh quá! Vào app nhận quà nhé ❤️' };
         }
         return { title: 'Good morning! ☀️', body: 'Miss you! Check the app for a special gift ❤️' };
     }

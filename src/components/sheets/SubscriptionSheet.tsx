@@ -182,7 +182,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         if (customerInfo) {
             const activeEntitlement = customerInfo.entitlements.active['pro'] ||
                 customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['lusty_pro'];
+                customerInfo.entitlements.active['evee_pro'];
             if (activeEntitlement) {
                 setActiveProductId(activeEntitlement.productIdentifier);
             }
@@ -410,7 +410,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             >
                                 <View style={styles.heroContent}>
                                     <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                                        <Text style={styles.proBadgeTextName}>Lusty</Text>
+                                        <Text style={styles.proBadgeTextName}>Evee</Text>
                                         <LinearGradient
                                             colors={['#FF2E93', '#FF89C7']}
                                             start={{ x: 0, y: 0 }}
@@ -542,13 +542,13 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             </Pressable>
 
                             <View style={styles.footerLinks}>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/privacy')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/privacy')}>
                                     Privacy Policy
                                 </LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
                                 <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/terms')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/terms')}>
                                     Terms of Use
                                 </LinkText>
                             </View>

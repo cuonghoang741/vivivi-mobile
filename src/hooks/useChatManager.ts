@@ -319,7 +319,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         console.warn('[useChatManager] sendText failed', error);
         setState(prev => ({ ...prev, isTyping: false }));
         const errorMessage = createLocalMessage(
-          'Sorry, I could not reach Lusty right now. Please try again in a moment.',
+          'Sorry, I could not reach Evee right now. Please try again in a moment.',
           true
         );
         appendMessage(errorMessage);

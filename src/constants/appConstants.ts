@@ -1,6 +1,6 @@
 export const LEGAL_URLS = {
-  terms: 'https://lusty-legal-pages.lovable.app/terms',
-  privacy: 'https://lusty-legal-pages.lovable.app/privacy',
-  eula: 'https://lusty-legal-pages.lovable.app/eula',
+  terms: 'https://evee-legal-pages.lovable.app/terms',
+  privacy: 'https://evee-legal-pages.lovable.app/privacy',
+  eula: 'https://evee-legal-pages.lovable.app/eula',
 } as const;
 
