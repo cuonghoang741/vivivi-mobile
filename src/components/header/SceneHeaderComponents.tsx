@@ -379,7 +379,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
   return (
     <View style={[styles.sceneHeader, { paddingTop: insets.top + 8 }]}>
       {/* Left */}
-      <LiquidGlass style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
+      <LiquidGlass tintColor={isDarkBackground ? "#000000a7" : "#ffffff50"} style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
         <HeaderIconButton
           Icon={IconSettings}
           onPress={onSettingsPress}
@@ -412,7 +412,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
       />
 
       {/* Right */}
-      <LiquidGlass style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
+      <LiquidGlass tintColor={isDarkBackground ? "#000000a7" : "#ffffff50"} style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
         {/* Call button with time display */}
         {onCallPress && (
           <View style={styles.callButtonWrapper}>

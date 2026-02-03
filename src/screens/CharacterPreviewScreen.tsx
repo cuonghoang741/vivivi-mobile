@@ -10,6 +10,7 @@ import {
     Alert,
     ActivityIndicator,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -42,6 +43,93 @@ interface CharacterPreviewScreenProps {
     isPro?: boolean;
     onSelect?: (character: CharacterItem) => void;
 }
+
+
+interface CharacterGridItemProps {
+    character: CharacterItem;
+    itemWidth: number;
+    isSelected: boolean;
+    isOwned: boolean;
+    isPro: boolean;
+    onPress: (character: CharacterItem) => void;
+}
+
+const CharacterGridItem = React.memo(({
+    character,
+    itemWidth,
+    isSelected,
+    isOwned,
+    isPro,
+    onPress
+}: CharacterGridItemProps) => {
+    const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+    const videoUrl = character.video_url;
+
+    // Reset video loaded state if character changes
+    useEffect(() => {
+        setIsVideoLoaded(false);
+    }, [character.id]);
+
+    const showVideo = isSelected && !!videoUrl;
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.gridItem,
+                { width: itemWidth },
+                isSelected && styles.gridItemSelected
+            ]}
+            onPress={() => onPress(character)}
+            activeOpacity={0.7}
+        >
+            <View style={styles.imageContainer}>
+                <Image
+                    source={{ uri: character.thumbnail_url || character.avatar }}
+                    style={[styles.characterImage, { opacity: (showVideo && isVideoLoaded) ? 0 : 1 }]}
+                    contentFit="cover"
+                    contentPosition="top center"
+                    transition={200}
+                />
+
+                {showVideo && (
+                    <Video
+                        source={{ uri: videoUrl }}
+                        style={[StyleSheet.absoluteFill, { opacity: isVideoLoaded ? 1 : 0 }]}
+                        resizeMode={ResizeMode.COVER}
+                        isLooping
+                        shouldPlay={true}
+                        isMuted={true}
+                        onLoad={() => setIsVideoLoaded(true)}
+                    />
+                )}
+
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.7)']}
+                    style={styles.imageGradient}
+                />
+
+                {isSelected && (
+                    <View style={styles.selectedOverlay}>
+                        <View style={styles.selectedCheckmark}>
+                            <Ionicons name="checkmark-circle" size={32} color={brand[500]} />
+                        </View>
+                    </View>
+                )}
+
+                <View style={styles.characterInfoOverlay}>
+                    <Text style={styles.characterNameText} numberOfLines={1}>
+                        {character.name}
+                    </Text>
+                    {!isOwned && !isPro && character.tier !== 'free' && (
+                        <View style={styles.lockedBadge}>
+                            <Ionicons name="lock-closed" size={12} color="#fff" />
+                        </View>
+                    )}
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+});
 
 export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (props) => {
     const navigation = useNavigation<CharacterPreviewNavigationProp>();
@@ -147,61 +235,6 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const isOwned = selectedCharacter ? ownedCharacterIds.has(selectedCharacter.id) : false;
     const canSelect = isOwned || isPro || selectedCharacter?.tier === 'free';
 
-    const renderCharacterItem = useCallback((character: CharacterItem, index: number) => {
-        const isCurrentlyOwned = ownedCharacterIds.has(character.id);
-        const isSelected = selectedCharacter?.id === character.id;
-
-        return (
-            <TouchableOpacity
-                key={character.id}
-                style={[
-                    styles.gridItem,
-                    { width: itemWidth },
-                    isSelected && styles.gridItemSelected
-                ]}
-                onPress={() => handleCharacterPress(character)}
-                activeOpacity={0.7}
-            >
-                <View style={styles.imageContainer}>
-                    <Image
-                        source={{ uri: character.thumbnail_url || character.avatar }}
-                        style={styles.characterImage}
-                        contentFit="cover"
-                        contentPosition="top center"
-                        transition={200}
-                    />
-
-                    {/* Gradient overlay */}
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.7)']}
-                        style={styles.imageGradient}
-                    />
-
-                    {/* Selected indicator */}
-                    {isSelected && (
-                        <View style={styles.selectedOverlay}>
-                            <View style={styles.selectedCheckmark}>
-                                <Ionicons name="checkmark-circle" size={32} color={brand[500]} />
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Character name */}
-                    <View style={styles.characterInfoOverlay}>
-                        <Text style={styles.characterNameText} numberOfLines={1}>
-                            {character.name}
-                        </Text>
-                        {!isCurrentlyOwned && !isPro && character.tier !== 'free' && (
-                            <View style={styles.lockedBadge}>
-                                <Ionicons name="lock-closed" size={12} color="#fff" />
-                            </View>
-                        )}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    }, [itemWidth, handleCharacterPress, selectedCharacter, ownedCharacterIds, isPro]);
-
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
@@ -254,7 +287,17 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                         return rows;
                     }, []).map((row, rowIndex) => (
                         <View key={rowIndex} style={styles.row}>
-                            {row.map((character, colIndex) => renderCharacterItem(character, rowIndex * numColumns + colIndex))}
+                            {row.map((character, colIndex) => (
+                                <CharacterGridItem
+                                    key={character.id}
+                                    character={character}
+                                    itemWidth={itemWidth}
+                                    isSelected={selectedCharacter?.id === character.id}
+                                    isOwned={ownedCharacterIds.has(character.id)}
+                                    isPro={isPro}
+                                    onPress={handleCharacterPress}
+                                />
+                            ))}
                             {/* Add empty placeholder if last row is incomplete */}
                             {row.length < numColumns && (
                                 <View style={[styles.gridItem, { width: itemWidth, opacity: 0 }]} />

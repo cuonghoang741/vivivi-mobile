@@ -36,6 +36,9 @@ export interface CharacterItem {
     thumbnail?: string;
   } | null;
   data?: CharacterData;
+  total_costumes?: number;
+  total_dances?: number;
+  total_secrets?: number;
 }
 
 export class CharacterRepository extends BaseRepository {
@@ -48,7 +51,7 @@ export class CharacterRepository extends BaseRepository {
     try {
       const { data, error } = await this.client
         .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order, default_background:backgrounds!background_default_id(image,thumbnail)')
+        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_costumes,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)')
         .eq('is_public', true)
         .order('order', { ascending: true });
       // .eq('available', true); // Allow unavailable characters to show as Coming Soon
@@ -67,7 +70,7 @@ export class CharacterRepository extends BaseRepository {
           const { executeSupabaseRequest } = await import('../utils/supabaseHelpers');
 
           const queryItems: Record<string, string> = {
-            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order, default_background:backgrounds!background_default_id(image,thumbnail)',
+            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_costumes,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)',
             is_public: 'is.true',
             order: 'order.asc',
             // available: 'is.true', // Allow unavailable characters

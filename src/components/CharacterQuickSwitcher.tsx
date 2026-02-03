@@ -141,6 +141,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
                     source={{ uri: avatarURL }}
                     style={styles.avatar}
                     contentFit="cover"
+                    contentPosition="top center"
                   />
                 ) : (
                   <View style={styles.avatarPlaceholder} />

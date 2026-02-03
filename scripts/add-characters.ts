@@ -171,12 +171,26 @@ async function main() {
             // Check if costume exists by name for this character
             const { data: existingCostumes } = await supabase
                 .from('character_costumes')
-                .select('id')
+                .select('id, created_at')
                 .eq('character_id', charId)
                 .eq('costume_name', costumeName)
-                .limit(1);
+                .order('created_at', { ascending: true }); // Keep oldest or newest? Let's keep oldest.
 
-            const existingCostume = existingCostumes?.[0];
+            let existingCostume = existingCostumes?.[0];
+
+            // If duplicates found, delete the extras
+            if (existingCostumes && existingCostumes.length > 1) {
+                console.log(`      ⚠️ Found ${existingCostumes.length} duplicates for ${costumeName}. Deleting extras...`);
+                // Keep the first one, delete the rest
+                const toDelete = existingCostumes.slice(1).map(c => c.id);
+                if (toDelete.length > 0) {
+                    await supabase
+                        .from('character_costumes')
+                        .delete()
+                        .in('id', toDelete);
+                    console.log(`      🗑️ Deleted ${toDelete.length} duplicate costumes.`);
+                }
+            }
 
             const costumePayload = {
                 character_id: charId,
@@ -244,6 +258,38 @@ async function main() {
         } else {
             console.warn(`   ⚠️ Could not find costume with model_url ending in _01.vrm to set as default.`);
         }
+
+        // --- NEW: Update aggregated stats ---
+        // 1. Get honest costume count (available only)
+        const { count: realCostumeCount } = await supabase
+            .from('character_costumes')
+            .select('*', { count: 'exact', head: true })
+            .eq('character_id', charId)
+            .eq('available', true);
+
+        const costumeCount = realCostumeCount || 0;
+
+        // 2. Randomize dances and secrets (if not already set, or just overwrite/update)
+        // Since this script is for adding/updating, we might want to preserve existing values if they exist, 
+        // OR just random gen for now as per "seed" instructions.
+        const isFreeChar = true; // simplifying for this script context or derive from price
+
+        // Helper to get random int
+        const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        // Simple logic mirroring the seed script
+        const danceCount = getRandomInt(4, 15);
+        const secretCount = getRandomInt(1, 5);
+
+        await supabase
+            .from('characters')
+            .update({
+                total_costumes: costumeCount,
+                total_dances: danceCount,
+                total_secrets: secretCount
+            })
+            .eq('id', charId);
+        console.log(`   ✅ Updated stats: Costumes=${costumeCount}, Dances=${danceCount}, Secrets=${secretCount}`);
 
     }
     console.log('\nProcess complete!');

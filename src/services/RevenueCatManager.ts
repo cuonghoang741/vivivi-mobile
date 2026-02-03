@@ -13,7 +13,7 @@ Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
 
 // RevenueCat Public SDK Keys
 // const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
-const REVENUECAT_API_KEY_IOS = 'appl_xfGluQxVFgtEGHBOKvxTGfetYdI';
+const REVENUECAT_API_KEY_IOS = 'test_YXpLeeefKRzvRMudwinJzivSFXW';
 const REVENUECAT_API_KEY_ANDROID = 'test_wVyIadouWMklglQRNajjGPxGCAc'; // TODO: Replace with actual Android key
 
 class RevenueCatManager {

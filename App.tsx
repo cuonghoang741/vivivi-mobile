@@ -446,8 +446,8 @@ const AppContent = () => {
           const order = charItem?.order;
 
           if (order) {
-            // Apply blur
-            setIsCharacterBlurred(true);
+            // Apply blur only if not PRO
+            setIsCharacterBlurred(!isPro);
 
             // If NOT Pro, show uncensored alert immediately
             if (!isPro) {
@@ -644,6 +644,7 @@ const AppContent = () => {
   useEffect(() => {
     if (isPro) {
       console.log('[App] isPro changed to true, refreshing call quota...');
+      setIsCharacterBlurred(false); // Auto-unblur when upgrading
       // Small delay to ensure isProRef is updated in useAppVoiceCall before fetching
       const timer = setTimeout(() => {
         refreshQuota();

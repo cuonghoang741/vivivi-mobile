@@ -361,7 +361,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
                   // Determine if free character (no price)
                   const isFree = !item.price_vcoin && !item.price_ruby;
 
-                  // Deterministic stats based on ID
+                  // Deterministic stats based on ID (Fallback if DB values are missing)
                   let hash = 0;
                   for (let i = 0; i < item.id.length; i++) {
                     hash = ((hash << 5) - hash) + item.id.charCodeAt(i);
@@ -369,9 +369,13 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
                   }
                   const absHash = Math.abs(hash);
 
-                  const danceCount = isFree ? 5 : 10 + (absHash % 11);
-                  const secretCount = isFree ? 1 : 3 + (absHash % 3);
-                  const costumeCount = isFree ? 2 : 4 + ((absHash >> 2) % 5);
+                  const defaultDanceCount = isFree ? 5 : 10 + (absHash % 11);
+                  const defaultSecretCount = isFree ? 1 : 3 + (absHash % 3);
+                  const defaultCostumeCount = isFree ? 2 : 4 + ((absHash >> 2) % 5);
+
+                  const danceCount = item.total_dances ?? defaultDanceCount;
+                  const secretCount = item.total_secrets ?? defaultSecretCount;
+                  const costumeCount = item.total_costumes ?? defaultCostumeCount;
 
                   return (
                     <>
