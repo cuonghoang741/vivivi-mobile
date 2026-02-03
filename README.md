@@ -31,7 +31,7 @@ npm install
 Tạo file `.env` trong thư mục root:
 
 ```bash
-EXPO_PUBLIC_SUPABASE_URL=https://nechphdcnvhzcshytszt.supabase.co
+EXPO_PUBLIC_SUPABASE_URL=https://nysfrunajmmaoqtppowb.supabase.co
 EXPO_PUBLIC_SUPABASE_KEY=your-supabase-anon-key-here
 ```
 
