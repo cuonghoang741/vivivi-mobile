@@ -79,7 +79,7 @@ export const CallEndedModal: React.FC<CallEndedModalProps> = ({
                     <View style={styles.premiumCardContent}>
                         <View style={styles.premiumCardLeft}>
                             <View style={styles.premiumBadgeRow}>
-                                <Text style={styles.bonieText}>Bonie</Text>
+                                <Text style={styles.lustyText}>Lusty</Text>
                                 <View style={styles.premiumBadge}>
                                     <Text style={styles.premiumBadgeText}>Premium</Text>
                                 </View>
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 8,
     },
-    bonieText: {
+    lustyText: {
         color: '#fff',
         fontSize: 20,
         fontWeight: '700',

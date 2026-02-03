@@ -104,7 +104,7 @@ export const ChatInputBar: React.FC<Props> = ({
       {!isKeyboardVisible && (
         <View style={styles.leftButtons}>
           {/* Mic Button with speaking indicator */}
-          {onToggleMic && (
+          {onToggleMic && isCallActive && (
             <View style={styles.micButtonWrapper}>
               {isUserSpeaking && (
                 <Animated.View

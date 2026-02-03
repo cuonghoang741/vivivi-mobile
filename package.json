@@ -1,6 +1,6 @@
 {
   "name": "native-version",
-  "version": "1.0.41",
+  "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -20,7 +20,7 @@
     "update:production": "eas update --channel production --message \"Production update\"",
     "update:production:ios": "eas update --channel production --message \"Production update\" --platform ios",
     "update:production:android": "eas update --channel production --message \"Production update\" --platform android",
-    "build:ios:local": "rm -rf ./*-*.ipa && eas build --local --platform ios  --non-interactive && eas submit --platform ios --path $(ls build-*.ipa) --non-interactive",
+    "build:ios:local": "rm -rf ./*-*.ipa && eas build --local --platform ios && eas submit --platform ios --path $(ls build-*.ipa) --non-interactive",
     "build:android:local": "rm -rf ./*-*.aab && eas build --local --platform android && eas submit --platform android --path $(ls build-*.aab) --non-interactive",
     "submit:ios": "eas submit --platform ios",
     "submit:android": "eas submit --platform android"

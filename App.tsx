@@ -452,8 +452,8 @@ const AppContent = () => {
             // If NOT Pro, show uncensored alert immediately
             if (!isPro) {
               Alert.alert(
-                'Unlock All',
-                'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
+                'Premium Content',
+                'This exclusive content is available to premium members. Upgrade now to unlock all features and experiences.',
                 [
                   {
                     text: 'Go Back',
@@ -2059,8 +2059,11 @@ const AppContent = () => {
               relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
               avatarUri={currentCharacter?.avatar}
               onCharacterCardPress={handleCharacterCardPress}
+              onMediaPress={() => setShowMediaSheet(true)}
               onSettingsPress={handleOpenSettings}
               onCharacterMenuPress={() => setShowCharacterSheet(true)}
+              onCallPress={handleToggleMic}
+              remainingQuotaSeconds={remainingQuotaSeconds}
               isDarkBackground={isDarkBackground}
             />
           </Animated.View>
@@ -2088,6 +2091,10 @@ const AppContent = () => {
           onCalendarPress={handleCalendarPress}
           onSettingsPress={handleOpenSettings}
           onSpeakerPress={handleToggleBgm}
+          onDancePress={() => {
+            console.log('[App] Manually triggering dance');
+            webBridgeRef.current?.triggerDance();
+          }}
           onToggleChatList={toggleChatListInternal}
           onSwipeBackground={advanceBackground}
           onSwipeCharacter={changeCharacter}

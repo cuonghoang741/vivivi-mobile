@@ -156,7 +156,7 @@ const PremiumBanner: React.FC<{
         >
           <View style={styles.premiumContent}>
             <View style={styles.premiumHeader}>
-              <Text style={styles.premiumTitle}>Bonie</Text>
+              <Text style={styles.premiumTitle}>Lusty</Text>
               <View style={styles.premiumBadge}>
                 <Text style={styles.premiumBadgeText}>Pro</Text>
               </View>
@@ -201,7 +201,7 @@ const PremiumBanner: React.FC<{
       >
         <View style={styles.premiumContent}>
           <View style={styles.premiumHeader}>
-            <Text style={styles.premiumTitle}>Bonie</Text>
+            <Text style={styles.premiumTitle}>Lusty</Text>
             <View style={styles.premiumBadge}>
               <Text style={styles.premiumBadgeText}>Pro</Text>
             </View>
@@ -210,7 +210,7 @@ const PremiumBanner: React.FC<{
             Unlock unlimited content and pro features.
           </Text>
           <View style={styles.premiumButton}>
-            <Text style={styles.premiumButtonText}>Unlock All</Text>
+            <Text style={styles.premiumButtonText}>Get Premium</Text>
           </View>
         </View>
         <View style={styles.premiumIconContainer}>
@@ -501,12 +501,12 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
               <SettingsRow
                 icon="document-text-outline"
                 label="Terms of Service"
-                onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/terms')}
+                onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/terms')}
               />
               <SettingsRow
                 icon="shield-checkmark-outline"
                 label="Privacy Policy"
-                onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/privacy')}
+                onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/privacy')}
               />
               <SettingsRow
                 icon="bug-outline"

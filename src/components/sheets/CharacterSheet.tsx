@@ -30,6 +30,8 @@ import { LiquidGlass } from '../LiquidGlass';
 import { LiquidGlassView } from '@callstack/liquid-glass';
 import { useVideoPreloader } from '../../hooks/useVideoPreloader';
 
+import { IconShirt, IconWoman, IconSparkles } from '@tabler/icons-react-native';
+
 interface CharacterSheetProps {
   isOpened: boolean;
   onIsOpenedChange: (isOpened: boolean) => void;
@@ -352,9 +354,48 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
                   {item?.data?.characteristics}
                 </Text>
               )}
+
+              {/* Character Stats */}
+              <View style={styles.statsRow}>
+                {(() => {
+                  // Determine if free character (no price)
+                  const isFree = !item.price_vcoin && !item.price_ruby;
+
+                  // Deterministic stats based on ID
+                  let hash = 0;
+                  for (let i = 0; i < item.id.length; i++) {
+                    hash = ((hash << 5) - hash) + item.id.charCodeAt(i);
+                    hash |= 0;
+                  }
+                  const absHash = Math.abs(hash);
+
+                  const danceCount = isFree ? 5 : 10 + (absHash % 11);
+                  const secretCount = isFree ? 1 : 3 + (absHash % 3);
+                  const costumeCount = isFree ? 2 : 4 + ((absHash >> 2) % 5);
+
+                  return (
+                    <>
+                      <View style={styles.statItem}>
+                        <IconShirt size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Costumes" />
+                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{costumeCount}</Text>
+                      </View>
+                      <View style={styles.statSeparator} />
+                      <View style={styles.statItem}>
+                        <IconWoman size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Dances" />
+                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{danceCount}</Text>
+                      </View>
+                      <View style={styles.statSeparator} />
+                      <View style={styles.statItem}>
+                        <IconSparkles size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Secrets" />
+                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{secretCount}</Text>
+                      </View>
+                    </>
+                  );
+                })()}
+              </View>
             </View>
 
-            {!isComingSoon && (isOwned || isPro) && (
+            {/* {!isComingSoon && (isOwned || isPro) && (
               <View style={styles.actionButtonsRow}>
                 <Button
                   variant='liquid'
@@ -379,7 +420,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
                   <VolumeMixedIcon width={24} height={24} fill={!isDarkBackground ? '#fff' : '#000'} />
                 </Button>
               </View>
-            )}
+            )} */}
           </View>
         </View>
       </Pressable>
@@ -402,6 +443,25 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       </View>
     );
   };
+
+  const renderLegend = () => (
+    <View style={styles.legendContainer}>
+      <View style={styles.legendItem}>
+        <IconShirt size={14} color={textColor} />
+        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Outfits</Text>
+      </View>
+      <View style={styles.legendSeparator} />
+      <View style={styles.legendItem}>
+        <IconWoman size={14} color={textColor} />
+        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Dances</Text>
+      </View>
+      <View style={styles.legendSeparator} />
+      <View style={styles.legendItem}>
+        <IconSparkles size={14} color={textColor} />
+        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Secrets</Text>
+      </View>
+    </View>
+  );
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
@@ -437,6 +497,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
     return (
       <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+        {renderLegend()}
         <FlatList
           data={filteredItems}
           renderItem={renderItem}
@@ -615,5 +676,48 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    opacity: 0.9,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statSeparator: {
+    width: 1,
+    height: 10,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  legendSeparator: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
 });

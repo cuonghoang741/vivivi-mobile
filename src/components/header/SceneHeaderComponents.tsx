@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   IconSettings,
@@ -9,6 +9,9 @@ import {
   IconLayoutGrid,
   IconPlayerStop,
   IconVideo,
+  IconMovie,
+  IconHeart,
+  IconPhone,
 } from "@tabler/icons-react-native";
 import { LiquidGlass } from "../LiquidGlass";
 import HapticPressable from "../ui/HapticPressable";
@@ -34,14 +37,14 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
   onPress,
   isDarkBackground = true,
 }) => {
-  const normalizedProgress = clamp(relationshipProgress ?? 0);
+  // const normalizedProgress = clamp(relationshipProgress ?? 0);
   const label = name?.trim() ?? "";
 
   if (!label) {
     return <View style={styles.placeholder} />;
   }
 
-  const relationshipLabel = relationshipName?.trim() || "Stranger";
+  // const relationshipLabel = relationshipName?.trim() || "Stranger";
 
   return (
     <LiquidGlass isDarkBackground={isDarkBackground} style={styles.card} onPress={onPress}>
@@ -65,18 +68,18 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
           </Text>
         </View>
 
-        {/* <View style={styles.relationshipRow}> */}
-        {/* <View style={styles.relationshipIcon}>
+        {/* <View style={styles.relationshipRow}>
+          <View style={styles.relationshipIcon}>
             {relationshipIconUri ? (
               <Image
                 source={{ uri: relationshipIconUri }}
                 style={styles.relationshipIconImage}
               />
             ) : (
-              <Ionicons name="heart" size={10} color="#FF79B0" />
+              <IconHeart size={10} color="#FF79B0" />
             )}
-          </View> */}
-        {/* <Text numberOfLines={1} style={styles.relationshipLabel}>
+          </View>
+          <Text numberOfLines={1} style={styles.relationshipLabel}>
             {relationshipLabel}
           </Text>
           <View style={styles.progressTrack} accessible accessibilityRole="progressbar">
@@ -86,8 +89,8 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
                 { width: `${Math.min(100, Math.max(0, normalizedProgress * 100))}%` },
               ]}
             />
-          </View> */}
-        {/* </View> */}
+          </View>
+        </View> */}
       </View>
     </LiquidGlass>
   );
@@ -100,6 +103,7 @@ type HeaderIconButtonProps = {
   accessibilityLabel?: string;
   iconColor?: string;
   isDarkBackground?: boolean;
+  size?: 'lg' | 'md' | 'sm';
 };
 
 export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
@@ -109,6 +113,7 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
   accessibilityLabel,
   iconColor = "#fff",
   isDarkBackground,
+  size = "lg",
 }) => {
   return (
     <Button
@@ -117,7 +122,8 @@ export const HeaderIconButton: React.FC<HeaderIconButtonProps> = ({
       isIconOnly
       startIcon={Icon}
       iconColor={iconColor}
-      size="lg"
+      size={size}
+      iconSizeMin={20}
       isDarkBackground={isDarkBackground}
     >
     </Button>
@@ -224,7 +230,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 0,
   },
   sceneHeader: {
     position: "absolute",
@@ -240,6 +246,17 @@ const styles = StyleSheet.create({
   },
   iconButtonContainer: {
     position: 'relative',
+  },
+  callButtonWrapper: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  callTimeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });
 
@@ -327,8 +344,11 @@ type SceneHeaderProps = {
   onCharacterCardPress?: () => void;
   // Left side props
   onSettingsPress?: () => void;
+  onMediaPress?: () => void;
   // Right side props
   onCharacterMenuPress?: () => void;
+  onCallPress?: () => void;
+  remainingQuotaSeconds?: number;
   // Common props
   isDarkBackground?: boolean;
 };
@@ -339,25 +359,47 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
   relationshipProgress,
   avatarUri,
   onCharacterCardPress,
+  onMediaPress,
   onSettingsPress,
   onCharacterMenuPress,
+  onCallPress,
+  remainingQuotaSeconds = 0,
   isDarkBackground = true,
 }) => {
   const insets = useSafeAreaInsets();
   const iconColor = isDarkBackground ? '#fff' : '#000';
 
+  // Format remaining time
+  const formatRemainingTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <View style={[styles.sceneHeader, { paddingTop: insets.top + 8 }]}>
       {/* Left */}
-      <View style={styles.headerActions}>
+      <LiquidGlass style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
         <HeaderIconButton
           Icon={IconSettings}
           onPress={onSettingsPress}
           accessibilityLabel="Open settings"
           iconColor={iconColor}
           isDarkBackground={isDarkBackground}
+          size="md"
         />
-      </View>
+        {onMediaPress && (
+          <HeaderIconButton
+            Icon={IconMovie}
+            onPress={onMediaPress}
+            accessibilityLabel="Open media"
+            iconColor={iconColor}
+            isDarkBackground={isDarkBackground}
+            size="md"
+          />
+        )}
+
+      </LiquidGlass>
 
       {/* Center */}
       <CharacterHeaderCard
@@ -365,12 +407,27 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
         relationshipName={relationshipName}
         relationshipProgress={relationshipProgress}
         avatarUri={avatarUri}
-        // onPress={onCharacterCardPress}
+        onPress={onMediaPress}
         isDarkBackground={isDarkBackground}
       />
 
       {/* Right */}
-      <View style={styles.headerActions}>
+      <LiquidGlass style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
+        {/* Call button with time display */}
+        {onCallPress && (
+          <View style={styles.callButtonWrapper}>
+            <Button
+              onPress={onCallPress}
+              variant="liquid"
+              isIconOnly
+              startIcon={IconVideo}
+              iconColor={iconColor}
+              iconSizeMin={20}
+              size="md"
+              isDarkBackground={isDarkBackground}
+            />
+          </View>
+        )}
         <View style={styles.iconButtonContainer}>
           <HeaderIconButton
             Icon={IconLayoutGrid}
@@ -378,10 +435,11 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
             accessibilityLabel="Character menu"
             iconColor={iconColor}
             isDarkBackground={isDarkBackground}
+            size="md"
           />
           <NotificationDot />
         </View>
-      </View>
+      </LiquidGlass>
     </View>
   );
 };

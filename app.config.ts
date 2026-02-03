@@ -3,16 +3,16 @@ import { version } from './package.json';
 import './scripts/generateHtmlContent';
 
 // EAS config
-const EAS_PROJECT_ID = '77fa2a05-e69e-4a7e-9b3a-55605ac724be'; // Will be set after running 'eas init'
-const PROJECT_SLUG = 'bonie';
+const EAS_PROJECT_ID = '36b98113-e855-4db8-86f8-5a95bba200a9'; // Will be set after running 'eas init'
+const PROJECT_SLUG = 'lusty';
 
 // App production config
-const APP_NAME = 'Bonie';
-const BUNDLE_IDENTIFIER = 'com.bonie';
-const PACKAGE_NAME = 'com.eduto.Bonie';
+const APP_NAME = 'Lusty';
+const BUNDLE_IDENTIFIER = 'com.lusty';
+const PACKAGE_NAME = 'com.eduto.Lusty';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/icon.png';
-const SCHEME = 'bonie';
+const SCHEME = 'lusty';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
@@ -106,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       './withFacebookConfig',
       {
         appId: '1217703997132677',
-        displayName: 'Bonie',
+        displayName: 'Lusty',
         clientToken: 'bf147c448ca2780663c32b64a6aff490',
       },
     ],
@@ -117,7 +117,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         image: './assets/splash-screen.png',
         resizeMode: 'contain',
-        backgroundColor: '#F0447C',
+        backgroundColor: '#e655c5',
       },
     ],
     [

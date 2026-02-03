@@ -38,6 +38,7 @@ export interface ButtonProps {
   style?: StyleProp<ViewStyle>;
   tintColor?: string;
   isDarkBackground?: boolean;
+  iconSizeMin?: number;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -58,6 +59,7 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   tintColor,
   isDarkBackground,
+  iconSizeMin,
 }) => {
   const baseColors = getBaseColors(color);
   const { buttonStyle, textStyle, iconSize } = getStyles({
@@ -86,15 +88,15 @@ export const Button: React.FC<ButtonProps> = ({
       >
         {StartIcon ? (
           <StartIcon
-            width={iconSize}
-            height={iconSize}
+            width={iconSizeMin ?? iconSize}
+            height={iconSizeMin ?? iconSize}
             color={(iconColor ?? textStyle.color) as string}
             style={styles.icon}
           />
         ) : startIconName ? (
           <Ionicons
             name={startIconName}
-            size={iconSize}
+            size={iconSizeMin ?? iconSize}
             color={(iconColor ?? textStyle.color) as string}
             style={styles.icon}
           />
@@ -104,8 +106,8 @@ export const Button: React.FC<ButtonProps> = ({
         ) : null}
         {EndIcon ? (
           <EndIcon
-            width={iconSize}
-            height={iconSize}
+            width={iconSizeMin ?? iconSize}
+            height={iconSizeMin ?? iconSize}
             color={(iconColor ?? textStyle.color) as string}
             style={styles.icon}
           />

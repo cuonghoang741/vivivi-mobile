@@ -62,7 +62,7 @@ type Props = {
 export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharacterId }) => {
     const navigation = useNavigation<OnboardingNavigationProp>();
     const [currentStep, setCurrentStep] = useState<OnboardingStep>('age');
-    const [userName, setUserName] = useState('Master'); // Default name
+    const [userName, setUserName] = useState('Champion'); // Default name
     const [userAge, setUserAge] = useState('22');
     const [characterNickname, setCharacterNickname] = useState('');
     const [selectedCharacter, setSelectedCharacter] = useState<CharacterItem | null>(null);
@@ -326,10 +326,10 @@ export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharac
             <View style={styles.stepContent}>
                 <View style={styles.titleContainer}>
                     <Text style={styles.title}>
-                        Welcome, <Text style={styles.titleHighlight}>Master!</Text>
+                        Hey there, <Text style={styles.titleHighlight}>Champion!</Text>
                     </Text>
                     <Text style={styles.subtitle}>
-                        Let's get to know each other better
+                        Let's personalize your experience together
                     </Text>
                 </View>
 
@@ -375,9 +375,9 @@ export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharac
             <View style={styles.stepContent}>
                 <View style={styles.titleContainer}>
                     <Text style={styles.title}>
-                        Can you tell me <Text style={styles.titleHighlight}>your age?</Text>
+                        How old are you, <Text style={styles.titleHighlight}>Champion?</Text>
                     </Text>
-                    <Text style={styles.subtitle}>I promise I'll keep it a secret!</Text>
+                    <Text style={styles.subtitle}>This helps us customize your experience!</Text>
                 </View>
 
                 <View style={styles.agePickerWrapper}>
@@ -441,9 +441,9 @@ export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharac
 
                 {/* Title and subtitle */}
                 <View style={styles.notificationTitleContainer}>
-                    <Text style={styles.notificationTitle}>Turn on notification</Text>
+                    <Text style={styles.notificationTitle}>Stay Connected</Text>
                     <Text style={styles.notificationSubtitle}>
-                        Enable notifications to get important updates and{'\n'}messages in real time.
+                        Enable notifications to never miss important updates,{'\n'}messages, and exclusive content.
                     </Text>
                 </View>
 
@@ -537,7 +537,7 @@ export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharac
                                 <ActivityIndicator color="#000" />
                             ) : (
                                 <Text style={styles.continueButtonText}>
-                                    {currentStep === 'notification' ? 'Turn On Notification' : 'Continue'}
+                                    {currentStep === 'notification' ? 'Enable Notifications' : 'Continue'}
                                 </Text>
                             )}
                         </TouchableOpacity>
@@ -941,8 +941,13 @@ const styles = StyleSheet.create({
     continueButton: {
         backgroundColor: '#fff',
         paddingVertical: 18,
-        borderRadius: 999,
+        borderRadius: 16,
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     continueButtonDisabled: {
         opacity: 0.5,

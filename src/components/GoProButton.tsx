@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSubscription } from '../context/SubscriptionContext';
 
-const DIAMOND_ICON_URL = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/gHCihrZqs0a7K0rms5qSXE1TRs8FuWwPWaEeLIey.png';
+const DIAMOND_ICON_URL = 'https://s3.cloudfly.vn/colorme/files/P8UIHKMAHhfOrVIv6xaJufgaojWC5zOYpeuqJlNC.png';
 
 type GoProButtonProps = {
     onPress?: () => void;
@@ -12,7 +12,7 @@ type GoProButtonProps = {
 
 export const GoProButton: React.FC<GoProButtonProps> = ({
     onPress,
-    label = 'Go Pro',
+    label = 'UnlockAll',
 }) => {
     const { isPro } = useSubscription();
 

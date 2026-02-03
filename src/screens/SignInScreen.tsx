@@ -171,7 +171,7 @@ export const SignInScreen: React.FC<Props> = ({
       {/* Background Video */}
       <View style={styles.videoSection}>
         <Video
-          source={require('../assets/videos/preview.mp4')}
+          source={require('../assets/videos/preview-2.mp4')}
           style={StyleSheet.absoluteFill}
           resizeMode={ResizeMode.COVER}
           isLooping
@@ -200,8 +200,8 @@ export const SignInScreen: React.FC<Props> = ({
           </View> */}
           <View style={styles.logoStack}>
             <View style={styles.logoTextBlock}>
-              <Text style={styles.title}>Welcome, Master!</Text>
-              <Text style={styles.subtitle}>Just a few more taps until we can meet!</Text>
+              <Text style={styles.title}>Hey there, Champion!</Text>
+              <Text style={styles.subtitle}>Your journey begins in just a few taps!</Text>
             </View>
           </View>
 
@@ -266,10 +266,9 @@ export const SignInScreen: React.FC<Props> = ({
       <Modal animationType="fade" transparent visible={showAgePrompt}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Adults only</Text>
+            <Text style={styles.modalTitle}>Age Verification Required</Text>
             <Text style={styles.modalBody}>
-              You must be at least 18 years old to use this experience. Please confirm your age to continue with Sign in
-              with {pendingProviderLabel}.
+              This app is designed for adults aged 18 and above. Please confirm you meet the age requirement to proceed with {pendingProviderLabel} sign-in.
             </Text>
             <View style={styles.modalActions}>
               <Pressable
@@ -296,34 +295,36 @@ export const SignInScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0A0014',
   },
   videoSection: {
-    height: '75%',
+    height: '65%',
     width: '100%',
+    position: 'relative',
   },
   contentOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    top: '50%',
+    top: '45%',
   },
   gradientOverlay: {
-    height: 120,
+    height: 160,
     width: '100%',
   },
   contentSection: {
     flex: 1,
-    backgroundColor: '#000',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    backgroundColor: '#0A0014',
+    paddingHorizontal: 28,
+    paddingBottom: 44,
     justifyContent: 'flex-end',
-    gap: 24,
+    gap: 28,
   },
   logoStack: {
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
+    marginBottom: 8,
   },
   logo: {
     width: 100,
@@ -331,56 +332,74 @@ const styles = StyleSheet.create({
   },
   logoTextBlock: {
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
   title: {
-    fontSize: 30,
-    fontWeight: 'bold',
+    fontSize: 34,
+    fontWeight: '800',
     color: '#fff',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 17,
+    color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   error: {
     color: '#FF6B81',
     marginBottom: 16,
     textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
   },
   buttonArea: {
     width: '100%',
-    gap: 12,
+    gap: 14,
   },
   appleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 18,
     paddingHorizontal: 24,
     backgroundColor: '#fff',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   buttonIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   appleLabel: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#05030D',
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 18,
     paddingHorizontal: 24,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#4285F4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
   googleIconBadge: {
     width: 28,
@@ -397,18 +416,21 @@ const styles = StyleSheet.create({
     color: '#4285F4',
   },
   googleLabel: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#05030D',
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   legalBlock: {
     alignItems: 'center',
+    marginTop: 4,
   },
   legalHint: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    marginBottom: 6,
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 13,
+    marginBottom: 8,
     textAlign: 'center',
+    fontWeight: '500',
   },
   legalRow: {
     flexDirection: 'row',
@@ -418,66 +440,85 @@ const styles = StyleSheet.create({
   },
   legalLink: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     textDecorationLine: 'underline',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   legalSeparator: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    marginHorizontal: 4,
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 13,
+    marginHorizontal: 5,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 28,
   },
   modalCard: {
     width: '100%',
-    borderRadius: 20,
-    padding: 24,
-    backgroundColor: '#0F0B1F',
+    borderRadius: 24,
+    padding: 28,
+    backgroundColor: 'rgba(15,11,31,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 12,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#fff',
-    fontWeight: '700',
-    marginBottom: 12,
+    fontWeight: '800',
+    marginBottom: 14,
+    letterSpacing: 0.3,
   },
   modalBody: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
-    marginBottom: 20,
+    color: 'rgba(255,255,255,0.88)',
+    fontSize: 15,
+    marginBottom: 24,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 12,
   },
   modalActionsSpacer: {
     width: 12,
   },
   modalSecondary: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   modalSecondaryLabel: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '700',
   },
   modalPrimary: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
     backgroundColor: '#fff',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modalPrimaryLabel: {
     color: '#05030D',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '800',
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
 });

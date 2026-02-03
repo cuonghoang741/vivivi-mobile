@@ -80,8 +80,6 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
-    console.log("packagesxxx,", packages)
-
     // Find yearly and monthly packages
     const yearlyPackage = packages.find(p =>
         p.packageType === 'ANNUAL' ||
@@ -184,7 +182,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         if (customerInfo) {
             const activeEntitlement = customerInfo.entitlements.active['pro'] ||
                 customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['bonie_pro'];
+                customerInfo.entitlements.active['lusty_pro'];
             if (activeEntitlement) {
                 setActiveProductId(activeEntitlement.productIdentifier);
             }
@@ -412,9 +410,9 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             >
                                 <View style={styles.heroContent}>
                                     <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                                        <Text style={styles.proBadgeTextName}>Bonie</Text>
+                                        <Text style={styles.proBadgeTextName}>Lusty</Text>
                                         <LinearGradient
-                                            colors={['#FFD91B', '#FFE979']}
+                                            colors={['#FF2E93', '#FF89C7']}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={styles.premiumBadge}
@@ -422,7 +420,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             <Text style={styles.premiumBadgeText}>Pro</Text>
                                         </LinearGradient>
                                     </LiquidGlassView>
-                                    <Text style={styles.title}>Stay With Me{'\n'}Without Limits</Text>
+                                    <Text style={styles.title}>Unlimited</Text>
                                 </View>
 
                                 <View style={styles.featuresList}>
@@ -528,7 +526,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                 android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
                             >
                                 <LinearGradient
-                                    colors={['#FFD91B', '#FFE979']}
+                                    colors={['#FF2E93', '#FF89C7']}
                                     style={styles.upgradeButtonGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
@@ -544,13 +542,13 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             </Pressable>
 
                             <View style={styles.footerLinks}>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/privacy')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/privacy')}>
                                     Privacy Policy
                                 </LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
                                 <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://bonie-legal-pages.lovable.app/terms')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/terms')}>
                                     Terms of Use
                                 </LinkText>
                             </View>
@@ -655,7 +653,7 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
     },
     premiumBadgeText: {
-        color: '#000',
+        color: '#fff',
         fontSize: 12,
         fontWeight: '700',
     },
@@ -751,7 +749,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     upgradeButtonText: {
-        color: '#000',
+        color: '#fff',
         fontSize: 18,
         fontWeight: '700',
     },

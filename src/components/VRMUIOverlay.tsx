@@ -28,6 +28,12 @@ import {
   IconMessageCircle,
   IconMessageCircleOff,
   IconPhone,
+  IconShirt,
+  IconMapPin,
+  IconMessage2,
+  IconMusic,
+  IconMusicOff,
+  IconWoman,
 } from '@tabler/icons-react-native';
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
@@ -58,6 +64,7 @@ type VRMUIOverlayProps = ViewProps & {
   onToggleChatList?: () => void;
   onSettingsPress?: () => void;
   onSpeakerPress?: () => void;
+  onDancePress?: () => void;
 
   // Swipe gesture handlers
   onSwipeBackground?: (offset: number) => void;
@@ -84,6 +91,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onToggleChatList,
   onSettingsPress,
   onSpeakerPress,
+  onDancePress,
   onSwipeBackground,
   onSwipeCharacter,
   isChatScrolling = false,
@@ -256,29 +264,36 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       //   isStreakButton: true,
       //   onPress: onCalendarPress,
       // },
+
       {
         key: 'outfit',
         label: 'Outfit',
-        Icon: IconHanger,
+        Icon: IconShirt,
         onPress: onCostumePress,
       },
       {
         key: 'background',
         label: 'Background',
-        Icon: IconPhoto,
+        Icon: IconMapPin,
         onPress: onBackgroundPress,
       },
       {
         key: 'messages',
         label: showChatList ? 'Hide Chat' : 'Show Chat',
-        Icon: !showChatList ? IconMessageCircle : IconMessageCircleOff,
+        Icon: !showChatList ? IconMessage2 : IconMessageOff,
         onPress: onToggleChatList,
       },
+      // {
+      //   key: 'music',
+      //   label: isBgmOn ? 'Music On' : 'Music Off',
+      //   Icon: isBgmOn ? IconMusic : IconMusicOff,
+      //   onPress: onSpeakerPress,
+      // },
       {
-        key: 'music',
-        label: isBgmOn ? 'Music On' : 'Music Off',
-        Icon: isBgmOn ? IconVolume : IconVolumeOff,
-        onPress: onSpeakerPress,
+        key: 'dance',
+        label: 'Dance',
+        Icon: IconWoman,
+        onPress: onDancePress,
       },
       // {
       //   key: 'settings',

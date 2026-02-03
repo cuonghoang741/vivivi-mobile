@@ -124,7 +124,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
         />
       </View>
       <View style={styles.inputSection}>
-        {!isKeyboardVisible && (
+        {/* {!isKeyboardVisible && (
           <ChatBottomActions
             onCapture={onCapture}
             onSendPhoto={onSendPhoto}
@@ -133,7 +133,7 @@ export const ChatBottomOverlay: React.FC<Props> = ({
             isInCall={isInCall}
             isDarkBackground={isDarkBackground}
           />
-        )}
+        )} */}
         <View style={styles.inputWrapper}>
           <ChatInputBar
             value={inputValue}
