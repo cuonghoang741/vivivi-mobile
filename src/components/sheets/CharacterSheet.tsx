@@ -278,7 +278,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
         onPress={() => !isComingSoon && handleSelect(item)}
         style={({ pressed }) => [
           styles.cardContainer,
-          { width: itemWidth },
+          {
+            width: itemWidth,
+            maxWidth: '49.5%'
+          },
           pressed && !isComingSoon && styles.pressed,
           isComingSoon && { opacity: 0.8 },
         ]}
@@ -375,7 +378,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
                   const danceCount = item.total_dances ?? defaultDanceCount;
                   const secretCount = item.total_secrets ?? defaultSecretCount;
-                  const costumeCount = item.total_costumes ?? defaultCostumeCount;
+                  const costumeCount = defaultCostumeCount;
 
                   return (
                     <>

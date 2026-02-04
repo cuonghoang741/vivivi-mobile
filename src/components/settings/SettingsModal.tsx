@@ -50,7 +50,7 @@ const TOGGLE_DEFAULTS: Record<ToggleKey, boolean> = {
 type SubscriptionTier = 'free' | 'pro';
 const SUBSCRIPTION_LABELS: Record<SubscriptionTier, string> = {
   free: 'Free',
-  pro: 'Premium',
+  pro: 'Pro',
 };
 
 
@@ -149,7 +149,7 @@ const PremiumBanner: React.FC<{
     return (
       <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.8 }}>
         <LinearGradient
-          colors={['#FF4081', '#F50057']}
+          colors={['#FF416C', '#FF4B2B']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.premiumBanner}
@@ -168,23 +168,23 @@ const PremiumBanner: React.FC<{
             <View style={styles.subscriptionDetails}>
               <Text style={styles.subscriptionPrice}>
                 {(subscriptionInfo?.plan?.toLowerCase().includes('year') || subscriptionInfo?.plan === 'annual')
-                  ? '1,599,000đ/year'
-                  : '149,000đ/month'}
+                  ? 'Yearly Plan'
+                  : 'Monthly Plan'}
               </Text>
               {subscriptionInfo?.current_period_end && (
                 <Text style={styles.subscriptionDate}>
-                  Next billing {formatDate(subscriptionInfo.current_period_end)}
+                  Renews {formatDate(subscriptionInfo.current_period_end)}
                 </Text>
               )}
               {!subscriptionInfo?.current_period_end && (
                 <Text style={styles.subscriptionDate}>
-                  Subscription Active
+                  Membership Active
                 </Text>
               )}
             </View>
           </View>
           <View style={styles.premiumIconContainer}>
-            <Ionicons name="diamond" size={80} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="diamond" size={80} color="rgba(255,255,255,0.2)" />
           </View>
         </LinearGradient>
       </Pressable>
@@ -194,7 +194,7 @@ const PremiumBanner: React.FC<{
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.8 }}>
       <LinearGradient
-        colors={['#FF5D9D', '#FF2D79']}
+        colors={['#FF416C', '#FF4B2B']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.premiumBanner}
@@ -207,14 +207,14 @@ const PremiumBanner: React.FC<{
             </View>
           </View>
           <Text style={styles.premiumDescription}>
-            Unlock unlimited content and pro features.
+            Unlock Limitless Access & Exclusive Features
           </Text>
           <View style={styles.premiumButton}>
-            <Text style={styles.premiumButtonText}>Get Premium</Text>
+            <Text style={styles.premiumButtonText}>Upgrade to Pro</Text>
           </View>
         </View>
         <View style={styles.premiumIconContainer}>
-          <Ionicons name="diamond" size={64} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="diamond" size={64} color="rgba(255,255,255,0.2)" />
         </View>
       </LinearGradient>
     </Pressable>
@@ -445,7 +445,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
             <SettingsGroup title="Your Account">
               <SettingsRow
                 icon="card-outline"
-                label="My Subscription"
+                label="Manage Subscription"
                 onPress={() => {
                   if (subscriptionTier === 'free') {
                     onClose();
@@ -501,16 +501,16 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
               <SettingsRow
                 icon="document-text-outline"
                 label="Terms of Service"
-                onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/terms')}
+                onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/terms')}
               />
               <SettingsRow
                 icon="shield-checkmark-outline"
                 label="Privacy Policy"
-                onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/privacy')}
+                onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/privacy')}
               />
               <SettingsRow
                 icon="bug-outline"
-                label="Report a problem"
+                label="Report an Issue"
                 onPress={() => pushScreen({ key: 'feedback', kind: 'problem' })}
                 isLast
               />
@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   tierBadgePro: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FF416C',
   },
   tierBadgeText: {
     fontSize: 12,
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   tierBadgeTextPro: {
-    color: '#000',
+    color: '#fff',
   },
   profileEmail: {
     fontSize: 14,
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
   premiumBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#FF2D79',
+    color: '#FF416C',
   },
   premiumDescription: {
     fontSize: 14,
@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   transactionAmount: {
-    color: '#FF6EA1',
+    color: '#FF416C',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -160,7 +160,8 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       // Locked if: Not Pro AND Not Owned AND Not Streak Item AND Not Free
       const isProLocked = !isPro && !isOwned && !isStreakItem && !isFree;
 
-      const itemWidth = (width - 40 - 24) / 3;
+      const maxWidth = (width * 28.2) / 100;
+      const itemWidth = Math.min((width - 40 - 24) / 3, maxWidth);
       const itemHeight = itemWidth / 0.7;
 
       const isSelected = currentCostume ? item.id === currentCostume.id : false;

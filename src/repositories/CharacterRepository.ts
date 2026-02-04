@@ -36,9 +36,12 @@ export interface CharacterItem {
     thumbnail?: string;
   } | null;
   data?: CharacterData;
-  total_costumes?: number;
   total_dances?: number;
   total_secrets?: number;
+  costumes?: {
+    id: string;
+    thumbnail: string | null;
+  }[];
 }
 
 export class CharacterRepository extends BaseRepository {
@@ -46,60 +49,45 @@ export class CharacterRepository extends BaseRepository {
    * Fetch all available characters
    */
   async fetchAllCharacters(): Promise<CharacterItem[]> {
-    // Use PostgREST client directly (simpler and works with RLS)
-    // The Supabase JS client handles auth headers automatically
     try {
-      const { data, error } = await this.client
+      // 1. Fetch characters first
+      const { data: characters, error: charError } = await this.client
         .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_costumes,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)')
+        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)')
         .eq('is_public', true)
         .order('order', { ascending: true });
-      // .eq('available', true); // Allow unavailable characters to show as Coming Soon
 
-      if (error) {
-        console.error('❌ [CharacterRepository] PostgREST error:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-
-        // If permission error, try REST API as fallback
-        if (error.code === '42501' || error.message.includes('permission denied')) {
-          console.log('⚠️ [CharacterRepository] Trying REST API fallback...');
-          const { executeSupabaseRequest } = await import('../utils/supabaseHelpers');
-
-          const queryItems: Record<string, string> = {
-            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_costumes,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)',
-            is_public: 'is.true',
-            order: 'order.asc',
-            // available: 'is.true', // Allow unavailable characters
-          };
-
-          try {
-            const restData = await executeSupabaseRequest<CharacterItem[]>(
-              '/rest/v1/characters',
-              queryItems,
-              'GET'
-            );
-            console.log(`✅ [CharacterRepository] Loaded ${restData.length} characters via REST API`);
-            return restData || [];
-          } catch (restError: any) {
-            console.error('❌ [CharacterRepository] REST API also failed:', restError);
-            throw new Error(`Failed to fetch characters: ${error.message}`);
-          }
-        }
-
-        throw new Error(`Failed to fetch characters: ${error.message}`);
+      if (charError) {
+        console.error('❌ [CharacterRepository] PostgREST error:', charError);
+        throw new Error(`Failed to fetch characters: ${charError.message}`);
       }
 
-      console.log(`✅ [CharacterRepository] Loaded ${data?.length || 0} characters via PostgREST`);
+      // 2. Fetch costumes for the fetched characters
+      let costumes: any[] = [];
+      if (characters && characters.length > 0) {
+        const characterIds = characters.map((c: any) => c.id);
+        const { data: costumesData, error: costumeError } = await this.client
+          .from('character_costumes')
+          .select('id,character_id,thumbnail')
+          .in('character_id', characterIds)
+          .eq('available', true);
 
-      return (data || []).map((item: any) => ({
+        if (costumeError) {
+          console.warn('⚠️ [CharacterRepository] Failed to fetch costumes:', costumeError);
+        } else {
+          costumes = costumesData || [];
+        }
+      }
+
+      console.log(`✅ [CharacterRepository] Loaded ${characters?.length || 0} characters and ${costumes.length} costumes`);
+
+      // 3. Update Map
+      return (characters || []).map((item: any) => ({
         ...item,
         default_background: Array.isArray(item.default_background)
           ? item.default_background[0]
-          : item.default_background
+          : item.default_background,
+        costumes: costumes.filter((c: any) => c.character_id === item.id)
       }));
     } catch (error: any) {
       console.error('❌ [CharacterRepository] Unexpected error:', error);

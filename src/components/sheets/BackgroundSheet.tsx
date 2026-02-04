@@ -163,7 +163,8 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     const isOwned = ownedBackgroundIds.has(item.id);
     const isFree = item.tier === 'free';
     const isLocked = !isPro && !isOwned && !isFree;
-    const itemWidth = (width - 40 - 24) / 3;
+    const maxWidth = (width * 28.2) / 100;
+    const itemWidth = Math.min((width - 40 - 24) / 3, maxWidth);
     const isSelected = currentBackgroundId ? currentBackgroundId === item.id : initialData?.preference?.backgroundId === item.id;
 
     return (

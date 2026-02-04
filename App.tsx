@@ -2103,8 +2103,8 @@ const AppContent = () => {
           canSwipeCharacter={allCharacters.length > 1}
           isPro={isPro}
         />
-        {/* Invisible tap zone in center area to enter VRM mode - only show when NOT in vrmMode */}
-        {!isVrmMode && (
+        {/* Invisible tap zone in center area to enter VRM mode - only show when NOT in vrmMode and not in call */}
+        {!isVrmMode && !isCameraMode && !voiceState.isConnected && (
           <Pressable
             style={{
               position: 'absolute',

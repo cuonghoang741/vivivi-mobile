@@ -2,6 +2,8 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
   Image,
   Linking,
   Modal,
@@ -17,13 +19,17 @@ import {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PersistKeys } from '../config/supabase';
 import { Video, ResizeMode } from 'expo-av';
+import { PersistKeys } from '../config/supabase';
+import { CharacterRepository, CharacterItem } from '../repositories/CharacterRepository';
+import { VideoCacheService } from '../services/VideoCacheService';
 
 // Icons (imported as React components via react-native-svg-transformer)
 import AppleIcon from '../assets/icons/apple.svg';
 import GoogleIcon from '../assets/icons/google.svg';
 import { LiquidGlass } from '../components/LiquidGlass';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
@@ -53,6 +59,81 @@ export const SignInScreen: React.FC<Props> = ({
   const [checkingAge, setCheckingAge] = useState(true);
   const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
+
+  // Character carousel state
+  const [characters, setCharacters] = useState<CharacterItem[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [cachedVideoUrls, setCachedVideoUrls] = useState<Record<string, string>>({});
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Fetch characters and preload videos on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCharactersAndPreload = async () => {
+      try {
+        const repo = new CharacterRepository();
+        const items = await repo.fetchAllCharacters();
+        // Filter only available characters with thumbnails
+        const available = items.filter(c => c.available && c.thumbnail_url);
+        if (isMounted && available.length > 0) {
+          setCharacters(available);
+
+          // Preload all character videos in background
+          const videoUrls = available
+            .filter(c => c.video_url)
+            .map(c => c.video_url!);
+
+          if (videoUrls.length > 0) {
+            console.log('[SignInScreen] Preloading', videoUrls.length, 'character videos...');
+            const results = await VideoCacheService.preloadVideos(videoUrls);
+
+            // Build cached URL map
+            const cached: Record<string, string> = {};
+            results.forEach((localUri, remoteUrl) => {
+              if (localUri) {
+                cached[remoteUrl] = localUri;
+              }
+            });
+
+            if (isMounted) {
+              setCachedVideoUrls(cached);
+              console.log('[SignInScreen] Cached', Object.keys(cached).length, 'videos');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[SignInScreen] Failed to fetch characters:', error);
+      }
+    };
+    fetchCharactersAndPreload();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Get video source - prefer cached, fallback to remote
+  const getVideoSource = (videoUrl: string | undefined) => {
+    if (!videoUrl) return null;
+    const cachedUri = cachedVideoUrls[videoUrl];
+    return { uri: cachedUri || videoUrl };
+  };
+
+  // Auto-play carousel - longer interval for video characters
+  useEffect(() => {
+    if (characters.length <= 1) return;
+
+    const currentChar = characters[currentIndex];
+    const hasVideo = !!currentChar?.video_url;
+    // Longer interval for video characters (8s), shorter for image-only (4s)
+    const intervalTime = hasVideo ? 8000 : 4000;
+
+    const timeout = setTimeout(() => {
+      // Simple index change without complex fade
+      setCurrentIndex(prev => (prev + 1) % characters.length);
+    }, intervalTime);
+
+    return () => clearTimeout(timeout);
+  }, [characters, currentIndex]);
 
 
 
@@ -168,16 +249,60 @@ export const SignInScreen: React.FC<Props> = ({
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Background Video */}
-      <View style={styles.videoSection}>
-        <Video
-          source={require('../assets/videos/preview-2.mp4')}
-          style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.COVER}
-          isLooping
-          shouldPlay
-          isMuted={true}
-        />
+      {/* Character Carousel */}
+      <View style={styles.carouselSection}>
+        {characters.length > 0 ? (
+          <>
+            {/* Show video if available, otherwise show image */}
+            {characters[currentIndex]?.video_url ? (
+              <>
+                {/* Thumbnail as placeholder while video loads */}
+                <Image
+                  source={{ uri: characters[currentIndex]?.thumbnail_url }}
+                  style={[styles.carouselImage, StyleSheet.absoluteFill]}
+                  resizeMode="cover"
+                />
+                {/* Video on top - using cached source if available */}
+                <Video
+                  key={characters[currentIndex].id}
+                  source={getVideoSource(characters[currentIndex].video_url)!}
+                  style={[styles.carouselVideo, StyleSheet.absoluteFill]}
+                  resizeMode={ResizeMode.COVER}
+                  isLooping
+                  shouldPlay
+                  isMuted={true}
+                />
+              </>
+            ) : (
+              <Image
+                source={{ uri: characters[currentIndex]?.thumbnail_url }}
+                style={styles.carouselImage}
+                resizeMode="cover"
+              />
+            )}
+
+            {/* Character name overlay */}
+            <View style={styles.characterNameOverlay}>
+              <Text style={styles.characterName}>{characters[currentIndex]?.name}</Text>
+            </View>
+            {/* Pagination dots */}
+            <View style={styles.paginationContainer}>
+              {characters.slice(0, 10).map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.paginationDot,
+                    index === currentIndex % 10 && styles.paginationDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <View style={styles.carouselPlaceholder}>
+            <ActivityIndicator size="large" color="#ff69b4" />
+          </View>
+        )}
       </View>
 
       {/* Content overlay - absolute positioned */}
@@ -200,8 +325,8 @@ export const SignInScreen: React.FC<Props> = ({
           </View> */}
           <View style={styles.logoStack}>
             <View style={styles.logoTextBlock}>
-              <Text style={styles.title}>Hey there, Champion!</Text>
-              <Text style={styles.subtitle}>Your journey begins in just a few taps!</Text>
+              <Text style={styles.title}>Welcome, Master!</Text>
+              <Text style={styles.subtitle}>Your exclusive experience awaits</Text>
             </View>
           </View>
 
@@ -268,7 +393,7 @@ export const SignInScreen: React.FC<Props> = ({
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Age Verification Required</Text>
             <Text style={styles.modalBody}>
-              This app is designed for adults aged 18 and above. Please confirm you meet the age requirement to proceed with {pendingProviderLabel} sign-in.
+              Access is restricted to adults only. Please confirm your eligibility to proceed with {pendingProviderLabel} sign-in.
             </Text>
             <View style={styles.modalActions}>
               <Pressable
@@ -282,7 +407,7 @@ export const SignInScreen: React.FC<Props> = ({
               </Pressable>
               <View style={styles.modalActionsSpacer} />
               <Pressable onPress={handleAgeConfirmation} style={styles.modalPrimary}>
-                <Text style={styles.modalPrimaryLabel}>I am 18+</Text>
+                <Text style={styles.modalPrimaryLabel}>Confirm I'm 18+</Text>
               </Pressable>
             </View>
           </View>
@@ -297,17 +422,67 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0014',
   },
-  videoSection: {
-    height: '65%',
+  carouselSection: {
+    height: '100%',
     width: '100%',
     position: 'relative',
+    backgroundColor: '#0A0014',
+  },
+  carouselImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  carouselVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  carouselPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0A0014',
+  },
+  characterNameOverlay: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+  },
+  characterName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  paginationContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  paginationDotActive: {
+    backgroundColor: '#FF416C',
+    width: 24,
+    transform: [{ scale: 1.1 }],
   },
   contentOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    top: '45%',
   },
   gradientOverlay: {
     height: 160,
@@ -516,7 +691,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   modalPrimaryLabel: {
-    color: '#05030D',
+    color: '#FF416C',
     fontWeight: '800',
     fontSize: 15,
     letterSpacing: 0.3,

@@ -2,15 +2,15 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase config
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nysfrunajmmaoqtppowb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nechphdcnvhzcshytszt.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lY2hwaGRjbnZoemNzaHl0c3p0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTM1OTM3NSwiZXhwIjoyMDg0OTM1Mzc1fQ.zM3eE1OAWeq6zIuWLHH50kYANrb8KeYbTU3eofQpKpQ';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const START = 1;
-const END = 3;
-const MAX_COSTUME = 2;
-const BASE_URL = 'https://pub-4ddc7f7c800a4e5aa8fe879e0f58001f.r2.dev/chars';
+const END = 4;
+const MAX_COSTUME = 3;
+const BASE_URL = 'https://pub-07bdc8de36f743fe86737fd78152f5e8.r2.dev/chars';
 
 function pad3(num: number) {
     return num.toString().padStart(3, '0');
@@ -77,7 +77,7 @@ async function main() {
         // Check if character with this order exists (checking "003" and "3")
         const { data: existingChars, error: searchError } = await supabase
             .from('characters')
-            .select('id, name, order')
+            .select('id, name, order, description, instruction')
             .or(`order.eq.${TARGET_ORDER},order.eq.${legacyOrderStr}`)
             .limit(1);
 
@@ -91,6 +91,7 @@ async function main() {
         const thumb01 = `${BASE_URL}/${charNum}/thumb/${charNum}_01.png`;
         const avatar = `${BASE_URL}/${charNum}/thumb/${charNum}_avatar.png`;
         const vrm01 = `${BASE_URL}/${charNum}/vrm/${charNum}_01.vrm`;
+        const videoUrl = `${BASE_URL}/${charNum}/video/${charNum}_01.mp4`;
 
         let charId;
         let isUpdate = false;
@@ -101,19 +102,32 @@ async function main() {
             thumbnail_url: thumb01,
             avatar: avatar,
             base_model_url: vrm01,
+            video_url: videoUrl,
             is_public: true,
             available: true,
             background_default_id: templateChar.background_default_id
         };
 
+        const newName = getRandomName();
+
+
         if (existingChar) {
             console.log(`Found existing character: ${existingChar.name} (${existingChar.id}) Order: ${existingChar.order}`);
             console.log(`⏩ Updating existing character to order ${TARGET_ORDER}...`);
+            const newDescWithNewName = existingChar.description.replace(existingChar.name, newName);
+            const newInstructionWithNewName = existingChar.instruction.replace(existingChar.name, newName);
 
             const updatePayload = {
-                ...commonPayload,
-                name: getRandomName(),
-                order: TARGET_ORDER, // Ensure it becomes "003" if it was "3"
+                name: newName,
+                description: newDescWithNewName,
+                instruction: newInstructionWithNewName,
+                thumbnail_url: thumb01,
+                avatar: avatar,
+                base_model_url: vrm01,
+                video_url: videoUrl,
+                is_public: true,
+                available: true,
+                background_default_id: templateChar.background_default_id
             };
 
             const { error: updateError } = await supabase
@@ -132,12 +146,16 @@ async function main() {
 
         } else {
             console.log(`🆕 Creating new character with order ${TARGET_ORDER}...`);
-
+            const newDescWithNewName = templateChar.description.replace(templateChar.name, newName);
+            const newInstructionWithNewName = templateChar.instruction.replace(templateChar.name, newName);
             const insertPayload = {
                 ...commonPayload,
-                name: getRandomName(),
+                name: newName,
+                description: newDescWithNewName,
+                instruction: newInstructionWithNewName,
                 order: TARGET_ORDER,
-                default_costume_id: null
+                default_costume_id: null,
+                video_url: videoUrl
             };
 
             const { data: newChar, error: insertError } = await supabase
@@ -199,7 +217,8 @@ async function main() {
                 model_url: cVrm,
                 url: cVrm,
                 available: true,
-                tier: 'free',
+                video_url: videoUrl,
+                tier: c === 1 ? 'free' : 'pro',
                 // price_vcoin/ruby commented out as before
             };
 
@@ -284,7 +303,6 @@ async function main() {
         await supabase
             .from('characters')
             .update({
-                total_costumes: costumeCount,
                 total_dances: danceCount,
                 total_secrets: secretCount
             })

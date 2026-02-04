@@ -1,6 +1,6 @@
 export const LEGAL_URLS = {
-  terms: 'https://evee-legal-pages.lovable.app/terms',
-  privacy: 'https://evee-legal-pages.lovable.app/privacy',
-  eula: 'https://evee-legal-pages.lovable.app/eula',
+  terms: 'https://eve-privacy.lovable.app/terms',
+  privacy: 'https://eve-privacy.lovable.app/privacy',
+  eula: 'https://eve-privacy.lovable.app/eula',
 } as const;
 

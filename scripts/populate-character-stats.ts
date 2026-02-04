@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase config
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nysfrunajmmaoqtppowb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nechphdcnvhzcshytszt.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lY2hwaGRjbnZoemNzaHl0c3p0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTM1OTM3NSwiZXhwIjoyMDg0OTM1Mzc1fQ.zM3eE1OAWeq6zIuWLHH50kYANrb8KeYbTU3eofQpKpQ';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -80,7 +80,6 @@ async function main() {
         const { error: updateError } = await supabase
             .from('characters')
             .update({
-                total_costumes: costumeCount,
                 total_dances: danceCount,
                 total_secrets: secretCount
             })

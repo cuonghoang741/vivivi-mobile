@@ -3,7 +3,7 @@ import { version } from './package.json';
 import './scripts/generateHtmlContent';
 
 // EAS config
-const EAS_PROJECT_ID = '36b98113-e855-4db8-86f8-5a95bba200a9'; // Will be set after running 'eas init'
+const EAS_PROJECT_ID = 'a9622179-dbb1-4c64-a399-1dfd12b8e748'; // Will be set after running 'eas init'
 const PROJECT_SLUG = 'evee';
 
 // App production config

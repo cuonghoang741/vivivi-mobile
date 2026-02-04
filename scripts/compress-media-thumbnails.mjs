@@ -24,7 +24,7 @@ import { writeFile, unlink, mkdir } from 'fs/promises';
 import os from 'os';
 
 // Supabase config - use service key for admin access
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nysfrunajmmaoqtppowb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nechphdcnvhzcshytszt.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '-UTZ7HINjE1t8zA';
 
 // S3/Cloudfly config

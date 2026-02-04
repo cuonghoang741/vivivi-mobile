@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
 // Supabase config - use service key for admin access
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nysfrunajmmaoqtppowb.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nechphdcnvhzcshytszt.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..zM3eE1OAWeq6zIuWLHH50kYANrb8KeYbTU3eofQpKpQ';
 
 console.log(SUPABASE_URL);

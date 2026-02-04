@@ -6,7 +6,6 @@ import {
     Text,
     StatusBar,
     ScrollView,
-    useWindowDimensions,
     Alert,
     ActivityIndicator,
 } from 'react-native';
@@ -24,7 +23,7 @@ import { DiamondBadge } from '../components/DiamondBadge';
 import DiamondIcon from '../assets/icons/diamond.svg';
 import { useVRMContext } from '../context/VRMContext';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';
-import { LinearGradient } from 'expo-linear-gradient';
+import { IconWoman } from '@tabler/icons-react-native';
 
 type RootStackParamList = {
     Experience: { purchaseCharacterId?: string; selectedCharacterId?: string };
@@ -45,23 +44,21 @@ interface CharacterPreviewScreenProps {
 }
 
 
-interface CharacterGridItemProps {
+interface CharacterRowItemProps {
     character: CharacterItem;
-    itemWidth: number;
     isSelected: boolean;
     isOwned: boolean;
     isPro: boolean;
     onPress: (character: CharacterItem) => void;
 }
 
-const CharacterGridItem = React.memo(({
+const CharacterRowItem = React.memo(({
     character,
-    itemWidth,
     isSelected,
     isOwned,
     isPro,
     onPress
-}: CharacterGridItemProps) => {
+}: CharacterRowItemProps) => {
     const [isVideoLoaded, setIsVideoLoaded] = useState(false);
     const videoUrl = character.video_url;
 
@@ -70,22 +67,23 @@ const CharacterGridItem = React.memo(({
         setIsVideoLoaded(false);
     }, [character.id]);
 
-    const showVideo = isSelected && !!videoUrl;
+    const showVideo = !!videoUrl;
+    const isLocked = !isOwned && !isPro && character.tier !== 'free';
 
     return (
         <TouchableOpacity
             style={[
-                styles.gridItem,
-                { width: itemWidth },
-                isSelected && styles.gridItemSelected
+                styles.rowItem,
+                isSelected && styles.rowItemSelected
             ]}
             onPress={() => onPress(character)}
             activeOpacity={0.7}
         >
-            <View style={styles.imageContainer}>
+            {/* Left: Image/Video */}
+            <View style={styles.rowMediaContainer}>
                 <Image
                     source={{ uri: character.thumbnail_url || character.avatar }}
-                    style={[styles.characterImage, { opacity: (showVideo && isVideoLoaded) ? 0 : 1 }]}
+                    style={[styles.rowImage, { opacity: (showVideo && isVideoLoaded) ? 0 : 1 }]}
                     contentFit="cover"
                     contentPosition="top center"
                     transition={200}
@@ -94,7 +92,7 @@ const CharacterGridItem = React.memo(({
                 {showVideo && (
                     <Video
                         source={{ uri: videoUrl }}
-                        style={[StyleSheet.absoluteFill, { opacity: isVideoLoaded ? 1 : 0 }]}
+                        style={[StyleSheet.absoluteFill, styles.rowVideo, { opacity: isVideoLoaded ? 1 : 0 }]}
                         resizeMode={ResizeMode.COVER}
                         isLooping
                         shouldPlay={true}
@@ -103,29 +101,103 @@ const CharacterGridItem = React.memo(({
                     />
                 )}
 
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.7)']}
-                    style={styles.imageGradient}
-                />
-
                 {isSelected && (
-                    <View style={styles.selectedOverlay}>
-                        <View style={styles.selectedCheckmark}>
-                            <Ionicons name="checkmark-circle" size={32} color={brand[500]} />
-                        </View>
+                    <View style={styles.rowSelectedBadge}>
+                        <Ionicons name="checkmark-circle" size={24} color={brand[500]} />
                     </View>
                 )}
 
-                <View style={styles.characterInfoOverlay}>
-                    <Text style={styles.characterNameText} numberOfLines={1}>
+                {isLocked && (
+                    <View style={styles.rowLockedOverlay}>
+                        <Ionicons name="lock-closed" size={20} color="#fff" />
+                    </View>
+                )}
+            </View>
+
+            {/* Right: Character Info */}
+            <View style={styles.rowInfoContainer}>
+                <View style={styles.rowHeader}>
+                    <Text style={styles.rowCharacterName}>
                         {character.name}
                     </Text>
-                    {!isOwned && !isPro && character.tier !== 'free' && (
-                        <View style={styles.lockedBadge}>
-                            <Ionicons name="lock-closed" size={12} color="#fff" />
+                    {character.tier && character.tier !== 'free' && (
+                        <View style={styles.rowTierBadge}>
+                            <Text style={styles.rowTierText}>{character.tier.toUpperCase()}</Text>
+                        </View>
+                    )}
+
+                    {/* Stats Inline */}
+                    {character.data?.old && (
+                        <View style={styles.rowStatItem}>
+                            <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.6)" />
+                            <Text style={styles.rowStatText}>{character.data.old} yrs</Text>
+                        </View>
+                    )}
+                    {character.data?.height_cm && (
+                        <View style={styles.rowStatItem}>
+                            <MaterialCommunityIcons name="human-male-height" size={14} color="rgba(255,255,255,0.6)" />
+                            <Text style={styles.rowStatText}>{character.data.height_cm} cm</Text>
+                        </View>
+                    )}
+                    {character.data?.occupation && (
+                        <View style={styles.rowStatItem}>
+                            <Ionicons name="briefcase-outline" size={14} color="rgba(255,255,255,0.6)" />
+                            <Text style={styles.rowStatText} numberOfLines={1}>{character.data.occupation}</Text>
+                        </View>
+                    )}
+                    {character.data?.rounds && (
+                        <View style={styles.rowStatItem}>
+                            <IconWoman size={14} color={"rgba(255,255,255,0.6)"} />
+                            <Text style={styles.rowStatText}>
+                                {character.data.rounds.r1 ? character.data.rounds.r1 : '?'}-
+                                {character.data.rounds.r2 ? character.data.rounds.r2 : '?'}-
+                                {character.data.rounds.r3 ? character.data.rounds.r3 : '?'}
+                            </Text>
                         </View>
                     )}
                 </View>
+
+                {/* Description */}
+                {character.description && (
+                    <Text style={styles.rowDescription} numberOfLines={2}>
+                        {character.description}
+                    </Text>
+                )}
+
+                {/* Hobbies Tags */}
+                {character.data?.hobbies && character.data.hobbies.length > 0 && (
+                    <View style={styles.rowHobbiesContainer}>
+                        {character.data.hobbies.slice(0, 3).map((hobby: string, index: number) => (
+                            <View key={index} style={styles.rowHobbyTag}>
+                                <Text style={styles.rowHobbyText}>{hobby}</Text>
+                            </View>
+                        ))}
+                        {character.data.hobbies.length > 3 && (
+                            <Text style={styles.rowMoreHobbies}>+{character.data.hobbies.length - 3}</Text>
+                        )}
+                    </View>
+                )}
+
+                {/* Costumes Preview */}
+                {character.costumes && character.costumes.length > 0 && (
+                    <View style={styles.rowCostumesContainer}>
+                        {character.costumes.slice(0, 4).map((costume) => (
+                            costume.thumbnail ? (
+                                <Image
+                                    key={costume.id}
+                                    source={{ uri: costume.thumbnail }}
+                                    style={styles.rowCostumeImage}
+                                    contentFit="cover"
+                                />
+                            ) : null
+                        ))}
+                        {character.costumes.length > 4 && (
+                            <View style={styles.rowMoreCostumes}>
+                                <Text style={styles.rowMoreCostumesText}>+{character.costumes.length - 4}</Text>
+                            </View>
+                        )}
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -157,13 +229,6 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
     const [selectedCharacter, setSelectedCharacter] = useState<CharacterItem | null>(null);
     const [isSelectingCharacter, setIsSelectingCharacter] = useState(false);
     const insets = useSafeAreaInsets();
-    const { width: screenWidth } = useWindowDimensions();
-
-    // Calculate grid item size (2 columns with padding)
-    const numColumns = 2;
-    const gridPadding = 24;
-    const gridGap = 16;
-    const itemWidth = (screenWidth - gridPadding * 2 - gridGap * (numColumns - 1)) / numColumns;
 
     // Reset loading state when screen gains focus
     useFocusEffect(
@@ -258,11 +323,11 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                         )}
                     </View>
 
-                    <View style={styles.headerCenter}>
+                    {/* <View style={styles.headerCenter}>
                         <Text style={styles.headerTitle}>
                             {isOnboardingFlow ? 'Choose Your Character' : 'Characters'}
                         </Text>
-                    </View>
+                    </View> */}
 
                     <View style={styles.headerRight}>
                         {!isOnboardingFlow && (
@@ -279,108 +344,24 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                     </View>
                 )}
 
-                {/* Character Grid */}
-                <View style={styles.gridContainer}>
-                    {characters.reduce((rows: CharacterItem[][], character, index) => {
-                        if (index % numColumns === 0) rows.push([]);
-                        rows[rows.length - 1].push(character);
-                        return rows;
-                    }, []).map((row, rowIndex) => (
-                        <View key={rowIndex} style={styles.row}>
-                            {row.map((character, colIndex) => (
-                                <CharacterGridItem
-                                    key={character.id}
-                                    character={character}
-                                    itemWidth={itemWidth}
-                                    isSelected={selectedCharacter?.id === character.id}
-                                    isOwned={ownedCharacterIds.has(character.id)}
-                                    isPro={isPro}
-                                    onPress={handleCharacterPress}
-                                />
-                            ))}
-                            {/* Add empty placeholder if last row is incomplete */}
-                            {row.length < numColumns && (
-                                <View style={[styles.gridItem, { width: itemWidth, opacity: 0 }]} />
-                            )}
-                        </View>
+                {/* Character List */}
+                <View style={styles.listContainer}>
+                    {characters.map((character) => (
+                        <CharacterRowItem
+                            key={character.id}
+                            character={character}
+                            isSelected={selectedCharacter?.id === character.id}
+                            isOwned={ownedCharacterIds.has(character.id)}
+                            isPro={isPro}
+                            onPress={handleCharacterPress}
+                        />
                     ))}
                 </View>
-
-                {/* Character Details Section */}
-                {selectedCharacter && (
-                    <View style={styles.detailsContainer}>
-                        {/* Character Name */}
-                        <Text style={styles.detailsCharacterName}>
-                            {selectedCharacter.name}
-                        </Text>
-
-                        {/* Profile Section */}
-                        <View style={styles.profileSection}>
-                            <Text style={styles.profileTitle}>Profile</Text>
-                            <View style={styles.statsRow}>
-                                {selectedCharacter.data?.height_cm && (
-                                    <View style={styles.statItem}>
-                                        <View style={styles.iconWrapper}>
-                                            <MaterialCommunityIcons name="human-male" size={20} color="rgba(255,255,255,0.6)" />
-                                        </View>
-                                        <Text style={styles.statValue}>
-                                            {selectedCharacter.data.height_cm} cm
-                                        </Text>
-                                    </View>
-                                )}
-                                {selectedCharacter.data?.old && (
-                                    <View style={styles.statItem}>
-                                        <View style={styles.iconWrapper}>
-                                            <Ionicons name="information" size={18} color="rgba(255,255,255,0.6)" />
-                                        </View>
-                                        <Text style={styles.statValue}>
-                                            {selectedCharacter.data.old} years old
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Backstory */}
-                        {selectedCharacter.description && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Backstory</Text>
-                                <Text style={styles.characterDescription}>
-                                    {selectedCharacter.description}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Characteristics */}
-                        {selectedCharacter.data?.characteristics && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Personality</Text>
-                                <Text style={styles.characteristicsText}>
-                                    {selectedCharacter.data.characteristics}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Hobbies */}
-                        {selectedCharacter.data?.hobbies && selectedCharacter.data.hobbies.length > 0 && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Hobbies</Text>
-                                <View style={styles.hobbiesContainer}>
-                                    {selectedCharacter.data.hobbies.map((hobby: string, index: number) => (
-                                        <View key={index} style={styles.hobbyTag}>
-                                            <Text style={styles.hobbyText}>{hobby}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
-                    </View>
-                )}
             </ScrollView>
 
             {/* Continue Button - Fixed at bottom */}
             {selectedCharacter && (
-                <View style={[styles.continueButtonContainer, { paddingBottom: insets.bottom + 16 }]}>
+                <View style={[styles.continueButtonContainer, { paddingBottom: insets.bottom }]}>
                     <TouchableOpacity
                         style={[styles.continueButton, isSelectingCharacter && styles.continueButtonDisabled]}
                         onPress={handleContinue}
@@ -449,6 +430,148 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: 'rgba(255,255,255,0.6)',
     },
+    // List container
+    listContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    // Row item styles
+    rowItem: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(30,30,30,0.8)',
+        borderRadius: 16,
+        marginBottom: 12,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    rowItemSelected: {
+        borderColor: brand[500],
+    },
+    rowMediaContainer: {
+        width: 140,
+        height: 190,
+        position: 'relative',
+    },
+    rowImage: {
+        width: '100%',
+        height: '100%',
+    },
+    rowVideo: {
+        borderRadius: 0,
+    },
+    rowSelectedBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 50,
+        padding: 2,
+    },
+    rowLockedOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rowInfoContainer: {
+        flex: 1,
+        padding: 12,
+        justifyContent: 'center',
+    },
+    rowHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 6,
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    rowCharacterName: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    rowTierBadge: {
+        backgroundColor: brand[500] + '30',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+        marginLeft: 8,
+    },
+    rowTierText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: brand[500],
+    },
+
+    rowStatItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    rowStatText: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.7)',
+    },
+    rowDescription: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+        lineHeight: 18,
+        marginBottom: 6,
+    },
+    rowHobbiesContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginTop: 4,
+    },
+    rowHobbyTag: {
+        backgroundColor: brand[500] + '20',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+    },
+    rowHobbyText: {
+        fontSize: 11,
+        color: brand[500],
+        fontWeight: '500',
+    },
+    rowMoreHobbies: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.5)',
+        alignSelf: 'center',
+    },
+    // Costume styles
+    rowCostumesContainer: {
+        flexDirection: 'row',
+        gap: 6,
+        marginTop: 8,
+        alignItems: 'center',
+    },
+    rowCostumeImage: {
+        width: 34,
+        height: 34,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    rowMoreCostumes: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    rowMoreCostumesText: {
+        fontSize: 9,
+        color: 'rgba(255,255,255,0.6)',
+        fontWeight: '700',
+    },
+    // Legacy grid styles (can be removed later)
     gridContainer: {
         paddingHorizontal: 24,
         paddingTop: 12,

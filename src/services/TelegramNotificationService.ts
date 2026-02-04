@@ -114,17 +114,17 @@ User Age: ${userInfo.userAge}`;
   private getNotificationTitle(type: NotificationType): string {
     switch (type) {
       case 'new_user':
-        return '🆕 NEW USER REGISTERED';
+        return '🆕[Evee] NEW USER REGISTERED';
       case 'chat_message':
-        return '👤 USER';
+        return '👤[Evee] USER';
       case 'ai_response':
-        return '🤖 AI';
+        return '🤖[Evee] AI';
       case 'purchase_item':
-        return '🛍️ USER PURCHASED ITEM';
+        return '🛍️[Evee] USER PURCHASED ITEM';
       case 'subscription':
-        return '💎 USER SUBSCRIBED';
+        return '💎[Evee] USER SUBSCRIBED';
       default:
-        return '🔔 NOTIFICATION';
+        return '🔔[Evee] NOTIFICATION';
     }
   }
 

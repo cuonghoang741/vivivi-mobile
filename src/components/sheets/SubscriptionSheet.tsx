@@ -38,12 +38,12 @@ import { IconX } from '@tabler/icons-react-native';
 const DEFAULT_VIDEO_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
 
 const SUBSCRIPTION_FEATURES = [
-    { icon: Icon1, text: 'Unlimited messages, no daily limits' },
-    { icon: Icon2, text: 'Access secreted photos and videos' },
+    { icon: Icon1, text: 'Chat endlessly, anytime you want' },
+    { icon: Icon2, text: 'Unlock exclusive secret moments' },
     // { icon: Icon3, text: '30 minutes of video calls each month' },
-    { icon: Icon4, text: 'Unlock all girlfriends' },
-    { icon: Icon5, text: 'Unlimited outfits' },
-    { icon: Icon6, text: 'Unlimited backgrounds' },
+    { icon: Icon4, text: 'Meet every character instantly' },
+    { icon: Icon5, text: 'Access complete wardrobe collection' },
+    { icon: Icon6, text: 'Explore all diverse locations' },
 ];
 
 interface SubscriptionSheetProps {
@@ -412,7 +412,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
                                         <Text style={styles.proBadgeTextName}>Evee</Text>
                                         <LinearGradient
-                                            colors={['#FF2E93', '#FF89C7']}
+                                            colors={['#FF416C', '#FF4B2B']}
                                             start={{ x: 0, y: 0 }}
                                             end={{ x: 1, y: 0 }}
                                             style={styles.premiumBadge}
@@ -420,7 +420,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             <Text style={styles.premiumBadgeText}>Pro</Text>
                                         </LinearGradient>
                                     </LiquidGlassView>
-                                    <Text style={styles.title}>Unlimited</Text>
+                                    <Text style={styles.title}>Limitless</Text>
                                 </View>
 
                                 <View style={styles.featuresList}>
@@ -460,12 +460,12 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                         <Text style={styles.planName}>Yearly</Text>
                                         <View>
                                             <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
-                                            <Text style={styles.planPeriod}>per year</Text>
+                                            <Text style={styles.planPeriod}>12 months</Text>
                                             <Text style={styles.planSubDetail}>
                                                 {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
                                                     style: 'currency',
                                                     currency: yearlyPackage.product.currencyCode
-                                                })}/per month
+                                                })}/month
                                             </Text>
                                         </View>
                                     </Pressable>
@@ -477,6 +477,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             styles.planCard,
                                             selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
                                         ]}
+
                                         onPress={() => {
                                             setSelectedPackage(monthlyPackage);
                                             analyticsService.logSubscriptionSelectPlan(monthlyPackage.identifier, 'Monthly');
@@ -490,7 +491,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                         <Text style={styles.planName}>Monthly</Text>
                                         <View>
                                             <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
-                                            <Text style={styles.planPeriod}>per month</Text>
+                                            <Text style={styles.planPeriod}>month-to-month</Text>
                                         </View>
                                     </Pressable>
                                 )}
@@ -526,7 +527,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                 android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
                             >
                                 <LinearGradient
-                                    colors={['#FF2E93', '#FF89C7']}
+                                    colors={['#FF416C', '#FF4B2B']}
                                     style={styles.upgradeButtonGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
@@ -535,20 +536,20 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                         <ActivityIndicator color="#000" />
                                     ) : (
                                         <Text style={styles.upgradeButtonText}>
-                                            {isPro ? 'Update Subscription' : 'Upgrade'}
+                                            {isPro ? 'Update Subscription' : 'Unlock Premium Access'}
                                         </Text>
                                     )}
                                 </LinearGradient>
                             </Pressable>
 
                             <View style={styles.footerLinks}>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/privacy')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/privacy')}>
                                     Privacy Policy
                                 </LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
                                 <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
                                 <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://evee-legal-pages.lovable.app/terms')}>
+                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/terms')}>
                                     Terms of Use
                                 </LinkText>
                             </View>
@@ -689,7 +690,7 @@ const styles = StyleSheet.create({
     planCard: {
         flex: 1,
         backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 16,
+        borderRadius: 20,
         padding: 16,
         borderWidth: 2,
         borderColor: 'transparent',
@@ -698,14 +699,14 @@ const styles = StyleSheet.create({
         maxWidth: '50%'
     },
     planCardSelected: {
-        borderColor: '#2196F3',
-        backgroundColor: 'rgba(33, 150, 243, 0.15)',
+        borderColor: '#FF416C',
+        backgroundColor: 'rgba(255, 65, 108, 0.15)',
     },
     blueBadge: {
         position: 'absolute',
         top: -12,
         right: -4,
-        backgroundColor: '#2196F3',
+        backgroundColor: '#FF416C',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
