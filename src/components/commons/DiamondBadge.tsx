@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
 import { LiquidGlassView } from '@callstack/liquid-glass';
-import DiamondIcon from '../assets/icons/diamond.svg';
+import DiamondIcon from '../../assets/icons/diamond.svg';
 
 type BadgeSize = 'sm' | 'md' | 'lg';
 

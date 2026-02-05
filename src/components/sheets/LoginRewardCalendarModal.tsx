@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import Button from "../Button";
+import Button from "../commons/Button";
 import type { LoginReward } from "../../repositories/LoginRewardRepository";
 
 const VCOIN_ICON = require("../../assets/images/VCoin.png");
@@ -46,132 +46,132 @@ export const LoginRewardCalendarModal: React.FC<
   onClaim,
   isClaiming = false,
 }) => {
-  const { width } = useWindowDimensions();
-  const columnCount = width >= 900 ? 7 : 5;
-  const spacing = 12;
-  const cardWidth = useMemo(() => {
-    if (columnCount === 7) {
-      return 60;
-    }
-    if (width > 420) {
-      return 62;
-    }
-    return Math.max(
-      56,
-      Math.floor((width - spacing * (columnCount + 1)) / columnCount)
-    );
-  }, [columnCount, spacing, width]);
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
+    const { width } = useWindowDimensions();
+    const columnCount = width >= 900 ? 7 : 5;
+    const spacing = 12;
+    const cardWidth = useMemo(() => {
+      if (columnCount === 7) {
+        return 60;
+      }
+      if (width > 420) {
+        return 62;
+      }
+      return Math.max(
+        56,
+        Math.floor((width - spacing * (columnCount + 1)) / columnCount)
       );
-    }
+    }, [columnCount, spacing, width]);
 
-    if (error) {
-      return (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorTitle}>Unable to load login calendar</Text>
-          <Text style={styles.errorSubtitle}>{error}</Text>
-          <Button onPress={onReload} size="md">
-            Try Again
-          </Button>
-        </View>
-      );
-    }
+    const renderContent = () => {
+      if (isLoading) {
+        return (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        );
+      }
 
-    if (!rewards.length) {
+      if (error) {
+        return (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorTitle}>Unable to load login calendar</Text>
+            <Text style={styles.errorSubtitle}>{error}</Text>
+            <Button onPress={onReload} size="md">
+              Try Again
+            </Button>
+          </View>
+        );
+      }
+
+      if (!rewards.length) {
+        return (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorTitle}>No rewards available</Text>
+            <Button onPress={onReload} size="md">
+              Reload
+            </Button>
+          </View>
+        );
+      }
+
       return (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorTitle}>No rewards available</Text>
-          <Button onPress={onReload} size="md">
-            Reload
-          </Button>
-        </View>
+        <>
+          <FlatList
+            data={rewards}
+            key={`login-calendar-${columnCount}`}
+            keyExtractor={(item) => item.id}
+            numColumns={columnCount}
+            columnWrapperStyle={{
+              gap: spacing,
+              marginBottom: spacing,
+              justifyContent: "center",
+            }}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingHorizontal: Math.max(12, spacing) },
+            ]}
+            renderItem={({ item }) => (
+              <RewardCell
+                reward={item}
+                width={cardWidth}
+                isCurrentDay={item.day_number === currentDay}
+                isPastDay={
+                  item.day_number < currentDay ||
+                  (item.day_number === currentDay && hasClaimedToday)
+                }
+                isFutureDay={item.day_number > currentDay}
+                onClaim={() => {
+                  if (item.day_number === currentDay && canClaimToday) {
+                    onClaim();
+                  }
+                }}
+              />
+            )}
+          />
+          <View style={styles.footer}>
+            {canClaimToday ? (
+              <Button onPress={onClaim} disabled={isClaiming} size="lg">
+                {isClaiming ? "Claiming..." : `Claim Day ${currentDay} Reward`}
+              </Button>
+            ) : (
+              <Text style={styles.footerHint}>
+                {hasClaimedToday
+                  ? "You already claimed today - come back tomorrow"
+                  : "Log in daily to unlock more rewards"}
+              </Text>
+            )}
+          </View>
+        </>
       );
-    }
+    };
 
     return (
-      <>
-        <FlatList
-          data={rewards}
-          key={`login-calendar-${columnCount}`}
-          keyExtractor={(item) => item.id}
-          numColumns={columnCount}
-          columnWrapperStyle={{
-            gap: spacing,
-            marginBottom: spacing,
-            justifyContent: "center",
-          }}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingHorizontal: Math.max(12, spacing) },
-          ]}
-          renderItem={({ item }) => (
-            <RewardCell
-              reward={item}
-              width={cardWidth}
-              isCurrentDay={item.day_number === currentDay}
-              isPastDay={
-                item.day_number < currentDay ||
-                (item.day_number === currentDay && hasClaimedToday)
-              }
-              isFutureDay={item.day_number > currentDay}
-              onClaim={() => {
-                if (item.day_number === currentDay && canClaimToday) {
-                  onClaim();
-                }
-              }}
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={{ width: 40 }} />
+            <View>
+              <Text style={styles.title}>Login Calendar</Text>
+              <Text style={styles.subtitle}>Earn VCoin, Ruby, and Energy</Text>
+            </View>
+            <Button
+              size="md"
+              variant="liquid"
+              onPress={onClose}
+              startIconName="close"
+              isIconOnly
             />
-          )}
-        />
-        <View style={styles.footer}>
-          {canClaimToday ? (
-            <Button onPress={onClaim} disabled={isClaiming} size="lg">
-              {isClaiming ? "Claiming..." : `Claim Day ${currentDay} Reward`}
-            </Button>
-          ) : (
-            <Text style={styles.footerHint}>
-              {hasClaimedToday
-                ? "You already claimed today - come back tomorrow"
-                : "Log in daily to unlock more rewards"}
-            </Text>
-          )}
+          </View>
+          {renderContent()}
         </View>
-      </>
+      </Modal>
     );
   };
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={{ width: 40 }} />
-          <View>
-            <Text style={styles.title}>Login Calendar</Text>
-            <Text style={styles.subtitle}>Earn VCoin, Ruby, and Energy</Text>
-          </View>
-          <Button
-            size="md"
-            variant="liquid"
-            onPress={onClose}
-            startIconName="close"
-            isIconOnly
-          />
-        </View>
-        {renderContent()}
-      </View>
-    </Modal>
-  );
-};
 
 type RewardCellProps = {
   reward: LoginReward;
@@ -193,8 +193,8 @@ const RewardCell: React.FC<RewardCellProps> = ({
   const backgroundColor = isCurrentDay
     ? "rgba(255, 214, 0, 0.18)"
     : isPastDay
-    ? "rgba(255,255,255,0.08)"
-    : "rgba(255,255,255,0.04)";
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(255,255,255,0.04)";
 
   const borderColor = isCurrentDay ? "#FFD24C" : "transparent";
   const shadowColor = isCurrentDay
@@ -203,13 +203,13 @@ const RewardCell: React.FC<RewardCellProps> = ({
   const statusIcon: keyof typeof Ionicons.glyphMap = isPastDay
     ? "checkmark-circle"
     : isCurrentDay
-    ? "star"
-    : "ellipse-outline";
+      ? "star"
+      : "ellipse-outline";
   const statusColor = isPastDay
     ? "#4CAF50"
     : isCurrentDay
-    ? "#FFD24C"
-    : "rgba(255, 255, 255, 0.4)";
+      ? "#FFD24C"
+      : "rgba(255, 255, 255, 0.4)";
 
   return (
     <Pressable

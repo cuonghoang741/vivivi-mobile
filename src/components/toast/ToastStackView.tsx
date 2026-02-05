@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { toastManager, ToastMessage, ToastType } from '../../managers/ToastManager';
-import { CurrencyIcon } from '../CurrencyIcon';
-import { LiquidGlass } from '../LiquidGlass';
+import { toastManager, ToastMessage, ToastType } from '../../services/ToastManager';
+import { CurrencyIcon } from '../commons/CurrencyIcon';
+import { LiquidGlass } from '../commons/LiquidGlass';
 
 const ICON_NAME_MAP: Record<string, string> = {
   'sparkles': 'sparkles',

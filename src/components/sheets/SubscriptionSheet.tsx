@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Dimensions,
     Linking,
     Modal,
     Pressable,
@@ -15,35 +14,37 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
 import { PurchasesPackage } from 'react-native-purchases';
 import { LiquidGlassView } from '@callstack/liquid-glass';
-import { VideoCacheService } from '../../services/VideoCacheService';
+import { BlurView } from 'expo-blur';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useVRMContext } from '../../context/VRMContext';
-import Button from '../Button';
+import Button from '../commons/Button';
 import { analyticsService } from '../../services/AnalyticsService';
 import AssetRepository from '../../repositories/AssetRepository';
 import { CharacterRepository } from '../../repositories/CharacterRepository';
 import { BackgroundRepository } from '../../repositories/BackgroundRepository';
+import { PreviewVRM } from '../commons/PreviewVRM';
 
 // Icons
-import Icon1 from '../../assets/icons/subscriptions/4.svg';
-import Icon2 from '../../assets/icons/subscriptions/2.svg';
-import Icon4 from '../../assets/icons/subscriptions/5.svg';
-import Icon5 from '../../assets/icons/subscriptions/1.svg';
-import Icon6 from '../../assets/icons/subscriptions/6.svg';
-import { IconX } from '@tabler/icons-react-native';
-
-const DEFAULT_VIDEO_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/videos/Smiling_sweetly_to_202601061626_n3trm%20(online-video-cutter.com).mp4';
+import {
+    IconX,
+    IconCube3dSphere,
+    IconVideo,
+    IconLock,
+    IconUsers,
+    IconSparkles,
+    IconHeart
+} from '@tabler/icons-react-native';
 
 const SUBSCRIPTION_FEATURES = [
-    { icon: Icon1, text: 'Chat endlessly, anytime you want' },
-    { icon: Icon2, text: 'Unlock exclusive secret moments' },
-    // { icon: Icon3, text: '30 minutes of video calls each month' },
-    { icon: Icon4, text: 'Meet every character instantly' },
-    { icon: Icon5, text: 'Access complete wardrobe collection' },
-    { icon: Icon6, text: 'Explore all diverse locations' },
+    { icon: IconCube3dSphere, text: 'Full 3D VRM interaction experience', color: '#FF416C' },
+    { icon: IconVideo, text: 'Unlimited HD Video Calls anytime', color: '#9C27B0' },
+    { icon: IconLock, text: 'Unlock all secret & exclusive content', color: '#FF9800' },
+    { icon: IconUsers, text: 'Access every character instantly', color: '#4CAF50' },
+    { icon: IconSparkles, text: 'Premium costumes & animations', color: '#2196F3' },
+    { icon: IconHeart, text: 'Deeper intimacy & special moments', color: '#E91E63' },
 ];
 
 interface SubscriptionSheetProps {
@@ -58,7 +59,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     onPurchaseSuccess,
 }) => {
     const insets = useSafeAreaInsets();
-    const { currentCharacter, currentCostume } = useVRMContext();
+    const { currentCharacter, initialData } = useVRMContext();
+    const activeCharacterId = currentCharacter?.id || initialData?.character?.id;
     const {
         isPro,
         isLoading: contextLoading,
@@ -68,16 +70,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         restorePurchases,
     } = useSubscription();
 
-    // Map of local video assets by character order
-    const LOCAL_VIDEOS: Record<number, any> = {
-        1: require('../../assets/videos/1.mp4'),
-        2: require('../../assets/videos/2.mp4'),
-        3: require('../../assets/videos/3.mp4'),
-    };
-
     const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
     // Find yearly and monthly packages
@@ -122,53 +116,6 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
             analyticsService.logSubscriptionView();
         }
     }, [isOpened]);
-
-    // Load background video - prioritize local video -> costume video -> character video -> default
-    // PRELOAD and CACHE video immediately
-    useEffect(() => {
-        const loadAndCacheVideo = async () => {
-            // 1. Check for local video first based on character order
-            // Cast to any to access 'order' if it's missing from the type definition
-            const charWithOrder = currentCharacter as any;
-            if (charWithOrder?.order) {
-                const orderNum = parseInt(String(charWithOrder.order), 10);
-                if (LOCAL_VIDEOS[orderNum]) {
-                    console.log(`[SubscriptionSheet] Using local video for ${currentCharacter?.name} (order ${orderNum})`);
-                    setBackgroundVideo(LOCAL_VIDEOS[orderNum]);
-                    return;
-                }
-            }
-
-            let targetUrl: string | null = null;
-
-            // 2. Determine which remote video we WANT to show
-            if (currentCostume?.video_url) {
-                targetUrl = currentCostume.video_url;
-            } else if (currentCharacter?.video_url) {
-                targetUrl = currentCharacter.video_url;
-            }
-
-            // If no custom video, we use the default
-            const finalUrl = targetUrl || DEFAULT_VIDEO_URL;
-
-            try {
-                // Try caching
-                const cachedMap = await VideoCacheService.preloadVideos([finalUrl]);
-                const localUri = cachedMap.get(finalUrl);
-
-                if (localUri) {
-                    setBackgroundVideo(localUri);
-                } else {
-                    setBackgroundVideo(finalUrl);
-                }
-            } catch (error) {
-                console.warn('[SubscriptionSheet] Failed to cache video', error);
-                setBackgroundVideo(finalUrl);
-            }
-        };
-
-        loadAndCacheVideo();
-    }, [currentCostume, currentCharacter]);
 
     // Set default selected package
     useEffect(() => {
@@ -354,7 +301,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         }
     };
 
-    const videoSource = backgroundVideo || DEFAULT_VIDEO_URL;
+    // Filter for premium characters to show in preview
+    const premiumCharacterFilter = (c: any) => c.available && c.order;
 
     return (
         <Modal
@@ -366,21 +314,16 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-                {/* Background Video - Top Half */}
-                <View style={styles.videoHeader}>
-                    <Video
-                        source={typeof videoSource === 'number' ? videoSource : { uri: videoSource }}
-                        style={styles.backgroundVideo}
-                        resizeMode={ResizeMode.COVER}
-                        isLooping
-                        shouldPlay={isOpened}
-                        isMuted={true}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.8)', '#000']}
-                        style={styles.gradientOverlay}
-                        pointerEvents="none"
-                    />
+                {/* VRM Preview - Top Half */}
+                <View style={styles.vrmHeader}>
+                    {isOpened && (
+                        <PreviewVRM
+                            showActionButtons={true}
+                            showNavigation={true}
+                            characterFilter={premiumCharacterFilter}
+                            initialCharacterId={activeCharacterId}
+                        />
+                    )}
                 </View>
 
                 {/* Header with Close Button */}
@@ -401,6 +344,24 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                 {/* Main Content pushed to bottom */}
                 <View style={styles.contentWrapper}>
                     <View style={styles.sheetContent}>
+                        {/* Blur Background */}
+                        <MaskedView
+                            style={StyleSheet.absoluteFill}
+                            maskElement={
+                                <LinearGradient
+                                    colors={['transparent', '#000']}
+                                    locations={[0, 0.4]}
+                                    style={StyleSheet.absoluteFill}
+                                />
+                            }
+                        >
+                            <BlurView
+                                intensity={80}
+                                tint="dark"
+                                style={StyleSheet.absoluteFill}
+                            />
+                        </MaskedView>
+
                         {/* Scrollable Section: Title + Features */}
                         <View style={styles.featuresScrollContainer}>
                             <ScrollView
@@ -420,13 +381,16 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                             <Text style={styles.premiumBadgeText}>Pro</Text>
                                         </LinearGradient>
                                     </LiquidGlassView>
-                                    <Text style={styles.title}>Limitless</Text>
+                                    <Text style={styles.title}>Ultimate Experience</Text>
+                                    <Text style={styles.subtitle}>Unlock the full 3D intimate world</Text>
                                 </View>
 
                                 <View style={styles.featuresList}>
                                     {SUBSCRIPTION_FEATURES.map((feature, index) => (
                                         <View key={index} style={styles.featureRow}>
-                                            <feature.icon width={24} height={24} fill="#fff" style={{ marginRight: 12 }} />
+                                            <View style={[styles.featureIconContainer, { backgroundColor: feature.color + '20' }]}>
+                                                <feature.icon size={20} color={feature.color} />
+                                            </View>
                                             <Text style={styles.featureText}>{feature.text}</Text>
                                         </View>
                                     ))}
@@ -586,24 +550,13 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
-    videoHeader: {
+    vrmHeader: {
         position: 'absolute',
         top: 0,
         width: '100%',
-        height: '65%', // Increased slightly to cover more background behind sheet
-    },
-    backgroundVideo: {
-        width: '100%',
         height: '100%',
     },
-    gradientOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '50%',
-        width: '100%',
-    },
+    // gradientOverlay removed
     header: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
@@ -665,13 +618,28 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 42,
     },
+    subtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 16,
+        fontWeight: '500',
+        textAlign: 'center',
+        marginTop: 4,
+    },
     featuresList: {
         // Removed marginBottom as it's handled by container
     },
     featureRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
+    },
+    featureIconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
     },
     featureText: {
         color: '#fff',

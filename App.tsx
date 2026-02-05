@@ -1,43 +1,39 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated } from 'react-native';
+import { StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated, Image } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { mediaDevices, MediaStream, RTCView } from '@livekit/react-native-webrtc';
+import { MediaStream, RTCView } from '@livekit/react-native-webrtc';
 import { BlurView } from 'expo-blur';
-import { VRMWebView } from './src/components/VRMWebView';
-import { VRMUIOverlay } from './src/components/VRMUIOverlay';
+import { VRMWebView } from './src/components/commons/VRMWebView';
+import { VRMUIOverlay } from './src/components/commons/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
-import { SwiftUIDemoScreen } from './src/screens/SwiftUIDemoScreen';
-import { InitialLoadingScreen } from './src/components/InitialLoadingScreen';
 import { useUserStats } from './src/hooks/useUserStats';
-import { SignInScreen } from './src/screens/SignInScreen';
-import { ImageOnboardingScreen } from './src/screens/ImageOnboardingScreen';
-import { NewUserGiftScreen } from './src/screens/NewUserGiftScreen';
-import { OnboardingV2Screen } from './src/screens/OnboardingV2Screen';
-import { CharacterPreviewScreen } from './src/screens/CharacterPreviewScreen';
+import { SignInScreen } from './src/pages/SignInScreen';
+import { OnboardingV3Screen } from './src/pages/OnboardingV3Screen';
+import { CharacterPreviewScreen } from './src/pages/CharacterPreviewScreen';
 import { authManager } from './src/services/AuthManager';
 import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { SubscriptionSheet } from './src/components/sheets/SubscriptionSheet';
-import { StreakRewardPopup } from './src/components/StreakRewardPopup';
+import { StreakRewardPopup } from './src/components/commons/StreakRewardPopup';
 import { useChatManager } from './src/hooks/useChatManager';
 import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
 import { useVoiceCall } from './src/hooks/useVoiceCall';
 import { DetectedAction } from './src/services/ActionDetectionService';
-import { VoiceLoadingOverlay } from './src/components/VoiceLoadingOverlay';
-import { CallEndedModal } from './src/components/CallEndedModal';
+import { VoiceLoadingOverlay } from './src/components/commons/VoiceLoadingOverlay';
+import { CallEndedModal } from './src/components/commons/CallEndedModal';
 import { CallQuotaService } from './src/services/CallQuotaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AssetRepository from './src/repositories/AssetRepository';
 import { UserPreferencesService } from './src/services/UserPreferencesService';
 import { UserCharacterPreferenceService } from './src/services/UserCharacterPreferenceService';
 import { VRMProvider, useVRMContext } from './src/context/VRMContext';
-import { AppSheets } from './src/components/AppSheets';
+import { AppSheets } from './src/components/commons/AppSheets';
 import { StreakSheet, type StreakSheetRef } from './src/components/sheets/StreakSheet';
-import { CharacterQuickSwitcher } from './src/components/CharacterQuickSwitcher';
+import { CharacterQuickSwitcher } from './src/components/commons/CharacterQuickSwitcher';
 import { BackgroundItem, BackgroundRepository } from './src/repositories/BackgroundRepository';
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
@@ -67,6 +63,7 @@ type RootStackParamList = {
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
   CharacterPreview: { characters: CharacterItem[]; initialIndex?: number; ownedCharacterIds?: string[] };
   OnboardingV2: { selectedCharacterId: string };
+  OnboardingV3: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -115,9 +112,10 @@ const AppContent = () => {
 
 
   // Initialize from AuthManager flag if available to avoid flash
-  const [showOnboardingV2, setShowOnboardingV2] = useState(() => {
+  const [showOnboardingV2, setShowOnboardingV2] = useState(false);
+  const [showOnboardingV3, setShowOnboardingV3] = useState(() => {
     if (authManager.isNewUser !== null) {
-      console.log('[App] Initializing OnboardingV2 state from AuthManager:', authManager.isNewUser);
+      console.log('[App] Initializing OnboardingV3 state from AuthManager:', authManager.isNewUser);
       return authManager.isNewUser;
     }
     return false;
@@ -143,10 +141,23 @@ const AppContent = () => {
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [isVrmMode, setIsVrmMode] = useState(false);
   const vrmModeAnim = useRef(new Animated.Value(1)).current; // 1 = overlays visible, 0 = hidden
   const [isDancing, setIsDancing] = useState(false);
   const [isCharacterBlurred, setIsCharacterBlurred] = useState(false);
+
+  // Trigger webview update when switching to 3D mode
+  useEffect(() => {
+    if (isPro && viewMode === '3d' && currentCharacter) {
+      // Re-trigger character selection to ensure webview loads correct content
+      const charItem = allCharacters.find(c => c.id === currentCharacter.id);
+      if (charItem) {
+        handleCharacterSelect(charItem);
+      }
+    }
+  }, [viewMode, isPro]);
+
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
     title: string;
@@ -1811,11 +1822,11 @@ const AppContent = () => {
     if (authManager.isNewUser !== null) {
       console.log('[Onboarding] Using AuthManager status:', authManager.isNewUser);
       if (authManager.isNewUser === true) {
-        setShowOnboardingV2(true);
+        setShowOnboardingV3(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
       } else {
-        setShowOnboardingV2(false);
+        setShowOnboardingV3(false);
         // Still might want to check gift status for existing users, but delay it to avoid blocking UI?
         // For now, let's just proceed to main app.
         checkGiftClaimStatus();
@@ -1830,7 +1841,7 @@ const AppContent = () => {
       const isNewUserFlag = await AsyncStorage.getItem('isNewUser');
       if (isNewUserFlag === 'true') {
         console.log('[Onboarding] Found isNewUser flag, forcing onboarding...');
-        setShowOnboardingV2(true);
+        setShowOnboardingV3(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
         return;
@@ -1854,17 +1865,18 @@ const AppContent = () => {
         await AsyncStorage.setItem('isNewUser', 'false');
 
         setShowOnboardingV2(false);
+        setShowOnboardingV3(false);
         setShowImageOnboarding(false);
         // Check gift claim status directly
         await checkGiftClaimStatus();
       } else if (!hasCompletedOnboardingV2) {
         // New user who hasn't completed OnboardingV2 - show it
-        console.log('[Onboarding Debug] -> Showing OnboardingV2');
+        console.log('[Onboarding Debug] -> Showing OnboardingV3');
 
         // Set isNewUser flag
         await AsyncStorage.setItem('isNewUser', 'true');
 
-        setShowOnboardingV2(true);
+        setShowOnboardingV3(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
       } else {
@@ -1874,7 +1886,7 @@ const AppContent = () => {
         await AsyncStorage.removeItem('persist.hasCompletedOnboardingV2');
         await AsyncStorage.setItem('isNewUser', 'true');
 
-        setShowOnboardingV2(true);
+        setShowOnboardingV3(true);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
       }
@@ -1885,10 +1897,10 @@ const AppContent = () => {
         (await AsyncStorage.getItem('persist.hasCompletedOnboardingV2')) === 'true';
 
       if (!hasCompletedOnboardingV2) {
-        setShowOnboardingV2(true);
+        setShowOnboardingV3(true);
         setShowImageOnboarding(false);
       } else {
-        setShowOnboardingV2(false);
+        setShowOnboardingV3(false);
         setShowImageOnboarding(false);
         setShowNewUserGift(false);
       }
@@ -1986,6 +1998,7 @@ const AppContent = () => {
       await AsyncStorage.setItem('isNewUser', 'false');
       authManager.setIsNewUser(false);
       setShowOnboardingV2(false);
+      setShowOnboardingV3(false);
 
       // 4. Refresh data
       await Promise.all([refreshInitialData(), refreshCurrency()]);
@@ -1999,6 +2012,25 @@ const AppContent = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRestoredSession, session]);
+
+  const handleV3Complete = useCallback(async (data: {
+    userName: string;
+    userAge: number;
+    selectedCharacterId: string;
+  }) => {
+    console.log('[App] Onboarding V3 complete');
+
+    // Update AuthManager and Local State
+    await AsyncStorage.setItem('persist.hasCompletedOnboardingV2', 'true');
+    await AsyncStorage.setItem('isNewUser', 'false');
+    authManager.setIsNewUser(false);
+
+    // Refresh App Data to reflect new character ownership
+    await Promise.all([refreshInitialData(), refreshCurrency()]);
+
+    // Hide Onboarding
+    setShowOnboardingV3(false);
+  }, [refreshInitialData, refreshCurrency]);
 
   const renderContent = () => {
     if (shouldShowSignIn) {
@@ -2018,23 +2050,13 @@ const AppContent = () => {
 
     console.log("CharacterSelectionScreen", !!session, authManager.isNewUser)
 
-    // PRIORITIZE: If AuthManager detected a new user during sign-in, go STRAIGHT to Preview.
-    // This avoids the "Checking profile..." flash.
+    // PRIORITIZE: If AuthManager detected a new user during sign-in, go STRAIGHT to V3.
     if (session && authManager.isNewUser === true) {
-      return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
+      return <OnboardingV3Screen onComplete={handleV3Complete} />;
     }
 
-    if (showOnboardingV2) {
-      return <CharacterSelectionScreen onComplete={handleCharacterSelectionComplete} />;
-    }
-
-    if (Platform.OS === 'ios' && showSwiftUIDemo) {
-      return (
-        <View style={styles.container}>
-          <StatusBar barStyle="dark-content" />
-          <SwiftUIDemoScreen />
-        </View>
-      );
+    if (showOnboardingV3) {
+      return <OnboardingV3Screen onComplete={handleV3Complete} />;
     }
 
     return (
@@ -2065,6 +2087,16 @@ const AppContent = () => {
               onCharacterMenuPress={() => setShowCharacterSheet(true)}
               onCallPress={handleToggleMic}
               remainingQuotaSeconds={remainingQuotaSeconds}
+              viewMode={viewMode}
+              onViewModeChange={(mode) => {
+                if (mode === '3d' && !isPro) {
+                  setShowSubscriptionSheet(true);
+                } else {
+                  setViewMode(mode);
+                }
+              }}
+              isPro={isPro}
+              onUpgradePress={() => setShowSubscriptionSheet(true)}
               isDarkBackground={isDarkBackground}
             />
           </Animated.View>
@@ -2477,26 +2509,53 @@ const AppContent = () => {
     );
   };
 
+  console.log("currentCharacter", currentCharacter)
+
   const content = renderContent();
   return (
     <SceneActionsProvider value={sceneActions}>
       <View style={{ flex: 1, backgroundColor: 'pink' }}>
         {/* Persistently Mounted VRMWebView */}
+        {/* Persistently Mounted VRMWebView OR Static Image for Non-Pro */}
         {!(Platform.OS === 'ios' && showSwiftUIDemo) && (
           <View style={StyleSheet.absoluteFill}>
-            <Pressable
-              style={styles.webViewWrapper}
-              ref={snapshotViewRef as any}
-              collapsable={false}
-              onPress={() => Keyboard.dismiss()}
-            >
-              <VRMWebView
-                ref={webViewRef}
-                onModelReady={handleModelReady}
-                onMessage={handleMessage}
-                enableDebug={false}
-              />
-            </Pressable>
+            {isPro && viewMode === '3d' ? (
+              <Pressable
+                style={styles.webViewWrapper}
+                ref={snapshotViewRef as any}
+                collapsable={false}
+                onPress={() => Keyboard.dismiss()}
+              >
+                <VRMWebView
+                  ref={webViewRef}
+                  onModelReady={handleModelReady}
+                  onMessage={handleMessage}
+                  enableDebug={false}
+                />
+              </Pressable>
+            ) : (
+              <View style={StyleSheet.absoluteFill}>
+                {/* Background Image */}
+                {currentBackgroundId && (
+                  <Image
+                    source={{ uri: allBackgrounds.find((bg) => bg.id === currentBackgroundId)?.image }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                )}
+                {/* Character Image */}
+                {(currentCharacter?.avatar || initialData?.character?.avatar || initialData?.character?.thumbnail_url) && (
+                  <View style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'center' }]} pointerEvents="none">
+                    <Image
+                      source={{ uri: currentCharacter?.avatar || initialData?.character?.avatar || initialData?.character?.thumbnail_url }}
+                      style={{ width: '100%', height: '100%' }}
+                      resizeMode="cover"
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+
             {isCharacterBlurred && (
               <BlurView
                 style={StyleSheet.absoluteFill}
@@ -2514,18 +2573,10 @@ const AppContent = () => {
   );
 };
 
-// Wrapper for OnboardingV2Screen to use in navigation
-const OnboardingV2ScreenWrapper: React.FC = () => {
+const OnboardingV3ScreenWrapper: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const route = useRoute<RouteProp<RootStackParamList, 'OnboardingV2'>>();
-  const { selectedCharacterId } = route.params;
 
-  const handleComplete = useCallback(async (data: {
-    userName: string;
-    userAge: number;
-    selectedCharacterId: string;
-    characterNickname: string;
-  }) => {
+  const handleComplete = useCallback(() => {
     // Navigate to Experience (main app)
     navigation.reset({
       index: 0,
@@ -2533,12 +2584,7 @@ const OnboardingV2ScreenWrapper: React.FC = () => {
     });
   }, [navigation]);
 
-  return (
-    <OnboardingV2Screen
-      onComplete={handleComplete}
-      selectedCharacterId={selectedCharacterId}
-    />
-  );
+  return <OnboardingV3Screen onComplete={handleComplete} />;
 };
 
 interface CharacterSelectionScreenProps {
@@ -2619,7 +2665,16 @@ export default function App() {
                 />
                 <Stack.Screen
                   name="OnboardingV2"
-                  component={OnboardingV2ScreenWrapper}
+                  component={OnboardingV3ScreenWrapper}
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    animation: 'slide_from_right',
+                  }}
+                />
+                <Stack.Screen
+                  name="OnboardingV3"
+                  component={OnboardingV3ScreenWrapper}
                   options={{
                     headerShown: false,
                     presentation: 'fullScreenModal',

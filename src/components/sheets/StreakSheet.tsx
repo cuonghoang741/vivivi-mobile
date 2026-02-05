@@ -11,13 +11,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Animated } from 'react-native';
-import StreakIcon from '../../assets/icons/streak.svg';
 import GiftIcon from '../../assets/icons/gift.svg';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import { IconHearts } from '@tabler/icons-react-native';
-import { BottomSheet, BottomSheetRef } from '../BottomSheet';
+import { BottomSheet, BottomSheetRef } from '../commons/BottomSheet';
 
 type StreakSheetProps = {
     characterName?: string;

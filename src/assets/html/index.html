@@ -1210,6 +1210,7 @@
                         VRMUtils.deepDispose(currentVrm.scene);
                     }
                     currentVrm = vrm;
+                    window.currentVrm = vrm;
                     scene.add(vrm.scene);
                     currentMixer = new THREE.AnimationMixer(currentVrm.scene);
                     // Clear any previous action from old mixer to avoid cross-fading across mixers
@@ -1321,6 +1322,7 @@
                     updateFileDisplay(document.getElementById('currentModel').textContent, 'Error: ' + error.message);
                 });
         }
+        window.loadFBX = loadFBX;
 
         window.loadRandomFiles = async function () {
             try {

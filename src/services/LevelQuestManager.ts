@@ -1,5 +1,5 @@
 import { type UserLevelQuest, type LevelQuest } from '../repositories/QuestRepository';
-import { QuestService } from '../services/QuestService';
+import { QuestService } from './QuestService';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
 import { toastManager, ToastType } from './ToastManager';

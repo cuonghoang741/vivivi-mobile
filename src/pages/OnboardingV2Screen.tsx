@@ -19,8 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Button from '../components/Button';
-import { LiquidGlass } from '../components/LiquidGlass';
+import Button from '../components/commons/Button';
+import { LiquidGlass } from '../components/commons/LiquidGlass';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CharacterRepository, type CharacterItem } from '../repositories/CharacterRepository';

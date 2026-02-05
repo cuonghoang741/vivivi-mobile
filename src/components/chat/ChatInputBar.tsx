@@ -13,9 +13,9 @@ import {
   IconPhone,
 } from '@tabler/icons-react-native';
 import { glassButtonStyle } from '../../styles/glass';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import { isLiquidGlassSupported } from '@callstack/liquid-glass';
-import Button from '../Button';
+import Button from '../commons/Button';
 
 type Props = {
   value: string;

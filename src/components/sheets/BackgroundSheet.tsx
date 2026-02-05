@@ -14,14 +14,14 @@ import { BackgroundRepository, BackgroundItem } from '../../repositories/Backgro
 import AssetRepository from '../../repositories/AssetRepository';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { GoProButton } from '../GoProButton';
+import { GoProButton } from '../commons/GoProButton';
 import { useSceneActions } from '../../context/SceneActionsContext';
 import { useVRMContext } from '../../context/VRMContext';
-import { DiamondBadge } from '../DiamondBadge';
-import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { DiamondBadge } from '../commons/DiamondBadge';
+import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
 import { IconCarambolaFilled } from '@tabler/icons-react-native';
-import { LiquidGlass } from '../LiquidGlass';
-import Button from '../Button';
+import { LiquidGlass } from '../commons/LiquidGlass';
+import Button from '../commons/Button';
 
 interface BackgroundSheetProps {
   isOpened: boolean;

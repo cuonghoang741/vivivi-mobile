@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useSceneActions } from '../../context/SceneActionsContext';
-import { DiamondBadge } from '../../components/DiamondBadge';
+import { DiamondBadge } from '../commons/DiamondBadge';
 import type { ChatMessage } from '../../types/chat';
 
 type Props = {

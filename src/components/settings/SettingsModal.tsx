@@ -20,10 +20,10 @@ import Constants from 'expo-constants';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { authManager } from '../../services/AuthManager';
-import Button from '../Button';
+import Button from '../commons/Button';
 import { getSupabaseClient } from '../../services/supabase';
 import { getAuthIdentifier } from '../../services/authIdentifier';
-import { BottomSheet, BottomSheetRef } from '../BottomSheet';
+import { BottomSheet, BottomSheetRef } from '../commons/BottomSheet';
 
 type Props = {
   visible: boolean;
@@ -221,37 +221,38 @@ const PremiumBanner: React.FC<{
   );
 };
 
-const SettingsGroup: React.FC<{ title?: string; children: React.ReactNode }> = ({ title, children }) => (
-  <View style={styles.groupContainer}>
-    {title && <Text style={styles.groupTitle}>{title}</Text>}
-    <View style={styles.groupContent}>
-      {children}
-    </View>
-  </View>
-);
-
-const SettingsRow: React.FC<{
-  icon?: keyof typeof Ionicons.glyphMap;
+const SettingsGroup = () => null; // Placeholder if needed, but unused.
+const SettingsRow = () => null; // Placeholder if needed, but unused.
+const CircularSettingsButton: React.FC<{
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  rightElement?: React.ReactNode;
-  onPress?: () => void;
-  isLast?: boolean;
+  onPress: () => void;
+  isActive?: boolean; // For toggles
   destructive?: boolean;
-}> = ({ icon, label, rightElement, onPress, isLast, destructive }) => (
+}> = ({ icon, label, onPress, isActive, destructive }) => (
   <Pressable
-    style={({ pressed }) => [styles.rowContainer, pressed && onPress && styles.pressedRow]}
+    style={({ pressed }) => [
+      styles.circularButtonContainer,
+      pressed && { transform: [{ scale: 0.95 }] },
+    ]}
     onPress={onPress}
-    disabled={!onPress}
   >
-    {icon && (
-      <View style={styles.rowIconContainer}>
-        <Ionicons name={icon} size={20} color={destructive ? '#FF453A' : '#fff'} />
-      </View>
-    )}
-    <View style={[styles.rowContent, isLast && styles.rowContentNoBorder]}>
-      <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
-      {rightElement ?? (onPress && <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.3)" />)}
+    <View
+      style={[
+        styles.circularButton,
+        isActive && styles.circularButtonActive,
+        destructive && styles.circularButtonDestructive,
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={28}
+        color={destructive ? '#fff' : isActive ? '#fff' : 'rgba(255,255,255,0.7)'}
+      />
     </View>
+    <Text style={styles.circularButtonLabel} numberOfLines={2}>
+      {label}
+    </Text>
   </Pressable>
 );
 
@@ -442,10 +443,12 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
               />
             </View>
 
-            <SettingsGroup title="Your Account">
-              <SettingsRow
+            {/* Grid Layout for Settings */}
+            <View style={styles.gridContainer}>
+              {/* Account Actions */}
+              <CircularSettingsButton
                 icon="card-outline"
-                label="Manage Subscription"
+                label={subscriptionTier === 'free' ? "Upgrade" : "Plan"}
                 onPress={() => {
                   if (subscriptionTier === 'free') {
                     onClose();
@@ -455,76 +458,52 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
                   }
                 }}
               />
-              <SettingsRow
-                icon="notifications-outline"
-                label="Notifications"
-                isLast
-                rightElement={<Switch value={true} disabled />} // Placeholder as requested
-              />
-            </SettingsGroup>
 
-            <SettingsGroup title="Preferences">
-              <SettingsRow
+              {/* Preferences */}
+              <CircularSettingsButton
                 icon="musical-notes-outline"
-                label="Auto-play Music"
-                rightElement={
-                  <Switch
-                    value={toggles['settings.autoPlayMusic']}
-                    onValueChange={(v) => handleToggle('settings.autoPlayMusic', v)}
-                  />
-                }
+                label="Music"
+                isActive={toggles['settings.autoPlayMusic']}
+                onPress={() => handleToggle('settings.autoPlayMusic', !toggles['settings.autoPlayMusic'])}
               />
-              <SettingsRow
+              <CircularSettingsButton
                 icon="finger-print-outline"
                 label="Haptics"
-                rightElement={
-                  <Switch
-                    value={toggles['settings.hapticsEnabled']}
-                    onValueChange={(v) => handleToggle('settings.hapticsEnabled', v)}
-                  />
-                }
+                isActive={toggles['settings.hapticsEnabled']}
+                onPress={() => handleToggle('settings.hapticsEnabled', !toggles['settings.hapticsEnabled'])}
               />
-              <SettingsRow
+              <CircularSettingsButton
                 icon="alert-circle-outline"
-                label="NSFW Content"
-                isLast
-                rightElement={
-                  <Switch
-                    value={toggles['settings.enableNSFW']}
-                    onValueChange={(v) => handleToggle('settings.enableNSFW', v)}
-                  />
-                }
+                label="NSFW"
+                isActive={toggles['settings.enableNSFW']}
+                onPress={() => handleToggle('settings.enableNSFW', !toggles['settings.enableNSFW'])}
               />
-            </SettingsGroup>
 
-            <SettingsGroup title="Legal & Support">
-              <SettingsRow
+              {/* Legal & Support */}
+              <CircularSettingsButton
                 icon="document-text-outline"
-                label="Terms of Service"
+                label="Terms"
                 onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/terms')}
               />
-              <SettingsRow
+              <CircularSettingsButton
                 icon="shield-checkmark-outline"
-                label="Privacy Policy"
+                label="Privacy"
                 onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/privacy')}
               />
-              <SettingsRow
+              <CircularSettingsButton
                 icon="bug-outline"
-                label="Report an Issue"
+                label="Report"
                 onPress={() => pushScreen({ key: 'feedback', kind: 'problem' })}
-                isLast
               />
-            </SettingsGroup>
 
-            <SettingsGroup>
-              <SettingsRow
+              {/* Logout */}
+              <CircularSettingsButton
                 icon="log-out-outline"
-                label={isLoggingOut ? "Signing out..." : "Sign Out"}
-                onPress={handleLogout}
+                label="Sign Out"
                 destructive
-                isLast
+                onPress={handleLogout}
               />
-            </SettingsGroup>
+            </View>
 
             <Text style={styles.versionText}>{versionLabel}</Text>
           </ScrollView>
@@ -800,33 +779,76 @@ const SubscriptionHistoryScreen: React.FC = () => {
 const FeedbackFormScreen: React.FC<{ kind: FeedbackKind; onSubmitted: () => void }> = ({ kind, onSubmitted }) => {
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
   return (
-    <View style={styles.subScreenContent}>
-      <SettingsGroup title={kind === 'problem' ? "Describe the issue" : "Describe your idea"}>
+    <View style={{ flex: 1, backgroundColor: 'black', minHeight: 500 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+        <Text style={{ color: 'white', fontSize: 22, fontWeight: 'bold', marginBottom: 16 }}>
+          {kind === 'problem' ? 'Report a Bug' : 'Feature Request'}
+        </Text>
+        <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 16 }}>
+          {kind === 'problem'
+            ? 'Please describe the issue you encountered. include as much detail as possible.'
+            : 'What would you like to see in the app?'}
+        </Text>
         <TextInput
+          style={{
+            backgroundColor: '#1E1E1E',
+            borderRadius: 12,
+            padding: 16,
+            minHeight: 150,
+            color: 'white',
+            fontSize: 16,
+            textAlignVertical: 'top',
+            borderWidth: 1,
+            borderColor: '#333'
+          }}
           multiline
-          style={styles.textArea}
+          placeholder="Type your feedback here..."
+          placeholderTextColor="#666"
           value={text}
           onChangeText={setText}
-          placeholder="Type here..."
-          placeholderTextColor="#666"
         />
-      </SettingsGroup>
-      <View style={styles.actionButtonContainer}>
-        <Button size="lg" fullWidth loading={submitting} onPress={async () => {
-          if (!text.trim()) return;
-          setSubmitting(true);
-          // Simulate submission
-          setTimeout(() => {
-            setSubmitting(false);
-            Alert.alert('Sent', 'Thank you for your feedback!');
-            onSubmitted();
-          }, 1000);
-        }}>Send Feedback</Button>
+      </ScrollView>
+
+      <View style={{
+        padding: 20,
+        borderTopWidth: 1,
+        borderTopColor: '#333',
+        backgroundColor: 'black'
+      }}>
+        <Pressable
+          style={({ pressed }) => ({
+            backgroundColor: text.trim() ? '#FF416C' : '#333',
+            paddingVertical: 16,
+            borderRadius: 12,
+            alignItems: 'center',
+            opacity: pressed ? 0.8 : 1
+          })}
+          disabled={!text.trim() || submitting}
+          onPress={async () => {
+            if (!text.trim()) return;
+            setSubmitting(true);
+            setTimeout(() => {
+              setSubmitting(false);
+              Alert.alert('Sent', 'Thank you for your feedback!');
+              onSubmitted();
+            }, 1000);
+          }}
+        >
+          {submitting ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={{ color: text.trim() ? 'white' : '#888', fontWeight: 'bold', fontSize: 16 }}>
+              Send Feedback
+            </Text>
+          )}
+        </Pressable>
       </View>
     </View>
   );
 };
+
 
 
 const styles = StyleSheet.create({
@@ -1161,5 +1183,44 @@ const styles = StyleSheet.create({
     color: '#FF416C',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Grid layout styles
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start', // Start aligns items
+    paddingVertical: 10,
+    gap: 20, // Space between items
+  },
+  circularButtonContainer: {
+    width: '20%', // 4 items per row approx with gaps, or stick to fixed width
+    minWidth: 70,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  circularButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  circularButtonActive: {
+    backgroundColor: '#FF416C', // Brand pink/red
+    borderColor: '#FF416C',
+  },
+  circularButtonDestructive: {
+    backgroundColor: 'rgba(255, 69, 58, 0.2)',
+    borderColor: '#FF453A',
+  },
+  circularButtonLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

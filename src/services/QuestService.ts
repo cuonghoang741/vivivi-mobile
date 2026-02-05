@@ -1,7 +1,7 @@
 import { QuestRepository, type DailyQuest, type UserDailyQuest, type UserLevelQuest, type LevelQuest } from '../repositories/QuestRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
-import { toastManager, CurrencyKind } from '../managers/ToastManager';
+import { toastManager, CurrencyKind } from './ToastManager';
 
 export type QuestReward = {
   vcoin: number;

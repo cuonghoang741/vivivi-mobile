@@ -27,8 +27,8 @@ import ImageViewing from 'react-native-image-viewing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
-import { type BottomSheetRef } from '../BottomSheet';
-import { DiamondBadge } from '../DiamondBadge';
+import { type BottomSheetRef } from '../commons/BottomSheet';
+import { DiamondBadge } from '../commons/DiamondBadge';
 
 type MediaSheetProps = {
   isOpened: boolean;

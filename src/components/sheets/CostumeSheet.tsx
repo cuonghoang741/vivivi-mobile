@@ -13,13 +13,13 @@ import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Skeleton } from '../ui/Skeleton';
 
-import { GoProButton } from '../GoProButton';
+import { GoProButton } from '../commons/GoProButton';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import { useSceneActions } from '../../context/SceneActionsContext';
-import { DiamondBadge } from '../DiamondBadge';
-import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
-import { LiquidGlass } from '../LiquidGlass';
+import { DiamondBadge } from '../commons/DiamondBadge';
+import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import { useVRMContext } from '../../context/VRMContext';
 
 interface CostumeSheetProps {

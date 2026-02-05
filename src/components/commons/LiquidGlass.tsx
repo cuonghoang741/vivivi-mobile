@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, type ViewProps, PressableProps } from 'react-native';
 import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
-import { glassButtonStyle } from '../styles/glass';
-import HapticPressable from './ui/HapticPressable';
+import { glassButtonStyle } from '../../styles/glass';
+import HapticPressable from '../ui/HapticPressable';
 
 type Props = ViewProps & {
   children: React.ReactNode;

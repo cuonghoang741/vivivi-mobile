@@ -2,14 +2,14 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Image, Animated, ImageBackground, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CostumeItem } from '../repositories/CostumeRepository';
+import { CostumeItem } from '../../repositories/CostumeRepository';
 
 // Import particle SVGs
-import Particle1 from '../assets/icons/particles/1.svg';
-import Particle2 from '../assets/icons/particles/2.svg';
-import Particle3 from '../assets/icons/particles/3.svg';
-import Particle5 from '../assets/icons/particles/5.svg';
-import Particle6 from '../assets/icons/particles/6.svg';
+import Particle1 from '../../assets/icons/particles/1.svg';
+import Particle2 from '../../assets/icons/particles/2.svg';
+import Particle3 from '../../assets/icons/particles/3.svg';
+import Particle5 from '../../assets/icons/particles/5.svg';
+import Particle6 from '../../assets/icons/particles/6.svg';
 
 const BACKGROUND_IMAGE = 'https://d1j8r0kxyu9tj8.cloudfront.net/files/iosHq5VnHsYbT4Xn9CfmSWLbWh7fuyqORtAC9Q2k.png';
 

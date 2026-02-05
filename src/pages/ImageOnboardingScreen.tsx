@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Button } from '../components/Button';
+import { Button } from '../components/commons/Button';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -34,7 +34,7 @@ export const ImageOnboardingScreen: React.FC<Props> = ({ onComplete, onSkip }) =
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleContinue = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     if (currentPage < ONBOARDING_IMAGES.length - 1) {
       const nextPage = currentPage + 1;
       scrollViewRef.current?.scrollTo({
@@ -48,7 +48,7 @@ export const ImageOnboardingScreen: React.FC<Props> = ({ onComplete, onSkip }) =
   };
 
   const handleSkip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
     onSkip();
   };
 

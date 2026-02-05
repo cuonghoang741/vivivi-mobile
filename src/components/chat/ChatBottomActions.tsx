@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 
 type Props = {
   onCapture: () => void;

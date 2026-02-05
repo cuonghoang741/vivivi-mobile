@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
-import HapticPressable from './ui/HapticPressable';
-import { buttonColors, type ButtonColorKey } from '../styles/color';
-import { glassButtonStyle } from '../styles/glass';
+import HapticPressable from '../ui/HapticPressable';
+import { buttonColors, type ButtonColorKey } from '../../styles/color';
+import { glassButtonStyle } from '../../styles/glass';
 
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 export type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'link' | 'liquid';
@@ -36,6 +36,8 @@ export interface ButtonProps {
   iconColor?: ColorValue;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  textProps?: React.ComponentProps<typeof Text>;
   tintColor?: string;
   isDarkBackground?: boolean;
   iconSizeMin?: number;
@@ -57,12 +59,14 @@ export const Button: React.FC<ButtonProps> = ({
   iconColor,
   onPress,
   style,
+  textStyle: customTextStyle,
+  textProps,
   tintColor,
   isDarkBackground,
   iconSizeMin,
 }) => {
   const baseColors = getBaseColors(color);
-  const { buttonStyle, textStyle, iconSize } = getStyles({
+  const { buttonStyle, textStyle: generatedTextStyle, iconSize } = getStyles({
     size,
     variant,
     baseColors,
@@ -73,6 +77,7 @@ export const Button: React.FC<ButtonProps> = ({
   });
 
   const baseStyle = style ? StyleSheet.flatten([buttonStyle, style]) : buttonStyle;
+  const combinedTextStyle = StyleSheet.flatten([generatedTextStyle, customTextStyle]);
 
   // Button content - tách riêng như ví dụ
   const buttonContent = (
@@ -90,32 +95,32 @@ export const Button: React.FC<ButtonProps> = ({
           <StartIcon
             width={iconSizeMin ?? iconSize}
             height={iconSizeMin ?? iconSize}
-            color={(iconColor ?? textStyle.color) as string}
+            color={(iconColor ?? combinedTextStyle.color) as string}
             style={styles.icon}
           />
         ) : startIconName ? (
           <Ionicons
             name={startIconName}
             size={iconSizeMin ?? iconSize}
-            color={(iconColor ?? textStyle.color) as string}
+            color={(iconColor ?? combinedTextStyle.color) as string}
             style={styles.icon}
           />
         ) : null}
         {!isIconOnly && children ? (
-          <Text style={textStyle}>{children}</Text>
+          <Text style={combinedTextStyle} {...textProps}>{children}</Text>
         ) : null}
         {EndIcon ? (
           <EndIcon
             width={iconSizeMin ?? iconSize}
             height={iconSizeMin ?? iconSize}
-            color={(iconColor ?? textStyle.color) as string}
+            color={(iconColor ?? combinedTextStyle.color) as string}
             style={styles.icon}
           />
         ) : endIconName ? (
           <Ionicons
             name={endIconName}
             size={iconSize}
-            color={(iconColor ?? textStyle.color) as string}
+            color={(iconColor ?? combinedTextStyle.color) as string}
             style={styles.icon}
           />
         ) : null}
@@ -123,7 +128,7 @@ export const Button: React.FC<ButtonProps> = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={textStyle.color as string}
+          color={combinedTextStyle.color as string}
           style={{ position: 'absolute' }}
         />
       ) : null}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, ImageStyle, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import type { CharacterItem } from '../../repositories/CharacterRepository';
 
 type CharacterCardProps = {

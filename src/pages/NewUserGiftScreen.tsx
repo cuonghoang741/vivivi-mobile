@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { Button } from '../components/Button';
+import { Button } from '../components/commons/Button';
 import { CharacterRepository, type CharacterItem } from '../repositories/CharacterRepository';
 import AssetRepository from '../repositories/AssetRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
@@ -21,8 +21,6 @@ import { BackgroundRepository } from '../repositories/BackgroundRepository';
 
 const STARS_IMAGE = require('../assets/images/stars.png');
 const WHITE_LOGO = require('../assets/images/white_vivivi.png');
-const VCOIN_ICON = require('../assets/images/VCoin.png');
-const RUBY_ICON = require('../assets/images/Ruby.png');
 
 type Props = {
   onComplete: (characterId: string | null) => void;
@@ -159,7 +157,7 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
                   <View style={styles.characterCell} key={character.id}>
                     <Pressable
                       onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
                         setSelectedCharacterId(character.id);
                       }}
                       style={[
@@ -211,8 +209,6 @@ export const NewUserGiftScreen: React.FC<Props> = ({ onComplete }) => {
                 </View>
 
                 <View style={styles.currencyRow}>
-                  <CurrencyChip icon={VCOIN_ICON} label="+10,000" />
-                  <CurrencyChip icon={RUBY_ICON} label="+100" />
                 </View>
               </View>
             </ScrollView>

@@ -16,8 +16,8 @@ import * as Haptics from 'expo-haptics';
 import { Video } from 'expo-av';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import { MediaItem } from '../../repositories/MediaRepository';
-import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
-import { DiamondBadge } from '../DiamondBadge';
+import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
+import { DiamondBadge } from '../commons/DiamondBadge';
 import { getSupabaseClient, getAuthenticatedUserId } from '../../services/supabase';
 
 

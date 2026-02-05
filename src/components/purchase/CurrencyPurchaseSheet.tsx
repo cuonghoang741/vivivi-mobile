@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import Button from '../Button';
+import Button from '../commons/Button';
 import { CurrencyRepository } from '../../repositories/CurrencyRepository';
 import { getSupabaseAuthHeaders } from '../../utils/supabaseHelpers';
 import { SUPABASE_URL } from '../../config/supabase';
@@ -167,10 +167,10 @@ export const CurrencyPurchaseSheet: React.FC<CurrencyPurchaseSheetProps> = ({
       try {
         // Import dynamically to avoid cycle if any, or just standard import
         const { revenueCatManager } = await import('../../services/RevenueCatManager');
-        
+
         // Find the package in RevenueCat offerings
         const rcPackage = await revenueCatManager.getPackageByIdentifier(pkg.storeIdentifier);
-        
+
         if (!rcPackage) {
           throw new Error(`Package not found: ${pkg.storeIdentifier}`);
         }
@@ -186,12 +186,12 @@ export const CurrencyPurchaseSheet: React.FC<CurrencyPurchaseSheetProps> = ({
         const rubyAdded = pkg.ruby * multiplier;
         await repoRef.current!.updateCurrency(balance.vcoin + vcoinAdded, balance.ruby + rubyAdded);
         await logPurchase(pkg, vcoinAdded, rubyAdded);
-        
+
         if (twoXAvailable) {
           await markTwoXUsed();
           setTwoXAvailable(false);
         }
-        
+
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Top up successful',
@@ -224,19 +224,19 @@ export const CurrencyPurchaseSheet: React.FC<CurrencyPurchaseSheetProps> = ({
       const authIdentifier = await getAuthIdentifier();
       console.log('🔍 [Dev TopUp] User ID:', authIdentifier.userId);
       console.log('🔍 [Dev TopUp] Client ID:', authIdentifier.clientId);
-      
+
       const balance = await repoRef.current!.fetchCurrency();
       console.log('🔍 [Dev TopUp] Current balance:', balance);
-      
+
       const vcoinAdded = 1000;
       const rubyAdded = 100;
       await repoRef.current!.updateCurrency(balance.vcoin + vcoinAdded, balance.ruby + rubyAdded);
-      
+
       console.log('✅ [Dev TopUp] Updated balance:', {
         vcoin: balance.vcoin + vcoinAdded,
         ruby: balance.ruby + rubyAdded,
       });
-      
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Dev TopUp successful',

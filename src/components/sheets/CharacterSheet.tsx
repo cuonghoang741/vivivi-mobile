@@ -19,14 +19,14 @@ import { Persistence } from '../../utils/persistence';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useSceneActions } from '../../context/SceneActionsContext';
-import { GoProButton } from '../GoProButton';
-import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
+import { GoProButton } from '../commons/GoProButton';
+import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
 
-import { DiamondBadge } from '../DiamondBadge';
+import { DiamondBadge } from '../commons/DiamondBadge';
 import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
-import Button from '../Button';
+import Button from '../commons/Button';
 import { BlurView } from 'expo-blur';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import { LiquidGlassView } from '@callstack/liquid-glass';
 import { useVideoPreloader } from '../../hooks/useVideoPreloader';
 

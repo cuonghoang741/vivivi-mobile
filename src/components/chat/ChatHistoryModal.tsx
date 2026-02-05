@@ -18,7 +18,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { ChatMessage } from '../../types/chat';
-import { Button } from '../Button';
+import { Button } from '../commons/Button';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { TypingIndicator } from './TypingIndicator';
 import Ionicons from '@expo/vector-icons/Ionicons';

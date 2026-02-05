@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import Button from '../Button';
+import Button from '../commons/Button';
 import type { QuestReward } from '../../services/QuestService';
 import type {
   UserDailyQuest,

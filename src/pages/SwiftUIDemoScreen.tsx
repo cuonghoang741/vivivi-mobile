@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Text as RNText, Platform } from 'react-native';
 import { Host, VStack, Text, Button, Switch, TextField, CircularProgress, LinearProgress } from '@expo/ui/swift-ui';
-import { SwiftUIButton } from '../components/SwiftUIButton';
-import { SwiftUISwitch } from '../components/SwiftUISwitch';
-import { SwiftUITextField } from '../components/SwiftUITextField';
-import { SwiftUIBottomSheet } from '../components/SwiftUIBottomSheet';
+import { SwiftUIButton } from '../components/commons/SwiftUIButton';
+import { SwiftUISwitch } from '../components/commons/SwiftUISwitch';
+import { SwiftUITextField } from '../components/commons/SwiftUITextField';
+import { SwiftUIBottomSheet } from '../components/commons/SwiftUIBottomSheet';
 
 /**
  * Demo screen showing various SwiftUI components

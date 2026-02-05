@@ -1,6 +1,6 @@
 {
-  "name": "native-version",
-  "version": "1.0.2",
+  "name": "evee",
+  "version": "1.0.3",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

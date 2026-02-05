@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, Animated, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CurrencyIcon } from '../CurrencyIcon';
 
 export type RewardItem = {
   id: string;
@@ -38,8 +37,6 @@ const RewardItemView: React.FC<{ reward: RewardItem }> = ({ reward }) => {
             style={{ width: 80, height: 80, borderRadius: 12 }}
             resizeMode="cover"
           />
-        ) : currencyType ? (
-          <CurrencyIcon type={currencyType} size={60} />
         ) : (
           <Ionicons name={reward.icon as any} size={52} color="#FFFFFF" />
         )}

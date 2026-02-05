@@ -9,32 +9,32 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Button from '../Button';
-import { ModalLiquidGlass } from '../ModalLiquidGlass';
+import Button from '../commons/Button';
+import { ModalLiquidGlass } from '../commons/ModalLiquidGlass';
 
 export type ConfirmPurchaseType =
   | {
-      type: 'simple';
-      title: string;
-      message: string;
-      onConfirm: () => void;
-      onCancel: () => void;
-      autoCloseOnSuccess?: boolean;
-    }
+    type: 'simple';
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+    autoCloseOnSuccess?: boolean;
+  }
   | {
-      type: 'currency-choice';
-      title: string;
-      itemName: string;
-      priceVcoin: number;
-      priceRuby: number;
-      balanceVcoin: number;
-      balanceRuby: number;
-      previewImage?: string | null;
-      onConfirm: (choice: { useVcoin: boolean; useRuby: boolean }) => void;
-      onCancel: () => void;
-      onTopUp: (choice: { useVcoin: boolean; useRuby: boolean }) => void;
-      autoCloseOnSuccess?: boolean;
-    };
+    type: 'currency-choice';
+    title: string;
+    itemName: string;
+    priceVcoin: number;
+    priceRuby: number;
+    balanceVcoin: number;
+    balanceRuby: number;
+    previewImage?: string | null;
+    onConfirm: (choice: { useVcoin: boolean; useRuby: boolean }) => void;
+    onCancel: () => void;
+    onTopUp: (choice: { useVcoin: boolean; useRuby: boolean }) => void;
+    autoCloseOnSuccess?: boolean;
+  };
 
 type ConfirmPurchaseModalProps = {
   visible: boolean;
@@ -259,65 +259,65 @@ export const ConfirmPurchaseModal: React.FC<ConfirmPurchaseModalProps> = ({
       disableBackgroundDismiss={isProcessing}
     >
       <View style={styles.content} pointerEvents={isProcessing ? 'none' : 'auto'}>
-            <View style={styles.headerRow}>
-              <View style={styles.titleGroup}>
-                <Text style={styles.title}>{purchase.title}</Text>
-                {purchase.type === 'simple' ? (
-                  <Text style={styles.subtitle}>Review before confirming</Text>
-                ) : (
-                  <Text style={styles.subtitle}>Preview the content you’re unlocking</Text>
-                )}
-              </View>
-              <Pressable
-                style={[styles.closeButton, isProcessing && styles.closeButtonDisabled]}
-                onPress={handleCancel}
-                disabled={isProcessing}
-              >
-                <Ionicons name="close" size={16} color="#111" />
-              </Pressable>
+        <View style={styles.headerRow}>
+          <View style={styles.titleGroup}>
+            <Text style={styles.title}>{purchase.title}</Text>
+            {purchase.type === 'simple' ? (
+              <Text style={styles.subtitle}>Review before confirming</Text>
+            ) : (
+              <Text style={styles.subtitle}>Preview the content you’re unlocking</Text>
+            )}
+          </View>
+          <Pressable
+            style={[styles.closeButton, isProcessing && styles.closeButtonDisabled]}
+            onPress={handleCancel}
+            disabled={isProcessing}
+          >
+            <Ionicons name="close" size={16} color="#111" />
+          </Pressable>
+        </View>
+
+        {purchase.type === 'simple' ? (
+          <View style={styles.simpleBody}>
+            <View style={styles.simpleIcon}>
+              <Ionicons name="sparkles-sharp" size={22} color="#111" />
             </View>
+            <Text style={styles.message}>{purchase.message}</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.currencyHint}>
+              Choose a currency to unlock this item
+            </Text>
+            {currencyChoiceContent}
+          </>
+        )}
 
-            {purchase.type === 'simple' ? (
-              <View style={styles.simpleBody}>
-                <View style={styles.simpleIcon}>
-                  <Ionicons name="sparkles-sharp" size={22} color="#111" />
-                </View>
-                <Text style={styles.message}>{purchase.message}</Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.currencyHint}>
-                  Choose a currency to unlock this item
-                </Text>
-                {currencyChoiceContent}
-              </>
-            )}
+        {purchase.type === 'simple' ? (
+          <View style={styles.buttons}>
+            <Button
+              variant="liquid"
+              size="lg"
+              onPress={handleConfirm}
+              style={styles.button}
+              disabled={isProcessing}
+              loading={isProcessing}
+            >
+              Confirm Purchase
+            </Button>
+          </View>
+        ) : (
+          <Text style={styles.tipText}>
+            Tip: You can tap any currency option above to complete your purchase instantly.
+          </Text>
+        )}
 
-            {purchase.type === 'simple' ? (
-              <View style={styles.buttons}>
-                <Button
-                  variant="liquid"
-                  size="lg"
-                  onPress={handleConfirm}
-                  style={styles.button}
-                  disabled={isProcessing}
-                  loading={isProcessing}
-                >
-                  Confirm Purchase
-                </Button>
-              </View>
-            ) : (
-              <Text style={styles.tipText}>
-                Tip: You can tap any currency option above to complete your purchase instantly.
-              </Text>
-            )}
-
-            {isProcessing ? (
-              <View style={styles.processingOverlay}>
-                <ActivityIndicator size="small" color="#fff" />
-                <Text style={styles.processingText}>Processing order…</Text>
-              </View>
-            ) : null}
+        {isProcessing ? (
+          <View style={styles.processingOverlay}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={styles.processingText}>Processing order…</Text>
+          </View>
+        ) : null}
       </View>
     </ModalLiquidGlass>
   );

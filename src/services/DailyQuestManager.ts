@@ -1,15 +1,15 @@
 import { QuestRepository, type UserDailyQuest, type DailyQuest } from '../repositories/QuestRepository';
-import { getSupabaseClient, getAuthenticatedUserId } from '../services/supabase';
+import { getSupabaseClient, getAuthenticatedUserId } from './supabase';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { userStatsRepository } from '../repositories/UserStatsRepository';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { toastManager, ToastType } from './ToastManager';
+import { toastManager, ToastType } from '../services/ToastManager';
 
 const CLIENT_ID_KEY = 'client_id';
 
 function ensureClientId(): string {
   const id = `client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  AsyncStorage.setItem(CLIENT_ID_KEY, id).catch(() => {});
+  AsyncStorage.setItem(CLIENT_ID_KEY, id).catch(() => { });
   return id;
 }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useSubscription } from '../../context/SubscriptionContext';
 
 const DIAMOND_ICON_URL = 'https://s3.cloudfly.vn/colorme/files/P8UIHKMAHhfOrVIv6xaJufgaojWC5zOYpeuqJlNC.png';
 

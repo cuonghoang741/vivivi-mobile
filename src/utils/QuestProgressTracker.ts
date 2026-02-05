@@ -1,5 +1,5 @@
-import { DailyQuestManager } from '../managers/DailyQuestManager';
-import { LevelQuestManager } from '../managers/LevelQuestManager';
+import { DailyQuestManager } from '../services/DailyQuestManager';
+import { LevelQuestManager } from '../services/LevelQuestManager';
 
 type TrackDelegate = (questType: string, increment?: number) => Promise<void>;
 

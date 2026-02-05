@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View, ScrollView, PanResponder, 
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { IconX } from '@tabler/icons-react-native';
-import { Button } from '../Button';
+import { Button } from '../commons/Button';
 import type { ChatMessage } from '../../types/chat';
 import { ChatMessageBubble } from './ChatMessageBubble';
 import { TypingIndicator } from './TypingIndicator';

@@ -37,11 +37,11 @@ import {
 } from '@tabler/icons-react-native';
 import * as Haptics from "expo-haptics";
 import { LiquidGlass } from "./LiquidGlass";
-import { HapticPressable } from "./ui/HapticPressable";
-import { NotificationDot } from "./ui/NotificationDot";
-import StreakIcon from "../assets/icons/streak.svg";
-import DiamondPinkIcon from "../assets/icons/diamond-pink.svg";
-import { useSceneActions } from "../context/SceneActionsContext";
+import { HapticPressable } from "../ui/HapticPressable";
+import { NotificationDot } from "../ui/NotificationDot";
+import StreakIcon from "../../assets/icons/streak.svg";
+import DiamondPinkIcon from "../../assets/icons/diamond-pink.svg";
+import { useSceneActions } from "../../context/SceneActionsContext";
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -96,7 +96,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
   onSwipeCharacter,
   isChatScrolling = false,
   canSwipeCharacter = false,
-  isPro = false,
+  isPro: isProUser = false,
   isHidden = false,
   ...rest
 }) => {
@@ -257,6 +257,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
     iconProps?: any;
     isStreakButton?: boolean;
     onPress?: () => void;
+    isPro?: boolean;
   }[] = [
       // {
       //   key: 'streak',
@@ -278,6 +279,13 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
         onPress: onBackgroundPress,
       },
       {
+        key: 'dance',
+        label: 'Dance',
+        Icon: IconWoman,
+        onPress: onDancePress,
+        isPro: true
+      },
+      {
         key: 'messages',
         label: showChatList ? 'Hide Chat' : 'Show Chat',
         Icon: !showChatList ? IconMessage2 : IconMessageOff,
@@ -289,12 +297,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       //   Icon: isBgmOn ? IconMusic : IconMusicOff,
       //   onPress: onSpeakerPress,
       // },
-      {
-        key: 'dance',
-        label: 'Dance',
-        Icon: IconWoman,
-        onPress: onDancePress,
-      },
+
       // {
       //   key: 'settings',
       //   label: 'Settings',
@@ -336,7 +339,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       />
       <View style={styles.leftColumn} pointerEvents="box-none">
         {/* Go Pro button - only for non-Pro users AND when NOT in a call */}
-        {!isPro && !isInCall && (
+        {!isProUser && !isInCall && (
           <View style={styles.menuItemRowLeft}>
             <View style={styles.iconButtonContainer}>
               <HapticPressable onPress={() => sceneActions?.openSubscription()}>
@@ -372,7 +375,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               const timeString = formatRemainingTime(remainingQuotaSeconds);
-              const buttons = isPro
+              const buttons = isProUser
                 ? [{ text: "OK" }]
                 : [
                   { text: "OK", style: "cancel" as const },
@@ -383,7 +386,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
                 ];
               Alert.alert(
                 "Call Time Remaining",
-                `You have ${timeString} of voice call time remaining this month.${!isPro ? "\n\nUpgrade to Pro for more call time!" : ""}`,
+                `You have ${timeString} of voice call time remaining this month.${!isProUser ? "\n\nUpgrade to Pro for more call time!" : ""}`,
                 buttons
               );
             }}
@@ -405,7 +408,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
                 strokeWidth={2}
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 21}`}
-                strokeDashoffset={`${2 * Math.PI * 21 * (1 - Math.min(remainingQuotaSeconds / (isPro ? 1800 : 30), 1))}`}
+                strokeDashoffset={`${2 * Math.PI * 21 * (1 - Math.min(remainingQuotaSeconds / (isProUser ? 1800 : 30), 1))}`}
                 strokeLinecap="round"
                 rotation="-90"
                 origin="22, 22"
@@ -427,7 +430,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       <View style={styles.rightColumn} pointerEvents="box-none">
         {menuItems.map((item, index) => {
           // Show only first 2 items when collapsed
-          const shouldShow = isExpanded || index < 10;
+          const shouldShow = isExpanded || index < 3;
 
           if (!shouldShow) return null;
 
@@ -448,12 +451,15 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
               index={index}
               expandAnimation={expandAnimation}
               isDarkBackground={isDarkBackground}
+              isPro={item.isPro}
+              isProUser={isProUser}
+              onSubscribe={() => sceneActions?.openSubscription()}
             />
           );
         })}
 
         {/* Expand/Collapse button */}
-        {/* {!isInCall && (
+        {!isInCall && (
           <Pressable style={styles.expandRow} onPress={handleToggleExpand}>
             {isExpanded && (
               <Animated.Text
@@ -469,7 +475,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
               <ChevronIcon size={24} color={iconColor} />
             </Animated.View>
           </Pressable>
-        )} */}
+        )}
       </View>
     </View>
   );
@@ -487,7 +493,10 @@ const AnimatedMenuItem: React.FC<{
   isExpanded: boolean;
   index: number;
   expandAnimation: Animated.Value;
-  isDarkBackground?: boolean
+  isDarkBackground?: boolean;
+  isPro?: boolean;
+  isProUser?: boolean;
+  onSubscribe?: () => void;
 }> = ({
   label,
   Icon,
@@ -499,7 +508,10 @@ const AnimatedMenuItem: React.FC<{
   isExpanded,
   index,
   expandAnimation,
-  isDarkBackground
+  isDarkBackground,
+  isPro, // Item requires Pro
+  isProUser, // User status
+  onSubscribe,
 }) => {
     // Create individual animation for staggered effect
     const itemAnimation = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
@@ -526,8 +538,18 @@ const AnimatedMenuItem: React.FC<{
       outputRange: [20, 0],
     });
 
+    const showProBadge = isPro && !isProUser;
+
+    const handlePress = () => {
+      if (showProBadge && onSubscribe) {
+        onSubscribe();
+      } else {
+        onPress?.();
+      }
+    };
+
     return (
-      <Pressable style={styles.menuItemRow} onPress={onPress}>
+      <Pressable style={styles.menuItemRow} onPress={handlePress}>
         {/* Animated label - only visible when expanded */}
         <Animated.View
           style={[
@@ -550,8 +572,26 @@ const AnimatedMenuItem: React.FC<{
             </View>
           </View>
         ) : (
-          <LiquidGlass isDarkBackground={isDarkBackground} style={styles.iconButtonGlass} onPress={onPress}>
+          <LiquidGlass isDarkBackground={isDarkBackground} style={styles.iconButtonGlass} onPress={handlePress}>
             {Icon && <Icon width={22} height={22} color={iconColor}  {...iconProps} />}
+            {showProBadge && (
+              <View style={{
+                position: 'absolute',
+                top: -5,
+                right: -5,
+                backgroundColor: 'rgba(255, 92, 168, 0.2)',
+                borderRadius: 8,
+                paddingHorizontal: 4,
+                paddingVertical: 3,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 2,
+                borderWidth: 1,
+                borderColor: '#ffffff50'
+              }}>
+                <DiamondPinkIcon width={10} height={10} />
+              </View>
+            )}
           </LiquidGlass>
         )}
       </Pressable>

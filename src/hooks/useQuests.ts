@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuestService, type QuestProgressUpdate, type QuestReward } from '../services/QuestService';
 import type { UserDailyQuest, UserLevelQuest } from '../repositories/QuestRepository';
-import { toastManager } from '../managers/ToastManager';
+import { toastManager } from '../services/ToastManager';
 
 type DailyState = {
   quests: UserDailyQuest[];

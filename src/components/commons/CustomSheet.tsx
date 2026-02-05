@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isLiquidGlassSupported, LiquidGlassView } from '@callstack/liquid-glass';
-import { sheetColors } from '../styles/color';
+import { sheetColors } from '../../styles/color';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 

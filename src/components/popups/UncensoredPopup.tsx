@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { DiamondBadge } from '../DiamondBadge';
+import { DiamondBadge } from '../commons/DiamondBadge';
 import * as Animatable from 'react-native-animatable';
-import { LiquidGlass } from '../LiquidGlass';
+import { LiquidGlass } from '../commons/LiquidGlass';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface UncensoredPopupProps {

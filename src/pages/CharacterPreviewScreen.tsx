@@ -18,8 +18,8 @@ import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navig
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CharacterItem } from '../repositories/CharacterRepository';
 import { brand } from '../styles/palette';
-import Button from '../components/Button';
-import { DiamondBadge } from '../components/DiamondBadge';
+import Button from '../components/commons/Button';
+import { DiamondBadge } from '../components/commons/DiamondBadge';
 import DiamondIcon from '../assets/icons/diamond.svg';
 import { useVRMContext } from '../context/VRMContext';
 import { UserCharacterPreferenceService } from '../services/UserCharacterPreferenceService';

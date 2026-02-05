@@ -13,10 +13,10 @@ import {
   IconHeart,
   IconPhone,
 } from "@tabler/icons-react-native";
-import { LiquidGlass } from "../LiquidGlass";
+import { LiquidGlass } from "../commons/LiquidGlass";
 import HapticPressable from "../ui/HapticPressable";
 import { NotificationDot } from "../ui/NotificationDot";
-import Button from "../Button";
+import Button from "../commons/Button";
 
 type CharacterHeaderCardProps = {
   name?: string | null;
@@ -92,6 +92,84 @@ export const CharacterHeaderCard: React.FC<CharacterHeaderCardProps> = ({
           </View>
         </View> */}
       </View>
+    </LiquidGlass>
+  );
+};
+
+// Mode Tab Switch Component (2D / 3D)
+type ModeTabSwitchProps = {
+  mode: '2d' | '3d';
+  onModeChange: (mode: '2d' | '3d') => void;
+  isPro: boolean;
+  isDarkBackground?: boolean;
+  onUpgradePress?: () => void;
+};
+
+import { IconDiamond } from "@tabler/icons-react-native";
+import DiamondPinkIcon from "../../assets/icons/diamond-pink.svg";
+
+export const ModeTabSwitch: React.FC<ModeTabSwitchProps> = ({
+  mode,
+  onModeChange,
+  isPro,
+  isDarkBackground = true,
+  onUpgradePress,
+}) => {
+  const handle3DPress = () => {
+    if (isPro) {
+      onModeChange('3d');
+    } else if (onUpgradePress) {
+      onUpgradePress();
+    }
+  };
+
+  return (
+    <LiquidGlass
+      isDarkBackground={isDarkBackground}
+      style={styles.modeTabContainer}
+    >
+      {/* 2D Tab */}
+      <Pressable
+        style={[
+          styles.modeTab,
+          mode === '2d' && { backgroundColor: isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' },
+        ]}
+        onPress={() => onModeChange('2d')}
+      >
+        <Text style={[
+          styles.modeTabText,
+          { color: isDarkBackground ? '#fff' : '#000' },
+          mode === '2d' && { fontWeight: '700' },
+        ]}>
+          2D
+        </Text>
+      </Pressable>
+
+      {/* 3D Tab */}
+      <Pressable
+        style={[
+          styles.modeTab,
+          mode === '3d' && { backgroundColor: isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' },
+        ]}
+        onPress={handle3DPress}
+      >
+        <View style={styles.modeTabContent}>
+          <Text style={[
+            styles.modeTabText,
+            { color: isDarkBackground ? '#fff' : '#000' },
+            mode === '3d' && { fontWeight: '700' },
+            !isPro && styles.modeTabTextLocked,
+          ]}>
+            3D
+          </Text>
+          {!isPro && (
+            <View style={styles.proLabel}>
+              <DiamondPinkIcon width={12} height={12} />
+              <Text style={[styles.proLabelText, { color: '#FF416C' }]}>PRO</Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
     </LiquidGlass>
   );
 };
@@ -258,6 +336,52 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
+  // ModeTabSwitch styles
+  modeTabContainer: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    padding: 4,
+    gap: 4,
+  },
+  modeTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeTabActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  modeTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modeTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modeTabTextActive: {
+    opacity: 1,
+  },
+  modeTabTextLocked: {
+    opacity: 0.6,
+  },
+  proLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(255, 92, 168, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  proLabelText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
 });
 
 // Scene Header Left Component
@@ -336,7 +460,7 @@ export const SceneHeaderRight: React.FC<SceneHeaderRightProps> = ({
 
 // Full Scene Header Component (positioned absolutely at top)
 type SceneHeaderProps = {
-  // Character card props
+  // Character card props (kept for backward compatibility)
   characterName?: string | null;
   relationshipName?: string | null;
   relationshipProgress?: number | null;
@@ -349,6 +473,11 @@ type SceneHeaderProps = {
   onCharacterMenuPress?: () => void;
   onCallPress?: () => void;
   remainingQuotaSeconds?: number;
+  // Mode switch props
+  viewMode?: '2d' | '3d';
+  onViewModeChange?: (mode: '2d' | '3d') => void;
+  isPro?: boolean;
+  onUpgradePress?: () => void;
   // Common props
   isDarkBackground?: boolean;
 };
@@ -364,6 +493,10 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
   onCharacterMenuPress,
   onCallPress,
   remainingQuotaSeconds = 0,
+  viewMode = '2d',
+  onViewModeChange,
+  isPro = false,
+  onUpgradePress,
   isDarkBackground = true,
 }) => {
   const insets = useSafeAreaInsets();
@@ -401,15 +534,25 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
 
       </LiquidGlass>
 
-      {/* Center */}
-      <CharacterHeaderCard
-        name={characterName}
-        relationshipName={relationshipName}
-        relationshipProgress={relationshipProgress}
-        avatarUri={avatarUri}
-        onPress={onMediaPress}
-        isDarkBackground={isDarkBackground}
-      />
+      {/* Center - Mode Tab Switch */}
+      {onViewModeChange ? (
+        <ModeTabSwitch
+          mode={viewMode}
+          onModeChange={onViewModeChange}
+          isPro={isPro}
+          isDarkBackground={isDarkBackground}
+          onUpgradePress={onUpgradePress}
+        />
+      ) : (
+        <CharacterHeaderCard
+          name={characterName}
+          relationshipName={relationshipName}
+          relationshipProgress={relationshipProgress}
+          avatarUri={avatarUri}
+          onPress={onMediaPress}
+          isDarkBackground={isDarkBackground}
+        />
+      )}
 
       {/* Right */}
       <LiquidGlass tintColor={isDarkBackground ? "#000000a7" : "#ffffff50"} style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>

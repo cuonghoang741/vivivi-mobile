@@ -96,6 +96,58 @@ export class CharacterRepository extends BaseRepository {
   }
 
   /**
+   * Fetch only free and available characters
+   */
+  async fetchFreeCharacters(): Promise<CharacterItem[]> {
+    try {
+      // 1. Fetch free characters
+      const { data: characters, error: charError } = await this.client
+        .from('characters')
+        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,total_dances,total_secrets,default_background:backgrounds!background_default_id(image,thumbnail)')
+        .eq('is_public', true)
+        .eq('tier', 'free')
+        .eq('available', true)
+        .order('order', { ascending: true });
+
+      if (charError) {
+        console.error('❌ [CharacterRepository] PostgREST error:', charError);
+        throw new Error(`Failed to fetch free characters: ${charError.message}`);
+      }
+
+      // 2. Fetch costumes
+      let costumes: any[] = [];
+      if (characters && characters.length > 0) {
+        const characterIds = characters.map((c: any) => c.id);
+        const { data: costumesData, error: costumeError } = await this.client
+          .from('character_costumes')
+          .select('id,character_id,thumbnail')
+          .in('character_id', characterIds)
+          .eq('available', true);
+
+        if (costumeError) {
+          console.warn('⚠️ [CharacterRepository] Failed to fetch costumes:', costumeError);
+        } else {
+          costumes = costumesData || [];
+        }
+      }
+
+      console.log(`✅ [CharacterRepository] Loaded ${characters?.length || 0} free characters`);
+
+      // 3. Update Map
+      return (characters || []).map((item: any) => ({
+        ...item,
+        default_background: Array.isArray(item.default_background)
+          ? item.default_background[0]
+          : item.default_background,
+        costumes: costumes.filter((c: any) => c.character_id === item.id)
+      }));
+    } catch (error: any) {
+      console.error('❌ [CharacterRepository] Unexpected error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch a single character by ID
    */
   async fetchCharacter(id: string): Promise<CharacterItem | null> {

@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Platform, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { loadHTMLContent } from '../utils/loadHTML';
-import { FileDiscovery } from '../utils/fileDiscovery';
-import { Persistence } from '../utils/persistence';
+import { loadHTMLContent } from '../../utils/loadHTML';
+import { FileDiscovery } from '../../utils/fileDiscovery';
+import { Persistence } from '../../utils/persistence';
 
 interface VRMWebViewProps {
   onModelReady?: () => void;
