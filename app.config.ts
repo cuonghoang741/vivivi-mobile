@@ -4,15 +4,15 @@ import './scripts/generateHtmlContent';
 
 // EAS config
 const EAS_PROJECT_ID = 'a9622179-dbb1-4c64-a399-1dfd12b8e748'; // Will be set after running 'eas init'
-const PROJECT_SLUG = 'evee';
+const PROJECT_SLUG = 'lusty';
 
 // App production config
-const APP_NAME = 'Evee';
-const BUNDLE_IDENTIFIER = 'com.evee';
-const PACKAGE_NAME = 'com.eduto.Evee';
+const APP_NAME = 'Lusty';
+const BUNDLE_IDENTIFIER = 'com.lusty';
+const PACKAGE_NAME = 'com.eduto.Lusty';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/icon.png';
-const SCHEME = 'evee';
+const SCHEME = 'lusty';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   name: APP_NAME,
@@ -28,7 +28,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: {
       projectId: EAS_PROJECT_ID,
     },
-    oneSignalAppId: '54df7d38-70c4-4cd8-8ec5-2d40c1706650',
   },
 
   ios: {
@@ -92,12 +91,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
 
   plugins: [
-    [
-      'onesignal-expo-plugin',
-      {
-        mode: 'production',
-      },
-    ],
     'react-native-appsflyer',
     '@livekit/react-native-expo-plugin',
     './withCustomPodfile',
@@ -106,7 +99,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       './withFacebookConfig',
       {
         appId: '1217703997132677',
-        displayName: 'Evee',
+        displayName: 'Lusty',
         clientToken: 'bf147c448ca2780663c32b64a6aff490',
       },
     ],

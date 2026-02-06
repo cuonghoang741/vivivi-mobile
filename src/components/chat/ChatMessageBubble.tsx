@@ -162,14 +162,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   agentBubble: {
-    backgroundColor: 'rgba(244, 28, 42, 0.33)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(244, 28, 42, 0.40)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderTopLeftRadius: 4, // distinct shape for agent
   },
   userBubble: {
-    backgroundColor: 'rgba(15,15,15,0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomRightRadius: 4, // distinct shape for user
   },
   bubblePressed: {
     transform: [{ scale: 0.98 }],

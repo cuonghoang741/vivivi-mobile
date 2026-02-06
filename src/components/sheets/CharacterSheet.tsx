@@ -8,9 +8,7 @@ import {
   useWindowDimensions,
   Animated,
 } from 'react-native';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
 import { BackgroundRepository } from '../../repositories/BackgroundRepository';
@@ -19,18 +17,16 @@ import { Persistence } from '../../utils/persistence';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useSceneActions } from '../../context/SceneActionsContext';
+import { useVRMContext } from '../../context/VRMContext';
 import { GoProButton } from '../commons/GoProButton';
 import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
-
 import { DiamondBadge } from '../commons/DiamondBadge';
-import VolumeMixedIcon from '../../assets/icons/volume-mixed.svg';
-import Button from '../commons/Button';
-import { BlurView } from 'expo-blur';
-import { LiquidGlass } from '../commons/LiquidGlass';
 import { LiquidGlassView } from '@callstack/liquid-glass';
-import { useVideoPreloader } from '../../hooks/useVideoPreloader';
-
-import { IconShirt, IconWoman, IconSparkles } from '@tabler/icons-react-native';
+import { useVideoPreloader } from '../../hook/useVideoPreloader';
+import { IconWoman } from '@tabler/icons-react-native';
+import { brand } from '../../styles/palette';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface CharacterSheetProps {
   isOpened: boolean;
@@ -55,27 +51,30 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
 
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const { selectCharacter } = useSceneActions();
+  const { currentCharacter } = useVRMContext();
   const navigation = useNavigation<any>();
 
-  // Dynamic colors - but force dark overlay on cards for readability
+  // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
-  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,1)';
-  // Always use dark gradient for card overlay to ensure text readability
-  // const overlayColors = ['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'] as const;
-  const overlayColors = ['transparent', isDarkBackground ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.2)', isDarkBackground ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.55)'] as const;
-  const actionButtonBg = isDarkBackground ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
 
-  // Preload character videos in background when sheet is opened
-  // This ensures videos are cached before user opens CharacterPreviewScreen
+  // Sync current selection
+  useEffect(() => {
+    if (currentCharacter) {
+      setSelectedCharacterId(currentCharacter.id);
+    }
+  }, [currentCharacter]);
+
+  // Preload character videos
   useVideoPreloader({
     characters: items,
     autoStart: isOpened && items.length > 0,
   });
 
-  // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
     present: (index?: number) => sheetRef.current?.present(index),
     dismiss: () => sheetRef.current?.dismiss(),
@@ -100,7 +99,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     setItems([]);
 
     try {
-      // 1. Fetch ownership first
+      // 1. Fetch ownership
       const assetRepository = new AssetRepository();
       const characterIds = await assetRepository.fetchOwnedAssets('character');
       const newOwnedSet = new Set(characterIds);
@@ -110,31 +109,26 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       const characterRepository = new CharacterRepository();
       let loadedItems = await characterRepository.fetchAllCharacters();
 
-      // loadedItems = loadedItems.filter((item) => item.available !== false);
-
-      // Auto-grant unowned characters for PRO users
+      // Auto-grant for PRO user
       if (isPro) {
         const unownedItems = loadedItems.filter(
           (item) => item.available !== false && !newOwnedSet.has(item.id)
         );
 
         if (unownedItems.length > 0) {
-          console.log(`[CharacterSheet] Auto-granting ${unownedItems.length} characters for PRO user`);
           await Promise.all(
             unownedItems.map(async (item) => {
               try {
                 await assetRepository.createAsset(item.id, 'character');
                 newOwnedSet.add(item.id);
-              } catch (err) {
-                console.error(`[CharacterSheet] Failed to auto-grant character ${item.id}:`, err);
-              }
+              } catch (err) { }
             })
           );
           setOwnedCharacterIds(new Set(newOwnedSet));
         }
       }
 
-      // 3. Sort using the freshly fetched ownership
+      // 3. Sort: Owned first
       const sortedItems = loadedItems.sort((char1, char2) => {
         const isOwned1 = newOwnedSet.has(char1.id);
         const isOwned2 = newOwnedSet.has(char2.id);
@@ -165,16 +159,8 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     if (isLoading) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(shimmerOpacity, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(shimmerOpacity, {
-            toValue: 0.3,
-            duration: 800,
-            useNativeDriver: true,
-          }),
+          Animated.timing(shimmerOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+          Animated.timing(shimmerOpacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -183,29 +169,8 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     }
   }, [isLoading]);
 
-  const filteredItems = useMemo(() => items, [items]);
-
-  const handlePreview = (item: CharacterItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const index = items.findIndex(c => c.id === item.id);
-
-    onIsOpenedChange(false);
-    sheetRef.current?.dismiss();
-
-    setTimeout(() => {
-      navigation.navigate('CharacterPreview', {
-        characters: items,
-        initialIndex: index !== -1 ? index : 0,
-        isViewMode: true,
-        ownedCharacterIds: Array.from(ownedCharacterIds),
-        isPro: isPro,
-      });
-    }, 300);
-  };
-
   const handleSelect = async (item: CharacterItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const index = items.findIndex(c => c.id === item.id);
     const isOwned = ownedCharacterIds.has(item.id);
 
     // Close sheet immediately
@@ -213,37 +178,24 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     sheetRef.current?.dismiss();
 
     if (isOwned) {
-      // Already owned - select immediately
       selectCharacter(item);
     } else if (isPro) {
-      // PRO user: Auto-unlock and select
-      // We must ensure the asset exists before selecting, because selectCharacter checks ownership via API
+      // Auto-unlock logic for PRO
       (async () => {
         try {
           const assetRepository = new AssetRepository();
-
-          // 1. Grant character ownership
           await assetRepository.createAsset(item.id, 'character');
           setOwnedCharacterIds(prev => new Set([...prev, item.id]));
-
-          // 2. Select immediately after granting
           selectCharacter(item);
 
-          // 3. Handle default background
           if (item.background_default_id) {
-            // Grant background ownership if needed
             const ownedBg = await assetRepository.fetchOwnedAssets('background');
             if (!ownedBg.has(item.background_default_id)) {
               await assetRepository.createAsset(item.background_default_id, 'background');
-              console.log('[CharacterSheet] Granted ownership of default background:', item.background_default_id);
             }
-
-            // Save preference
             await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
               current_background_id: item.background_default_id,
             });
-
-            // Persist to local storage
             const bgRepo = new BackgroundRepository();
             const bg = await bgRepo.fetchBackground(item.background_default_id);
             if (bg) {
@@ -257,11 +209,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
             }
           }
         } catch (error) {
-          console.error('[CharacterSheet] Failed to auto-unlock PRO character:', error);
+          console.error('Failed to auto-unlock:', error);
         }
       })();
     } else {
-      // Non-PRO user trying to select unowned character
       setTimeout(() => {
         onOpenSubscription?.();
       }, 300);
@@ -271,179 +222,109 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   const renderItem = ({ item }: { item: CharacterItem }) => {
     const isOwned = ownedCharacterIds.has(item.id);
     const isComingSoon = item.available === false;
-    const itemWidth = (width - 40 - 12) / 2;
+    const isSelected = selectedCharacterId === item.id;
+    const isLocked = !isOwned && !isPro && item.tier !== 'free';
 
     return (
       <Pressable
         onPress={() => !isComingSoon && handleSelect(item)}
         style={({ pressed }) => [
-          styles.cardContainer,
-          {
-            width: itemWidth,
-            maxWidth: '49.5%'
-          },
+          styles.rowItem,
+          isSelected && styles.rowItemSelected,
           pressed && !isComingSoon && styles.pressed,
-          isComingSoon && { opacity: 0.8 },
+          isComingSoon && { opacity: 0.7 },
         ]}
       >
-        <View style={styles.imageBackground}>
-          {item.default_background?.image && (
-            <Image
-              source={{ uri: item.default_background.image }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={200}
-            />
-          )}
-
-          {item.thumbnail_url || item.avatar ? (
-            <Image
-              source={{ uri: item.thumbnail_url || item.avatar }}
-              style={[styles.cardImage]}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <View style={styles.cardImagePlaceholder} />
-          )}
-
-          {!isOwned && !isComingSoon && !isPro && (
-            <DiamondBadge size="md" style={styles.diamondBadgeContainer} />
-          )}
-
-          {isComingSoon && (
-            <LiquidGlassView
-              style={styles.comingSoonBadge}
-            >
-              <Text style={{
-                color: textColor,
-                fontWeight: "bold"
-              }}>Coming soon</Text>
-            </LiquidGlassView>
-          )}
-
-
-
-          <View style={[styles.cardContentOverlay, {
-            height: isComingSoon ? '40%' : '65%',
-          }]}>
-            <MaskedView
-              style={StyleSheet.absoluteFill}
-              maskElement={
-                <LinearGradient
-                  colors={['transparent', !isDarkBackground ? '#fff' : '#000']}
-                  locations={[0, 0.5]}
-                  style={StyleSheet.absoluteFill}
-                />
-              }
-            >
-              <BlurView
-                intensity={10}
-                tint={isDarkBackground ? "dark" : "light"}
-                style={StyleSheet.absoluteFill}
-              />
-            </MaskedView>
-
-            <LinearGradient
-              colors={overlayColors}
-              style={StyleSheet.absoluteFill}
-              locations={[0, 0.5, 1]}
-            />
-
-            <View style={styles.cardInfo}>
-              <Text style={[styles.cardName, { color: textColor, textShadowColor: !isDarkBackground ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)' }]} numberOfLines={1}>{item.name}</Text>
-              {item?.data?.characteristics && (
-                <Text style={[styles.cardDescription, { color: secondaryTextColor, textShadowColor: !isDarkBackground ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)' }]} numberOfLines={1}>
-                  {item?.data?.characteristics}
-                </Text>
-              )}
-
-              {/* Character Stats */}
-              <View style={styles.statsRow}>
-                {(() => {
-                  // Determine if free character (no price)
-                  const isFree = !item.price_vcoin && !item.price_ruby;
-
-                  // Deterministic stats based on ID (Fallback if DB values are missing)
-                  let hash = 0;
-                  for (let i = 0; i < item.id.length; i++) {
-                    hash = ((hash << 5) - hash) + item.id.charCodeAt(i);
-                    hash |= 0;
-                  }
-                  const absHash = Math.abs(hash);
-
-                  const defaultDanceCount = isFree ? 5 : 10 + (absHash % 11);
-                  const defaultSecretCount = isFree ? 1 : 3 + (absHash % 3);
-                  const defaultCostumeCount = isFree ? 2 : 4 + ((absHash >> 2) % 5);
-
-                  const danceCount = item.total_dances ?? defaultDanceCount;
-                  const secretCount = item.total_secrets ?? defaultSecretCount;
-                  const costumeCount = defaultCostumeCount;
-
-                  return (
-                    <>
-                      <View style={styles.statItem}>
-                        <IconShirt size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Costumes" />
-                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{costumeCount}</Text>
-                      </View>
-                      <View style={styles.statSeparator} />
-                      <View style={styles.statItem}>
-                        <IconWoman size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Dances" />
-                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{danceCount}</Text>
-                      </View>
-                      <View style={styles.statSeparator} />
-                      <View style={styles.statItem}>
-                        <IconSparkles size={12} color={!isDarkBackground ? '#000' : '#fff'} aria-label="Secrets" />
-                        <Text style={[styles.statText, { color: !isDarkBackground ? '#000' : '#fff' }]}>{secretCount}</Text>
-                      </View>
-                    </>
-                  );
-                })()}
-              </View>
+        {/* Avatar Image */}
+        <View style={styles.rowAvatarContainer}>
+          <Image
+            source={{ uri: item.thumbnail_url || item.avatar }}
+            style={styles.rowAvatar}
+            contentFit="cover"
+            transition={200}
+          />
+          {isSelected && (
+            <View style={styles.selectedBadge}>
+              <Ionicons name="checkmark" size={14} color="#fff" />
             </View>
+          )}
+        </View>
 
-            {/* {!isComingSoon && (isOwned || isPro) && (
-              <View style={styles.actionButtonsRow}>
-                <Button
-                  variant='liquid'
-                  size="lg"
-                  style={[styles.actionButtonCircle, { backgroundColor: actionButtonBg }]}
-                  onPress={() => {
-                    handleSelect(item);
-                  }}
-                  startIconName='chatbubble-outline'
-                  iconColor={!isDarkBackground ? '#fff' : '#000'}
-                >
-                </Button>
-                <Button
-                  size="lg"
-                  variant='liquid'
-                  fullWidth
-                  style={styles.actionButtonPill}
-                  onPress={() => {
-                    handleSelect(item);
-                  }}
-                >
-                  <VolumeMixedIcon width={24} height={24} fill={!isDarkBackground ? '#fff' : '#000'} />
-                </Button>
+        {/* Content Info */}
+        <View style={styles.rowContent}>
+          <View style={styles.rowTitleContainer}>
+            <Text style={[styles.rowName, { color: textColor }]} numberOfLines={1}>{item.name}</Text>
+            {!isOwned && !isComingSoon && !isPro && item.tier !== 'free' && (
+              <View style={styles.proPill}>
+                <Text style={styles.proPillText}>PRO</Text>
               </View>
-            )} */}
+            )}
+            {isComingSoon && (
+              <View style={styles.pillBadge}>
+                <Text style={styles.pillText}>SOON</Text>
+              </View>
+            )}
+          </View>
+
+          {item.description && (
+            <Text style={[styles.rowDescription, { color: secondaryTextColor }]} numberOfLines={1}>
+              {item.description}
+            </Text>
+          )}
+
+          {/* Detailed Stats: Height & Measurements */}
+          <View style={styles.rowStats}>
+            {/* Height */}
+            {item.data?.height_cm && (
+              <View style={styles.statChip}>
+                <MaterialCommunityIcons name="human-male-height" size={12} color={secondaryTextColor} />
+                <Text style={[styles.statValue, { color: secondaryTextColor }]}>{item.data.height_cm}cm</Text>
+              </View>
+            )}
+
+            {/* Measurements */}
+            {item.data?.rounds && (
+              <View style={styles.statChip}>
+                <IconWoman size={12} color={secondaryTextColor as string} />
+                <Text style={[styles.statValue, { color: secondaryTextColor }]}>
+                  {item.data.rounds.r1}-{item.data.rounds.r2}-{item.data.rounds.r3}
+                </Text>
+              </View>
+            )}
+
+            {/* Age - Optional */}
+            {item.data?.old && (
+              <View style={styles.statChip}>
+                <Text style={[styles.statValue, { color: secondaryTextColor }]}>{item.data.old} yr</Text>
+              </View>
+            )}
           </View>
         </View>
+
+        {/* Right Action / Status */}
+        <View style={styles.rowRight}>
+          {isLocked ? (
+            <View style={[styles.actionButton, styles.lockedButton]}>
+              <Ionicons name="lock-closed" size={16} color="rgba(255,255,255,0.5)" />
+            </View>
+          ) : (
+            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.2)" />
+          )}
+        </View>
+
       </Pressable>
     );
   };
 
   const renderSkeleton = () => {
-    const itemWidth = (width - 40 - 12) / 2;
     return (
-      <View style={styles.skeletonGrid}>
-        {Array.from({ length: 8 }).map((_, i) => (
+      <View style={styles.skeletonContainer}>
+        {Array.from({ length: 6 }).map((_, i) => (
           <Animated.View
             key={i}
             style={[
-              styles.skeletonCard,
-              { width: itemWidth, opacity: shimmerOpacity }
+              styles.skeletonRow,
+              { opacity: shimmerOpacity }
             ]}
           />
         ))}
@@ -451,29 +332,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     );
   };
 
-  const renderLegend = () => (
-    <View style={styles.legendContainer}>
-      <View style={styles.legendItem}>
-        <IconShirt size={14} color={textColor} />
-        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Outfits</Text>
-      </View>
-      <View style={styles.legendSeparator} />
-      <View style={styles.legendItem}>
-        <IconWoman size={14} color={textColor} />
-        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Dances</Text>
-      </View>
-      <View style={styles.legendSeparator} />
-      <View style={styles.legendItem}>
-        <IconSparkles size={14} color={textColor} />
-        <Text style={[styles.legendText, { color: secondaryTextColor }]}>Secrets</Text>
-      </View>
-    </View>
-  );
-
   const renderContent = () => {
     if (isLoading && items.length === 0) {
       return (
-        <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+        <View style={{ flex: 1 }}>
           {renderSkeleton()}
         </View>
       );
@@ -482,37 +344,29 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
     if (errorMessage) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: textColor }]}>Failed to load</Text>
-          <Text style={[styles.errorDetailText, { color: secondaryTextColor }]}>{errorMessage}</Text>
-          <Pressable onPress={load} style={styles.retryButton}>
-            <Text style={[styles.retryButtonText, { color: textColor }]}>Retry</Text>
-          </Pressable>
+          <Text style={[styles.errorText, { color: textColor }]}>Failed</Text>
+          <Pressable onPress={load}><Text style={[styles.retryButtonText, { color: brand[500] }]}>Retry</Text></Pressable>
         </View>
       );
     }
 
-    if (filteredItems.length === 0) {
+    if (items.length === 0) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No characters available</Text>
-          <Pressable onPress={load} style={styles.retryButton}>
-            <Text style={[styles.retryButtonText, { color: textColor }]}>Reload</Text>
-          </Pressable>
+          <Text style={{ color: secondaryTextColor }}>No characters found</Text>
         </View>
-      );
+      )
     }
 
     return (
-      <View style={{ flex: 1, maxHeight: height * 0.9 }}>
-        {renderLegend()}
+      <View style={{ flex: 1 }}>
         <FlatList
-          data={filteredItems}
+          data={items}
           renderItem={renderItem}
           keyExtractor={item => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         />
       </View>
     );
@@ -526,7 +380,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       backgroundBlur='system-thick-material-dark'
       title="Characters"
       isDarkBackground={isDarkBackground}
-      detents={[0.7, 0.95]}
+      detents={[0.85, 0.95]}
       headerLeft={
         !isPro ? (
           <GoProButton onPress={() => {
@@ -547,184 +401,156 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    minHeight: 200,
   },
-  errorText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  errorDetailText: {
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  errorText: { fontSize: 16, marginBottom: 8 },
+  retryButtonText: { fontSize: 16, fontWeight: '600' },
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+    paddingTop: 8,
   },
-  columnWrapper: {
-    gap: 12,
-    marginBottom: 12,
-  },
-  cardContainer: {
-    aspectRatio: 0.6,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-    position: 'relative',
-  },
-  imageBackground: {
-    flex: 1,
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-  },
-  cardImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  cardContentOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    paddingTop: 40,
-    justifyContent: 'flex-end',
-  },
-  cardInfo: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardName: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 4,
-    textShadowColor: 'rgba(255, 255, 255, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-  },
-  cardDescription: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    textAlign: 'center',
-    textShadowColor: 'rgba(255, 255, 255, 0.4)',
-    textShadowOffset: { width: 0, height: 0.5 },
-    textShadowRadius: 0.5,
-  },
-  actionButtonsRow: {
+
+  // Row Styles
+  rowItem: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    width: '100%',
-    paddingHorizontal: 28
-  },
-  actionButtonCircle: {
-    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
-  actionButtonPill: {
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  diamondBadgeContainer: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
+  rowItemSelected: {
+    backgroundColor: 'rgba(230, 85, 197, 0.15)', // brand color tint
+    borderColor: brand[500],
   },
   pressed: {
-    opacity: 0.9,
     transform: [{ scale: 0.98 }],
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  skeletonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    paddingHorizontal: 20,
+
+  // Avatar
+  rowAvatarContainer: {
+    position: 'relative',
+    marginRight: 16,
   },
-  skeletonCard: {
-    aspectRatio: 0.6,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  rowAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
-  comingSoonBadge: {
-    opacity: 0.9,
+  selectedBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
-    backgroundColor: 'rgba(245, 98, 152, 0.5)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 22,
+    bottom: -6,
+    right: -6,
+    backgroundColor: brand[500],
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000',
   },
-  statsRow: {
+
+  // Content
+  rowContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  rowTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 4,
+  },
+  rowName: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  rowDescription: {
+    fontSize: 13,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+
+  // Stats
+  rowStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
-    marginTop: 6,
-    opacity: 0.9,
   },
-  statItem: {
+  statChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
   },
-  statText: {
-    fontSize: 12,
+  statValue: {
+    fontSize: 11,
     fontWeight: '600',
+    opacity: 0.9,
   },
-  statSeparator: {
-    width: 1,
-    height: 10,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  legendContainer: {
-    flexDirection: 'row',
+
+  // Right Area
+  rowRight: {
+    marginLeft: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    marginBottom: 16,
-    paddingHorizontal: 20,
   },
-  legendItem: {
-    flexDirection: 'row',
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
   },
-  legendText: {
-    fontSize: 12,
-    fontWeight: '500',
+  lockedButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  legendSeparator: {
-    width: 1,
-    height: 12,
+
+  // Badges
+  proPill: {
+    backgroundColor: '#FF416C',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,1)',
+  },
+  proPillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  pillBadge: {
     backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  pillText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: 'rgba(255,255,255,0.8)',
+  },
+
+  // Skeleton
+  skeletonContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  skeletonRow: {
+    width: '100%',
+    height: 96,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
 });

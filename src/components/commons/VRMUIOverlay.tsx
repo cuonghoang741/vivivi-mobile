@@ -12,6 +12,7 @@ import {
   UIManager,
   Keyboard,
   Alert,
+  Dimensions,
 } from "react-native";
 import { LiquidGlassView } from '@callstack/liquid-glass';
 import { Svg, Circle } from 'react-native-svg';
@@ -317,9 +318,12 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
 
   const ChevronIcon = isExpanded ? IconChevronDown : IconChevronUp;
 
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const isTablet = Math.min(screenWidth, screenHeight) >= 600;
+
   return (
     <View
-      style={[styles.container, safeAreaPadding, style]}
+      style={[styles.container, safeAreaPadding, isTablet && { marginTop: 24 }, style]}
       {...panResponder.panHandlers}
       {...rest}
     >
@@ -572,8 +576,10 @@ const AnimatedMenuItem: React.FC<{
             </View>
           </View>
         ) : (
-          <LiquidGlass isDarkBackground={isDarkBackground} style={styles.iconButtonGlass} onPress={handlePress}>
-            {Icon && <Icon width={22} height={22} color={iconColor}  {...iconProps} />}
+          <View>
+            <LiquidGlass isDarkBackground={isDarkBackground} style={styles.iconButtonGlass} onPress={handlePress}>
+              {Icon && <Icon width={22} height={22} color={iconColor}  {...iconProps} />}
+            </LiquidGlass>
             {showProBadge && (
               <View style={{
                 position: 'absolute',
@@ -587,12 +593,13 @@ const AnimatedMenuItem: React.FC<{
                 alignItems: 'center',
                 gap: 2,
                 borderWidth: 1,
-                borderColor: '#ffffff50'
-              }}>
+                borderColor: '#ffffff50',
+                zIndex: 10
+              }} pointerEvents="none">
                 <DiamondPinkIcon width={10} height={10} />
               </View>
             )}
-          </LiquidGlass>
+          </View>
         )}
       </Pressable>
     );

@@ -258,9 +258,11 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
                                 <View style={[styles.androidGrabber, { backgroundColor: grabberColor }]} />
                             </View>
                         )}
-                        <View style={[styles.container, contentContainerStyle]}>
+                        <View style={[styles.container, { flex: 1 }, contentContainerStyle]}>
                             {renderHeader()}
-                            {children}
+                            <View style={{ flex: 1 }}>
+                                {children}
+                            </View>
                         </View>
                     </Animated.View>
                 </View>
@@ -285,7 +287,9 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
         >
             <View style={[styles.container, contentContainerStyle]}>
                 {renderHeader()}
-                {children}
+                <View style={{ flex: 1 }}>
+                    {children}
+                </View>
             </View>
         </TrueSheet>
     );

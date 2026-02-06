@@ -15,12 +15,11 @@ import {
     Alert,
     Pressable,
     Keyboard,
+    StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import Button from '../components/commons/Button';
-import { LiquidGlass } from '../components/commons/LiquidGlass';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CharacterRepository, type CharacterItem } from '../repositories/CharacterRepository';
@@ -29,15 +28,25 @@ import { BackgroundRepository } from '../repositories/BackgroundRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { authManager } from '../services/AuthManager';
 import { PersistKeys } from '../config/supabase';
-import { oneSignalService } from '../services/OneSignalService';
+// import { oneSignalService } from '../services/OneSignalService';
 import { analyticsService } from '../services/AnalyticsService';
-import { brand } from '../styles/palette';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { getTelegramUserInfo } from '../utils/telegramUserHelper';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { CharacterPreviewScreen } from './CharacterPreviewScreen';
+import {
+    IconChevronLeft,
+    IconBellFilled,
+    IconHeartHandshake,
+    IconSparkles,
+    IconUser,
+    IconCalendar
+} from '@tabler/icons-react-native';
 
-type OnboardingStep = 'name' | 'age' | 'hobbies' | 'personality' | 'notification' | 'analyzing' | 'reveal';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BRAND_GRADIENT = ['#FF416C', '#FF4B2B'] as const;
+
+type OnboardingStep = 'name' | 'age' | 'hobbies' | 'personality' | 'notification' | 'analyzing' | 'selection' | 'reveal';
 
 type Props = {
     onComplete: (data: {
@@ -51,6 +60,7 @@ type Props = {
 };
 
 export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
+    const insets = useSafeAreaInsets();
     const [currentStep, setCurrentStep] = useState<OnboardingStep>('name');
 
     // Form State
@@ -61,15 +71,16 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
 
     // Logic State
     const [selectedCharacter, setSelectedCharacter] = useState<CharacterItem | null>(null);
+    const [availableCharacters, setAvailableCharacters] = useState<CharacterItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Animation values
     const slideAnim = useRef(new Animated.Value(0)).current;
     const fadeAnim = useRef(new Animated.Value(1)).current;
-    const ageScrollRef = useRef<any>(null);
+    const ageScrollRef = useRef<ScrollView>(null);
 
-    const steps: OnboardingStep[] = ['name', 'age', 'hobbies', 'personality', 'notification'];
+    const steps: OnboardingStep[] = ['name', 'age', 'hobbies', 'personality'];
     const currentStepIndex = steps.indexOf(currentStep);
 
     useEffect(() => {
@@ -82,7 +93,6 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
             const age = parseInt(userAge, 10);
             const index = age - 18; // Assuming start at 18
             const ITEM_HEIGHT = 60;
-            // Timeout to allow layout to settle
             setTimeout(() => {
                 ageScrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: false });
             }, 100);
@@ -153,27 +163,17 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
         Keyboard.dismiss();
 
-        // Flow - validations skipped as per requirement
         switch (currentStep) {
             case 'name':
-                animateToNextStep('age');
+                if (userName.trim().length > 0) animateToNextStep('age');
                 break;
-
             case 'age':
-                // Age usually has a default '22', but ensure it's valid if tailored
                 animateToNextStep('hobbies');
                 break;
-
             case 'hobbies':
                 animateToNextStep('personality');
                 break;
-
             case 'personality':
-                animateToNextStep('notification');
-                break;
-
-            case 'notification':
-                // When notification step is done, we start analysis
                 startAnalysis();
                 break;
         }
@@ -183,7 +183,6 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
         Keyboard.dismiss();
 
-        // If analyzing or reveal, maybe prevent back? Or allow?
         if (currentStep === 'analyzing' || currentStep === 'reveal') return;
 
         if (currentStepIndex > 0) {
@@ -192,25 +191,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         }
     }, [currentStepIndex, currentStep, steps]);
 
-    const handleEnableNotifications = async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
-        const granted = await requestNotificationPermission();
-        analyticsService.logNotificationPermission(granted);
-        if (granted) {
-            await AsyncStorage.setItem('settings.notificationsEnabled', 'true');
-        }
-        startAnalysis();
-    };
 
-    const requestNotificationPermission = async (): Promise<boolean> => {
-        try {
-            const granted = await oneSignalService.requestPermission();
-            return granted;
-        } catch (error) {
-            console.warn('[OnboardingV3] Could not request permission:', error);
-            return false;
-        }
-    };
 
     const startAnalysis = async () => {
         setCurrentStep('analyzing');
@@ -219,10 +200,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
 
         try {
             const characterRepo = new CharacterRepository();
-            // Fetch only free characters as requested
             const freeCharacters = await characterRepo.fetchFreeCharacters();
-
-            // Filter by availability just in case, though fetchFreeCharacters usually handles tier/availability logic
             const availableChars = freeCharacters.filter(c => c.available);
 
             if (availableChars.length === 0) {
@@ -231,12 +209,9 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
                 return;
             }
 
-            // Random selection from free characters
-            const randomChar = availableChars[Math.floor(Math.random() * availableChars.length)];
-
-            setSelectedCharacter(randomChar);
+            setAvailableCharacters(availableChars);
             setIsAnalyzing(false);
-            setCurrentStep('reveal');
+            setCurrentStep('selection');
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         } catch (error) {
@@ -250,21 +225,17 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         if (!selectedCharacter || isSaving) return;
         setIsSaving(true);
         try {
-            // Save data sequence
             await authManager.updateDisplayName(userName.trim());
             const birthYear = new Date().getFullYear() - parseInt(userAge, 10);
             await authManager.updateBirthYear(birthYear);
 
-            // Asset owning
             const assetRepo = new AssetRepository();
             await assetRepo.createAsset(selectedCharacter.id, 'character');
 
-            // Default costume
             if (selectedCharacter.default_costume_id) {
                 try { await assetRepo.createAsset(selectedCharacter.default_costume_id, 'character_costume'); } catch { }
             }
 
-            // Gifts
             const backgroundRepo = new BackgroundRepository();
             const backgrounds = await backgroundRepo.fetchAllBackgrounds();
             const freeBackgrounds = backgrounds.filter((b) => b.available && b.tier === 'free').slice(0, 3);
@@ -276,7 +247,6 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
             const currentCurrency = await currencyRepo.fetchCurrency();
             await currencyRepo.updateCurrency(currentCurrency.vcoin + 10000, currentCurrency.ruby + 100);
 
-            // Persist
             await AsyncStorage.setItem(`character.nickname.${selectedCharacter.id}`, selectedCharacter.name);
             const userProfile = { occupation: '', hobbies: hobbies.trim(), personality: personality.trim() };
             await AsyncStorage.setItem('user.profile', JSON.stringify(userProfile));
@@ -284,7 +254,6 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
 
             analyticsService.logOnboardingComplete(selectedCharacter.id);
 
-            // Telegram
             getTelegramUserInfo().then(userInfo => {
                 telegramNotificationService.notifyNewUser({
                     ...userInfo,
@@ -309,31 +278,34 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         }
     };
 
-    // Render Steps
+    // --- Renderers ---
 
-    // 1. Name
     const renderNameStep = () => (
         <View style={styles.stepContent}>
-            <View style={styles.titleContainer}>
-                <Text style={styles.title}>What should we call you?</Text>
-                <Text style={styles.subtitle}>Your companion wants to know you better</Text>
+            <View style={styles.iconHeader}>
+                <IconUser size={48} color="#FF416C" />
             </View>
-            <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.textInput}
-                    value={userName}
-                    onChangeText={setUserName}
-                    placeholder="Your Name"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    autoFocus
-                    returnKeyType="next"
-                    onSubmitEditing={handleContinue}
-                />
+            <View style={styles.titleContainer}>
+                <Text style={styles.title}>What's your name?</Text>
+                <Text style={styles.subtitle}>Let us know how to address you.</Text>
+            </View>
+            <View style={styles.inputWrapper}>
+                <BlurView intensity={20} tint="light" style={styles.blurInputContainer}>
+                    <TextInput
+                        style={styles.textInput}
+                        value={userName}
+                        onChangeText={setUserName}
+                        placeholder="Enter your name"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        autoFocus
+                        returnKeyType="next"
+                        onSubmitEditing={handleContinue}
+                    />
+                </BlurView>
             </View>
         </View>
     );
 
-    // 2. Age (Reusable V2 picker)
     const renderAgeStep = () => {
         const ages = Array.from({ length: 43 }, (_, i) => 18 + i);
         const selectedAge = parseInt(userAge, 10) || 18;
@@ -351,11 +323,19 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
 
         return (
             <View style={styles.stepContent}>
+                <View style={styles.iconHeader}>
+                    <IconCalendar size={48} color="#FF416C" />
+                </View>
                 <View style={styles.titleContainer}>
                     <Text style={styles.title}>How old are you?</Text>
-                    <Text style={styles.subtitle}>We use this to personalize your experience</Text>
+                    <Text style={styles.subtitle}>We use this to personalize your experience.</Text>
                 </View>
-                <View style={styles.agePickerWrapper}>
+                <View style={styles.agePickerContainer}>
+                    <LinearGradient
+                        colors={['rgba(0,0,0,0.8)', 'transparent', 'rgba(0,0,0,0.8)']}
+                        style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+                        pointerEvents="none"
+                    />
                     <ScrollView
                         ref={ageScrollRef}
                         showsVerticalScrollIndicator={false}
@@ -366,19 +346,21 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
                     >
                         {ages.map((age, index) => {
                             const isSelected = age === selectedAge;
-                            if (isSelected) {
-                                return (
-                                    <LiquidGlass key={age} pressable onPress={() => ageScrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true })} style={[styles.ageScrollItemSelected, { height: ITEM_HEIGHT }]}>
-                                        <Text style={styles.ageScrollTextSelected}>{age}</Text>
-                                    </LiquidGlass>
-                                );
-                            }
                             return (
-                                <Pressable key={age} onPress={() => {
-                                    setUserAge(age.toString());
-                                    ageScrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
-                                }} style={[styles.ageScrollItem, { height: ITEM_HEIGHT }]}>
-                                    <Text style={styles.ageScrollText}>{age}</Text>
+                                <Pressable
+                                    key={age}
+                                    onPress={() => {
+                                        setUserAge(age.toString());
+                                        ageScrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: true });
+                                    }}
+                                    style={[styles.ageItem, { height: ITEM_HEIGHT }]}
+                                >
+                                    <Text style={[styles.ageText, isSelected && styles.ageTextSelected]}>
+                                        {age}
+                                    </Text>
+                                    {isSelected && (
+                                        <View style={styles.ageIndicator} />
+                                    )}
                                 </Pressable>
                             );
                         })}
@@ -388,172 +370,224 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         );
     };
 
-
-
-    // 4. Hobbies
     const renderHobbiesStep = () => (
         <View style={styles.stepContent}>
-            <View style={styles.titleContainer}>
-                <Text style={styles.title}>What are your hobbies?</Text>
-                <Text style={styles.subtitle}>Gaming, Music, Travel...</Text>
+            <View style={styles.iconHeader}>
+                <IconHeartHandshake size={48} color="#FF416C" />
             </View>
-            <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.textInput}
-                    value={hobbies}
-                    onChangeText={setHobbies}
-                    placeholder="Tell us what you love..."
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    autoFocus
-                    returnKeyType="next"
-                    onSubmitEditing={handleContinue}
-                />
+            <View style={styles.titleContainer}>
+                <Text style={styles.title}>Your interests?</Text>
+                <Text style={styles.subtitle}>Gaming, Music, Travel, etc.</Text>
+            </View>
+            <View style={styles.inputWrapper}>
+                <BlurView intensity={20} tint="light" style={styles.blurInputContainer}>
+                    <TextInput
+                        style={styles.textInput}
+                        value={hobbies}
+                        onChangeText={setHobbies}
+                        placeholder="Type your hobbies..."
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        autoFocus
+                        returnKeyType="next"
+                        onSubmitEditing={handleContinue}
+                    />
+                </BlurView>
             </View>
         </View>
     );
 
-    // 5. Personality
     const renderPersonalityStep = () => (
         <View style={styles.stepContent}>
+            <View style={styles.iconHeader}>
+                <IconSparkles size={48} color="#FF416C" />
+            </View>
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>Describe yourself</Text>
-                <Text style={styles.subtitle}>Are you introverted, adventurous, chill?</Text>
+                <Text style={styles.subtitle}>E.g., Introvert, Adventurous...</Text>
             </View>
-            <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.textInput}
-                    value={personality}
-                    onChangeText={setPersonality}
-                    placeholder="I am..."
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    autoFocus
-                    returnKeyType="next"
-                    onSubmitEditing={handleContinue}
-                />
+            <View style={styles.inputWrapper}>
+                <BlurView intensity={20} tint="light" style={styles.blurInputContainer}>
+                    <TextInput
+                        style={styles.textInput}
+                        value={personality}
+                        onChangeText={setPersonality}
+                        placeholder="I am..."
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        autoFocus
+                        returnKeyType="next"
+                        onSubmitEditing={handleContinue}
+                    />
+                </BlurView>
             </View>
         </View>
     );
 
-    // 6. Notification (Reuse V2 UI)
     const renderNotificationStep = () => (
-        <View style={styles.notificationStepContent}>
-            <View style={styles.notificationIconContainer}>
-                <View style={styles.notificationIconCircle}>
-                    <Ionicons name="notifications" size={32} color="#fff" />
-                </View>
+        <View style={styles.stepContent}>
+            <View style={styles.notificationIconRing}>
+                <LinearGradient
+                    colors={BRAND_GRADIENT}
+                    style={styles.notificationIconGradient}
+                >
+                    <IconBellFilled size={40} color="#fff" />
+                </LinearGradient>
             </View>
-            <View style={styles.notificationTitleContainer}>
-                <Text style={styles.notificationTitle}>Stay Connected</Text>
-                <Text style={styles.notificationSubtitle}>
-                    Enable notifications to never miss a message from your match.
+            <View style={styles.titleContainer}>
+                <Text style={styles.title}>Stay Connected</Text>
+                <Text style={styles.subtitle}>
+                    Enable notifications to never miss a message from your soulmate.
                 </Text>
             </View>
-            <View style={styles.notificationMockupContainer}>
-                <Image
-                    source={{ uri: 'https://d1j8r0kxyu9tj8.cloudfront.net/files/OcczlXBnm3QrCaEgE11YqnUR0GW1yC01kUNREksc.png' }}
-                    style={styles.notificationMockupImage}
-                    resizeMode="contain"
-                />
+            <View style={styles.notificationPreview}>
+                <BlurView intensity={10} tint="light" style={styles.notificationCard}>
+                    <View style={styles.notifHeader}>
+                        <View style={styles.notifIconSmall}>
+                            <Image source={require('../../assets/icon.png')} style={{ width: 16, height: 16, borderRadius: 4 }} />
+                        </View>
+                        <Text style={styles.notifAppName}>Lusty</Text>
+                        <Text style={styles.notifTime}>now</Text>
+                    </View>
+                    <Text style={styles.notifTitle}>New Message</Text>
+                    <Text style={styles.notifBody}>
+                        "I've been waiting for you... ❤️"
+                    </Text>
+                </BlurView>
             </View>
         </View>
     );
 
-    // ANALYZING STATE
     if (currentStep === 'analyzing') {
         return (
             <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color={brand[500]} />
+                <StatusBar barStyle="light-content" />
+                <LinearGradient colors={['#0f0c29', '#302b63', '#24243e']} style={StyleSheet.absoluteFill} />
+                <ActivityIndicator size="large" color="#FF416C" />
                 <Text style={styles.analyzingText}>Analyzing your profile...</Text>
-                <Text style={styles.subText}>Finding your soulmate</Text>
+                <Text style={styles.analyzingSubText}>Finding your perfect match</Text>
             </View>
         );
     }
 
-    // REVEAL STATE
+    if (currentStep === 'selection') {
+        return (
+            <CharacterPreviewScreen
+                characters={availableCharacters}
+                onSelect={(character) => {
+                    setSelectedCharacter(character);
+                    setCurrentStep('reveal');
+                }}
+            />
+        );
+    }
+
     if (currentStep === 'reveal' && selectedCharacter) {
         return (
-            <View style={styles.matchContainer}>
-                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)', '#000']} style={StyleSheet.absoluteFill} />
+            <View style={styles.revealContainer}>
+                <StatusBar barStyle="light-content" />
                 <Image
                     source={{ uri: selectedCharacter.thumbnail_url || selectedCharacter.avatar }}
-                    style={styles.matchImageBg}
-                    blurRadius={20}
-                    resizeMode="cover"
+                    style={styles.revealBgImage}
+                    blurRadius={30}
+                />
+                <LinearGradient
+                    colors={['transparent', '#000']}
+                    style={StyleSheet.absoluteFill}
                 />
 
-                <SafeAreaView style={styles.matchContent}>
-                    <Text style={styles.matchTitle}>It's a Match!</Text>
-                    <View style={styles.characterCard}>
-                        <View style={styles.avatarContainer}>
-                            <Image
-                                source={{ uri: selectedCharacter.avatar || selectedCharacter.thumbnail_url }}
-                                style={styles.avatar}
-                                resizeMode="cover"
-                            />
+                <SafeAreaView style={styles.revealSafeArea}>
+                    <ScrollView contentContainerStyle={styles.revealScrollContent} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.matchTitle}>It's a Match!</Text>
+
+                        <View style={styles.avatarWrapper}>
+                            <LinearGradient colors={BRAND_GRADIENT} style={styles.avatarBorder}>
+                                <Image
+                                    source={{ uri: selectedCharacter.avatar || selectedCharacter.thumbnail_url }}
+                                    style={styles.avatarImage}
+                                />
+                            </LinearGradient>
                         </View>
+
                         <Text style={styles.charName}>{selectedCharacter.name}</Text>
                         <Text style={styles.charDesc}>{selectedCharacter.description}</Text>
 
-                        {/* Stats Section */}
-                        <View style={styles.statsContainer}>
-                            {/* Height */}
-                            {!!selectedCharacter.data?.height_cm && (
-                                <View style={styles.statItem}>
-                                    <View style={styles.statIconContainer}>
-                                        <Ionicons name="resize-outline" size={18} color={brand[500]} />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.statValue}>{selectedCharacter.data.height_cm}cm</Text>
-                                        <Text style={styles.statLabel}>Height</Text>
-                                    </View>
-                                </View>
+                        {/* Stats Grid */}
+                        <View style={styles.statsGrid}>
+                            {selectedCharacter.data?.height_cm && (
+                                <BlurView intensity={20} tint="light" style={styles.statBox}>
+                                    <Text style={styles.statValue}>{selectedCharacter.data.height_cm}cm</Text>
+                                    <Text style={styles.statLabel}>Height</Text>
+                                </BlurView>
                             )}
-
-                            {/* Measurements */}
                             {selectedCharacter.data?.rounds && (
-                                <View style={styles.statItem}>
-                                    <View style={styles.statIconContainer}>
-                                        <Ionicons name="body-outline" size={18} color={brand[500]} />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.statValue}>
-                                            {selectedCharacter.data.rounds.r1 || '?'}-
-                                            {selectedCharacter.data.rounds.r2 || '?'}-
-                                            {selectedCharacter.data.rounds.r3 || '?'}
-                                        </Text>
-                                        <Text style={styles.statLabel}>Measurements</Text>
-                                    </View>
-                                </View>
+                                <BlurView intensity={20} tint="light" style={styles.statBox}>
+                                    <Text style={styles.statValue}>
+                                        {selectedCharacter.data.rounds.r1}-{selectedCharacter.data.rounds.r2}-{selectedCharacter.data.rounds.r3}
+                                    </Text>
+                                    <Text style={styles.statLabel}>Measurements</Text>
+                                </BlurView>
                             )}
                         </View>
 
-                        {/* Hobbies/Interests */}
-                        {selectedCharacter.data?.hobbies && selectedCharacter.data.hobbies.length > 0 && (
-                            <View style={styles.interestsContainer}>
-                                <Text style={styles.interestsTitle}>Interests</Text>
-                                <View style={styles.tagsContainer}>
-                                    {selectedCharacter.data.hobbies.map((hobby, index) => (
-                                        <View key={index} style={styles.hobbyTag}>
-                                            <Text style={styles.hobbyText}>{hobby}</Text>
-                                        </View>
-                                    ))}
-                                </View>
+                        {/* Interests */}
+                        {selectedCharacter.data?.hobbies && (
+                            <View style={styles.interestsWrapper}>
+                                {selectedCharacter.data.hobbies.map((hobby, i) => (
+                                    <View key={i} style={styles.interestTag}>
+                                        <Text style={styles.interestText}>{hobby}</Text>
+                                    </View>
+                                ))}
                             </View>
                         )}
+                    </ScrollView>
+
+                    <View style={styles.revealFooter}>
+                        <TouchableOpacity
+                            onPress={handleFinish}
+                            disabled={isSaving}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient
+                                colors={BRAND_GRADIENT}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.actionButton}
+                            >
+                                {isSaving ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.actionButtonText}>Start Chatting</Text>
+                                )}
+                            </LinearGradient>
+                        </TouchableOpacity>
                     </View>
-                    <Button
-                        onPress={handleFinish}
-                        disabled={isSaving}
-                        fullWidth
-                        variant='solid'
-                        size="xl"
-                    >
-                        {isSaving ? "Starting..." : "Start Chatting"}
-                    </Button>
                 </SafeAreaView>
             </View>
         );
     }
+
+    const canContinue = () => {
+        if (currentStep === 'name') return userName.trim().length > 0;
+        return true;
+    };
+
+    const renderProgress = () => (
+        <View style={styles.progressBarContainer}>
+            {steps.map((s, index) => {
+                const isActive = index === currentStepIndex;
+                const isCompleted = index < currentStepIndex;
+                return (
+                    <View
+                        key={s}
+                        style={[
+                            styles.progressSegment,
+                            isActive && styles.progressSegmentActive,
+                            isCompleted && styles.progressSegmentCompleted
+                        ]}
+                    />
+                );
+            })}
+        </View>
+    );
 
     const renderCurrentStep = () => {
         switch (currentStep) {
@@ -561,149 +595,406 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
             case 'age': return renderAgeStep();
             case 'hobbies': return renderHobbiesStep();
             case 'personality': return renderPersonalityStep();
-            case 'notification': return renderNotificationStep();
             default: return null;
         }
     };
 
-    const canContinue = () => true;
-
-    // Progress Dots
-    const renderProgressDots = () => (
-        <View style={styles.progressDots}>
-            {steps.map((s, index) => (
-                <View
-                    key={s}
-                    style={[
-                        styles.dot,
-                        index === currentStepIndex && styles.dotActive,
-                        index < currentStepIndex && styles.dotCompleted,
-                    ]}
-                />
-            ))}
-        </View>
-    );
-
     return (
         <View style={styles.container}>
-            <SafeAreaView style={styles.safeArea}>
-                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <StatusBar barStyle="light-content" />
+            <LinearGradient
+                colors={['#0f0c29', '#302b63', '#24243e']}
+                style={StyleSheet.absoluteFill}
+            />
 
+            <SafeAreaView style={styles.safeArea}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     {/* Header */}
                     <View style={styles.header}>
-                        {currentStepIndex > 0 && (
-                            <Button variant="liquid" size="lg" startIconName="chevron-back" onPress={handleBack} isIconOnly />
-                        )}
-                        <View style={{ flex: 1 }} />
-                        {currentStep === 'notification' && (
-                            <TouchableOpacity onPress={handleContinue}>
-                                <Text style={styles.headerLaterText}>Later</Text>
+                        {currentStepIndex > 0 ? (
+                            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                                <IconChevronLeft size={28} color="#fff" />
                             </TouchableOpacity>
-                        )}
+                        ) : null}
                     </View>
 
-                    {/* Main Content */}
+                    {/* Progress */}
+                    {renderProgress()}
+
+                    {/* Content */}
                     <Animated.View style={[styles.contentContainer, { transform: [{ translateX: slideAnim }], opacity: fadeAnim }]}>
                         {renderCurrentStep()}
                     </Animated.View>
 
-                    {/* Dots */}
-                    {renderProgressDots()}
-
-                    {/* Continue Button */}
-                    <View style={styles.bottomContainer}>
+                    {/* Controls */}
+                    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
                         <TouchableOpacity
-                            style={[styles.continueButton, !canContinue() && styles.continueButtonDisabled]}
-                            onPress={currentStep === 'notification' ? handleEnableNotifications : handleContinue}
+                            onPress={handleContinue}
                             disabled={!canContinue()}
+                            activeOpacity={0.8}
+                            style={[!canContinue() && { opacity: 0.5 }]}
                         >
-                            <Text style={styles.continueButtonText}>
-                                {currentStep === 'notification' ? 'Find My Soulmate' : 'Continue'}
-                            </Text>
+                            <LinearGradient
+                                colors={BRAND_GRADIENT}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.actionButton}
+                            >
+                                <Text style={styles.actionButtonText}>
+                                    Continue
+                                </Text>
+                            </LinearGradient>
                         </TouchableOpacity>
                     </View>
-
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </View>
     );
 };
 
-// Styles reused from OnboardingV2 (plus match reveal styles)
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000' },
-    safeArea: { flex: 1 },
-    header: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
-    headerLaterText: { color: 'rgba(255,255,255,0.8)', fontSize: 16, fontWeight: '500' },
-    contentContainer: { flex: 1, paddingHorizontal: 24 },
-    stepContent: { flex: 1, paddingTop: 40 },
-    titleContainer: { alignItems: 'center', marginBottom: 48 },
-    title: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 12 },
-    subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
-    inputContainer: { alignItems: 'center' },
-    textInput: { width: '100%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 999, paddingHorizontal: 24, paddingVertical: 18, fontSize: 18, color: '#fff', textAlign: 'center' },
-    multilineInputContainer: { width: '100%', minHeight: 120, borderRadius: 24, padding: 4 },
-    multilineInput: { flex: 1, padding: 20, fontSize: 16, color: '#fff' },
-
-    // Bottom Controls
-    bottomContainer: { padding: 24, paddingBottom: 12 },
-    continueButton: { backgroundColor: brand[500], paddingVertical: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-    continueButtonDisabled: { opacity: 0.5, backgroundColor: 'rgba(255,255,255,0.2)' },
-    continueButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+    container: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    safeArea: {
+        flex: 1,
+    },
+    header: {
+        height: 60,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        justifyContent: 'space-between',
+    },
+    backButton: {
+        padding: 8,
+    },
+    skipButton: {
+        position: 'absolute',
+        right: 20,
+        top: 15,
+        padding: 8,
+    },
+    skipText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    progressBarContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 24,
+        gap: 6,
+        height: 4,
+        marginTop: 10,
+        marginBottom: 20,
+    },
+    progressSegment: {
+        flex: 1,
+        height: '100%',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 2,
+    },
+    progressSegmentActive: {
+        backgroundColor: '#FF416C',
+    },
+    progressSegmentCompleted: {
+        backgroundColor: '#FF416C',
+    },
+    contentContainer: {
+        flex: 1,
+    },
+    stepContent: {
+        flex: 1,
+        paddingHorizontal: 28,
+        paddingTop: 40,
+        alignItems: 'center',
+    },
+    iconHeader: {
+        marginBottom: 24,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(255, 65, 108, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 65, 108, 0.2)',
+    },
+    titleContainer: {
+        alignItems: 'center',
+        marginBottom: 40,
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: '#fff',
+        textAlign: 'center',
+        marginBottom: 12,
+        letterSpacing: -0.5,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.6)',
+        textAlign: 'center',
+        lineHeight: 24,
+        paddingHorizontal: 20,
+    },
+    inputWrapper: {
+        width: '100%',
+    },
+    blurInputContainer: {
+        width: '100%',
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    textInput: {
+        width: '100%',
+        paddingVertical: 20,
+        paddingHorizontal: 20,
+        fontSize: 20,
+        color: '#fff',
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    footer: {
+        paddingHorizontal: 28,
+    },
+    actionButton: {
+        borderRadius: 24,
+        paddingVertical: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#FF416C',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    actionButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
 
     // Age Picker
-    agePickerWrapper: { height: 300, overflow: 'hidden', position: 'relative' },
-    ageScrollItem: { justifyContent: 'center', alignItems: 'center' },
-    ageScrollItemSelected: { justifyContent: 'center', alignItems: 'center', marginHorizontal: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.15)' },
-    ageScrollText: { fontSize: 22, color: 'rgba(255,255,255,0.4)', fontWeight: '500' },
-    ageScrollTextSelected: { fontSize: 26, color: '#fff', fontWeight: '600' },
-
-    // Progress Dots
-    progressDots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 20 },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
-    dotActive: { backgroundColor: brand[500], width: 24 },
-    dotCompleted: { backgroundColor: brand[500] },
+    agePickerContainer: {
+        height: 300,
+        width: '100%',
+        position: 'relative',
+    },
+    ageItem: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexDirection: 'row',
+    },
+    ageText: {
+        fontSize: 24,
+        color: 'rgba(255,255,255,0.3)',
+        fontWeight: '600',
+    },
+    ageTextSelected: {
+        fontSize: 32,
+        color: '#fff',
+        fontWeight: '800',
+    },
+    ageIndicator: {
+        position: 'absolute',
+        right: '30%',
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#FF416C',
+    },
 
     // Notification
-    notificationStepContent: { flex: 1, alignItems: 'center', paddingTop: 40 },
-    notificationIconContainer: { marginBottom: 16, alignItems: 'center' },
-    notificationIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(80,80,80,0.8)', justifyContent: 'center', alignItems: 'center' },
-    notificationTitleContainer: { marginBottom: 32, alignItems: 'center' },
-    notificationTitle: { fontSize: 24, fontWeight: '700', color: '#fff', marginBottom: 8 },
-    notificationSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
-    notificationMockupContainer: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
-    notificationMockupImage: { width: '80%', height: '80%', opacity: 0.9 },
+    notificationIconRing: {
+        marginBottom: 32,
+        padding: 4,
+        borderRadius: 50,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    notificationIconGradient: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    notificationPreview: {
+        width: '100%',
+        marginTop: 20,
+    },
+    notificationCard: {
+        borderRadius: 20,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        overflow: 'hidden',
+    },
+    notifHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    notifIconSmall: {
+        marginRight: 8,
+        backgroundColor: '#000',
+        borderRadius: 4,
+    },
+    notifAppName: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 13,
+        fontWeight: '600',
+        flex: 1,
+    },
+    notifTime: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+    },
+    notifTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    notifBody: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 15,
+    },
 
     // Analyzing
-    centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' },
-    analyzingText: { marginTop: 24, fontSize: 20, color: '#fff', fontWeight: '600' },
-    subText: { marginTop: 8, fontSize: 16, color: 'rgba(255,255,255,0.5)' },
+    centerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#000',
+    },
+    analyzingText: {
+        marginTop: 32,
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    analyzingSubText: {
+        marginTop: 8,
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.5)',
+    },
 
-    // Match Reveal
-    matchContainer: { flex: 1, backgroundColor: '#000' },
-    matchImageBg: { ...StyleSheet.absoluteFillObject, opacity: 0.4 },
-    matchContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    matchTitle: { fontSize: 32, fontWeight: 'bold', color: brand[500], marginBottom: 32, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
-    characterCard: { alignItems: 'center', marginBottom: 40, width: '100%' },
-    avatarContainer: { width: 180, height: 180, borderRadius: 90, borderWidth: 4, borderColor: brand[500], overflow: 'hidden', marginBottom: 24, position: 'relative' },
-    avatar: { width: '100%', height: '120%', position: 'absolute', top: 0 },
-    charName: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-    charDesc: { fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center', maxWidth: 300, lineHeight: 24 },
-
-    // Stats
-    statsContainer: { flexDirection: 'row', justifyContent: 'center', gap: 32, marginBottom: 24, marginTop: 16 },
-    statItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    statIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(230, 85, 197, 0.1)', justifyContent: 'center', alignItems: 'center' },
-    statValue: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    statLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-
-    // Interests
-    interestsContainer: { width: '100%', alignItems: 'center', marginBottom: 24 },
-    interestsTitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
-    tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-    hobbyTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-    hobbyText: { color: '#fff', fontSize: 14 },
-
-    startButton: { width: '100%', maxWidth: 300 },
+    // Reveal
+    revealContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    revealBgImage: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.6,
+    },
+    revealSafeArea: {
+        flex: 1,
+    },
+    revealScrollContent: {
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingTop: 20,
+        paddingBottom: 100,
+    },
+    matchTitle: {
+        fontSize: 36,
+        fontWeight: '900',
+        color: '#fff',
+        marginBottom: 40,
+        textAlign: 'center',
+        shadowColor: '#FF416C',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+    },
+    avatarWrapper: {
+        marginBottom: 24,
+    },
+    avatarBorder: {
+        padding: 4,
+        borderRadius: 100,
+    },
+    avatarImage: {
+        width: 180,
+        height: 180,
+        borderRadius: 96,
+        backgroundColor: '#000',
+        borderWidth: 4,
+        borderColor: '#000',
+    },
+    charName: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: '#fff',
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    charDesc: {
+        fontSize: 16,
+        color: 'rgba(255,255,255,0.7)',
+        textAlign: 'center',
+        lineHeight: 24,
+        marginBottom: 32,
+    },
+    statsGrid: {
+        flexDirection: 'row',
+        gap: 16,
+        marginBottom: 32,
+    },
+    statBox: {
+        padding: 16,
+        borderRadius: 16,
+        overflow: 'hidden',
+        alignItems: 'center',
+        minWidth: 100,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    statValue: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    statLabel: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+        textTransform: 'uppercase',
+    },
+    interestsWrapper: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    interestTag: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    interestText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    revealFooter: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 24,
+        paddingBottom: 40,
+    },
 });
-

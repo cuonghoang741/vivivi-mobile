@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, type ViewProps, PressableProps } from 'react-native';
-import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
+import { View, type ViewProps, PressableProps, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { glassButtonStyle } from '../../styles/glass';
 import HapticPressable from '../ui/HapticPressable';
 
@@ -12,13 +12,12 @@ type Props = ViewProps & {
   onPress?: PressableProps['onPress'];
   disabled?: boolean;
   isDarkBackground?: boolean;
+  intensity?: number;
 };
 
 /**
  * LiquidGlass - wrapper component
- * - Nếu thiết bị support liquid-glass (iOS 26+), dùng LiquidGlassView
- * - Nếu không, fallback về View với style glassButtonStyle
- * - Khi pressable=true (default), tự động bọc trong HapticPressable để có hiệu ứng press
+ * Fallback to Expo BlurView for stability
  */
 export const LiquidGlass: React.FC<Props> = ({
   style,
@@ -29,47 +28,25 @@ export const LiquidGlass: React.FC<Props> = ({
   onPress,
   disabled,
   isDarkBackground,
+  intensity = 20,
   ...rest
 }) => {
   const baseStyle = [glassButtonStyle, style];
 
-  // Determine tint color based on isDarkBackground if not explicitly provided
-  const effectiveTintColor = tintColor ?? (isDarkBackground ? "#000000a7" : "#ffffff50");
-
-  // Content wrapper - LiquidGlassView hoặc View
+  // Content wrapper - BlurView
   const renderContent = () => {
-    if (isLiquidGlassSupported) {
-      // Only pass valid props to LiquidGlassView
-      const liquidProps: any = {
-        style: baseStyle,
-        tintColor: effectiveTintColor,
-        effect: 'regular',
-      };
-
-      // Interactive prop: true nếu có pressable và onPress, hoặc nếu được set explicitly
-      const shouldBeInteractive = interactive !== undefined
-        ? interactive
-        : (pressable && !!onPress);
-
-      if (shouldBeInteractive) {
-        liquidProps.interactive = true;
-      }
-
-      return (
-        <LiquidGlassView {...liquidProps}>
-          {children}
-        </LiquidGlassView>
-      );
-    }
-
     return (
-      <View style={baseStyle} {...rest}>
+      <View style={[baseStyle, { overflow: 'hidden' }]} {...rest}>
+        <BlurView
+          intensity={intensity}
+          tint={isDarkBackground ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
         {children}
       </View>
     );
   };
 
-  // Nếu pressable và có onPress, bọc trong HapticPressable
   if (pressable && onPress) {
     return (
       <HapticPressable
@@ -81,7 +58,6 @@ export const LiquidGlass: React.FC<Props> = ({
     );
   }
 
-  // Không có pressable hoặc không có onPress, render trực tiếp
   return renderContent();
 };
 

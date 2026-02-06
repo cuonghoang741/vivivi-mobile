@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   Pressable,
   useWindowDimensions,
   FlatList,
@@ -19,9 +18,11 @@ import { useSceneActions } from '../../context/SceneActionsContext';
 import { useVRMContext } from '../../context/VRMContext';
 import { DiamondBadge } from '../commons/DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
-import { IconCarambolaFilled } from '@tabler/icons-react-native';
+import { IconCarambolaFilled, IconMovie, IconMoon, IconSun, IconLock } from '@tabler/icons-react-native';
 import { LiquidGlass } from '../commons/LiquidGlass';
 import Button from '../commons/Button';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 interface BackgroundSheetProps {
   isOpened: boolean;
@@ -52,8 +53,10 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
   const { initialData } = useVRMContext();
 
   // Dynamic colors
-  const textColor = isDarkBackground ? '#fff' : '#000';
-  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const textColor = isDarkBackground ? '#fff' : '#1A1A1A';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
+  const cardBg = isDarkBackground ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)';
+  const cardBorder = isDarkBackground ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
   // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
@@ -127,7 +130,6 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
       });
 
       if (urlsToPrefetch.length > 0) {
-        // Prefetch in background to ensure both thumbs and origins are cached
         Image.prefetch(urlsToPrefetch);
       }
     }
@@ -159,101 +161,144 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     }
   }, [isPro, ownedBackgroundIds, selectBackground, onOpenSubscription]);
 
+  const Badge = ({ icon, label, color = secondaryTextColor }: { icon: React.ReactNode, label: string, color?: string }) => (
+    <View style={[styles.badge, { borderColor: isDarkBackground ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
+      {icon}
+      <Text style={[styles.badgeText, { color }]}>{label}</Text>
+    </View>
+  );
+
   const renderItem = ({ item }: { item: BackgroundItem }) => {
     const isOwned = ownedBackgroundIds.has(item.id);
     const isFree = item.tier === 'free';
     const isLocked = !isPro && !isOwned && !isFree;
-    const maxWidth = (width * 28.2) / 100;
-    const itemWidth = Math.min((width - 40 - 24) / 3, maxWidth);
+
+    // 2 Columns
+    const gap = 12;
+    const padding = 20;
+    const itemWidth = (width - padding * 2 - gap) / 2;
+
     const isSelected = currentBackgroundId ? currentBackgroundId === item.id : initialData?.preference?.backgroundId === item.id;
 
     return (
       <Pressable
         onPress={() => handleSelect(item)}
         style={({ pressed }) => [
-          styles.itemContainer,
-          { width: itemWidth },
+          styles.cardContainer,
+          {
+            width: itemWidth,
+            backgroundColor: isSelected
+              ? (isDarkBackground ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)')
+              : cardBg,
+            borderColor: isSelected
+              ? (isDarkBackground ? '#fff' : '#000')
+              : cardBorder,
+            borderWidth: isSelected ? 1.5 : 1,
+          },
           pressed && styles.pressed,
         ]}
       >
-        <View style={[
-          styles.imageContainer,
-          { width: itemWidth, height: itemWidth },
-          isSelected && { borderWidth: 2, borderColor: isDarkBackground ? '#fff' : 'rgba(0,0,0,0.5)' }
-        ]}>
-          <View style={[styles.placeholder, { width: itemWidth, height: itemWidth }]} />
+        {/* Image Section */}
+        <View style={[styles.imageWrapper, { height: itemWidth }]}>
           {(item.thumbnail || item.image) ? (
             <Image
               source={{ uri: item.thumbnail || item.image }}
-              style={[styles.image, { width: itemWidth, height: itemWidth }]}
+              style={styles.image}
               contentFit="cover"
               transition={200}
               cachePolicy="memory-disk"
             />
-          ) : null}
-
-          {item.video_url && (
-            <Button variant='liquid'
-              style={[styles.videoIconContainer, {
-                backgroundColor: !isDarkBackground ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
-              }]}
-            >
-              <IconCarambolaFilled size={14}
-                color="rgba(255,255,255,0.9)"
-              />
-            </Button>
+          ) : (
+            <View style={[styles.image, { backgroundColor: isDarkBackground ? '#333' : '#eee' }]} />
           )}
 
-          <Button variant='liquid' style={styles.themeIconContainer}>
-            <Ionicons
-              name={item.is_dark ? "moon" : "sunny"}
-              size={14}
-              color="rgba(255,255,255,0.9)"
-            />
-          </Button>
-
+          {/* Overlay Gradient for text readability if needed, or status */}
           {isLocked && (
-            <View style={[styles.darkenOverlay, { width: itemWidth, height: itemWidth }]} />
-          )}
-
-          {isLocked && (
-            <DiamondBadge size="sm" style={styles.diamondBadgeContainer} />
-          )}
-
-          {isLocked ? (
-            <View style={styles.lockIconContainer}>
-              <View style={styles.lockIconCircle}>
-                <Ionicons name="lock-closed" size={16} color="#fff" />
+            <View style={styles.lockedOverlay}>
+              <View style={styles.lockCircle}>
+                <IconLock size={16} color="#fff" />
               </View>
             </View>
-          ) : null}
+          )}
+
+          {isSelected && (
+            <View style={styles.selectedCheck}>
+              <Ionicons name="checkmark-circle" size={24} color={isDarkBackground ? "#fff" : "#000"} />
+            </View>
+          )}
         </View>
 
-        <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
-          {item.name}
-        </Text>
+        {/* Content Section */}
+        <View style={styles.cardContent}>
+          <Text style={[styles.cardTitle, { color: textColor }]} numberOfLines={1}>
+            {item.name}
+          </Text>
+
+          <View style={styles.badgesRow}>
+            {/* Type Badge (Video/Image) */}
+            {item.video_url ? (
+              <Badge
+                icon={<IconCarambolaFilled size={10} color={isDarkBackground ? "#FFD700" : "#F59E0B"} />}
+                label="Dynamic"
+                color={isDarkBackground ? "#DDD" : "#444"}
+              />
+            ) : (
+              <Badge
+                icon={<Ionicons name="image" size={10} color={secondaryTextColor} />}
+                label="Static"
+                color={secondaryTextColor}
+              />
+            )}
+
+            {/* Theme Badge */}
+            <Badge
+              icon={item.is_dark
+                ? <IconMoon size={10} color={isDarkBackground ? "#A5B4FC" : "#6366F1"} />
+                : <IconSun size={10} color={isDarkBackground ? "#FDBA74" : "#F97316"} />
+              }
+              label={item.is_dark ? "Dark" : "Light"}
+              color={secondaryTextColor}
+            />
+          </View>
+
+          {/* Pro Tag if locked */}
+          {isLocked && (
+            <View style={styles.proTagContainer}>
+              <DiamondBadge size="sm" />
+              <Text style={styles.proText}>Pro</Text>
+            </View>
+          )}
+        </View>
       </Pressable>
     );
   };
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
-      const itemWidth = (width - 40 - 24) / 3;
-      const skeletons = Array.from({ length: 15 }).map((_, i) => ({ id: i.toString() }));
+      const gap = 12;
+      const padding = 20;
+      const itemWidth = (width - padding * 2 - gap) / 2;
+      const skeletons = Array.from({ length: 6 }).map((_, i) => ({ id: i.toString() }));
 
       return (
         <View style={{ flex: 1, maxHeight: height * 0.9 }}>
           <FlatList
             data={skeletons}
             keyExtractor={(item) => item.id}
-            numColumns={3}
+            numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             renderItem={() => (
-              <View style={[styles.itemContainer, { width: itemWidth }]}>
-                <Skeleton width={itemWidth} height={itemWidth} borderRadius={16} />
-                <Skeleton width="80%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+              <View style={[styles.cardContainer, { width: itemWidth, height: itemWidth + 80, backgroundColor: cardBg, borderColor: cardBorder }]}>
+                <Skeleton width="100%" height={itemWidth} style={{ borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />
+                <View style={{ padding: 12, gap: 8 }}>
+                  <Skeleton width="60%" height={16} borderRadius={4} />
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Skeleton width={40} height={16} borderRadius={4} />
+                    <Skeleton width={40} height={16} borderRadius={4} />
+                  </View>
+                </View>
               </View>
             )}
           />
@@ -276,7 +321,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
     if (items.length === 0) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No backgrounds</Text>
+          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No backgrounds found</Text>
           <Pressable onPress={load} style={styles.retryButton}>
             <Text style={[styles.retryButtonText, { color: textColor }]}>Reload</Text>
           </Pressable>
@@ -290,10 +335,13 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
           data={items}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          numColumns={3}
+          numColumns={2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={5}
         />
       </View>
     );
@@ -304,7 +352,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
       ref={sheetRef}
       isOpened={isOpened}
       onIsOpenedChange={onIsOpenedChange}
-      title="Backgrounds"
+      title="Place"
       isDarkBackground={isDarkBackground}
       headerLeft={
         !isPro ? (
@@ -325,125 +373,123 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
+    minHeight: 200,
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
   },
   columnWrapper: {
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  itemContainer: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  imageContainer: {
-    borderRadius: 16,
+  cardContainer: {
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    position: 'relative',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  placeholder: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  imageWrapper: {
+    width: '100%',
+    position: 'relative',
   },
   image: {
-    borderRadius: 14,
+    width: '100%',
+    height: '100%',
   },
-  darkenOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 16,
+  cardContent: {
+    padding: 12,
+    gap: 6,
   },
-  itemName: {
-    fontSize: 13,
-    textAlign: 'center',
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontSize: 10,
     fontWeight: '500',
+  },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  lockCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  selectedCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  proTagContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  proText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFD700', // Gold/Yellow
   },
   errorText: {
     fontSize: 16,
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   errorDetailText: {
-    fontSize: 12,
-    marginBottom: 12,
+    fontSize: 14,
+    marginBottom: 16,
     textAlign: 'center',
   },
   emptyText: {
     fontSize: 16,
-    marginBottom: 12,
+    fontWeight: '500',
+    marginBottom: 16,
   },
   retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
   },
   retryButtonText: {
     fontSize: 14,
-  },
-  diamondBadgeContainer: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 10,
-  },
-  lockIconContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontWeight: '600',
   },
   pressed: {
-    opacity: 0.85,
+    opacity: 0.9,
     transform: [{ scale: 0.98 }],
-  },
-  videoIconContainer: {
-    aspectRatio: 1,
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    borderRadius: 7,
-    padding: 3,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    width: 24,
-    height: 24,
-    zIndex: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeIconContainer: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 7,
-    padding: 3,
-    zIndex: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    width: 24,
-    height: 24,
   },
 });

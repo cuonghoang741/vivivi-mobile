@@ -24,7 +24,7 @@ import type {
   UserLevelQuest,
 } from '../../repositories/QuestRepository';
 import { usePurchaseContext } from '../../context/PurchaseContext';
-import { ToastStackView } from '../toast/ToastStackView';
+import { ToastStackView } from '../alert/ToastStackView';
 
 const VCOIN_ICON = require('../../assets/images/VCoin.png');
 const RUBY_ICON = require('../../assets/images/Ruby.png');

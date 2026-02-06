@@ -129,7 +129,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
         if (customerInfo) {
             const activeEntitlement = customerInfo.entitlements.active['pro'] ||
                 customerInfo.entitlements.active['Pro'] ||
-                customerInfo.entitlements.active['evee_pro'];
+                customerInfo.entitlements.active['lusty_pro'];
             if (activeEntitlement) {
                 setActiveProductId(activeEntitlement.productIdentifier);
             }
@@ -307,444 +307,434 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     return (
         <Modal
             visible={isOpened}
-            animationType="slide"
-            presentationStyle="fullScreen"
+            animationType="fade"
+            presentationStyle="overFullScreen"
+            transparent={true}
             onRequestClose={onClose}
         >
             <View style={styles.container}>
                 <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-                {/* VRM Preview - Top Half */}
-                <View style={styles.vrmHeader}>
+                {/* Background: VRM Preview + Gradient */}
+                <View style={styles.backgroundContainer}>
                     {isOpened && (
                         <PreviewVRM
-                            showActionButtons={true}
-                            showNavigation={true}
+                            showActionButtons={false}
+                            showNavigation={false}
                             characterFilter={premiumCharacterFilter}
                             initialCharacterId={activeCharacterId}
                         />
                     )}
-                </View>
-
-                {/* Header with Close Button */}
-                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                    <View style={{ flex: 1 }} />
-                    <Button
-                        variant='liquid'
-                        size="lg"
-                        onPress={onClose}
-                        startIcon={() => <IconX color={"black"} />}
-                        style={{
-                            backgroundColor: '#ffffff50'
-                        }}
-                        isIconOnly
+                    <LinearGradient
+                        colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)', '#000000']}
+                        locations={[0, 0.5, 0.9]}
+                        style={StyleSheet.absoluteFill}
                     />
                 </View>
 
-                {/* Main Content pushed to bottom */}
-                <View style={styles.contentWrapper}>
-                    <View style={styles.sheetContent}>
-                        {/* Blur Background */}
-                        <MaskedView
-                            style={StyleSheet.absoluteFill}
-                            maskElement={
-                                <LinearGradient
-                                    colors={['transparent', '#000']}
-                                    locations={[0, 0.4]}
-                                    style={StyleSheet.absoluteFill}
-                                />
-                            }
-                        >
-                            <BlurView
-                                intensity={80}
-                                tint="dark"
-                                style={StyleSheet.absoluteFill}
-                            />
-                        </MaskedView>
+                {/* Header */}
+                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+                    <Pressable
+                        onPress={onClose}
+                        style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+                    >
+                        <BlurView intensity={40} tint="dark" style={styles.closeButtonInner}>
+                            <IconX color="#fff" size={22} />
+                        </BlurView>
+                    </Pressable>
+                </View>
 
-                        {/* Scrollable Section: Title + Features */}
-                        <View style={styles.featuresScrollContainer}>
-                            <ScrollView
-                                style={styles.featuresScrollView}
-                                contentContainerStyle={styles.featuresScrollContent}
-                                showsVerticalScrollIndicator={false}
+                {/* Main Content */}
+                <View style={styles.mainContent}>
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
+                    >
+                        {/* Hero Section */}
+                        <View style={styles.heroSection}>
+                            <LiquidGlassView
+                                style={styles.proBadge}
+                                tintColor="rgba(255, 65, 108, 0.3)"
                             >
-                                <View style={styles.heroContent}>
-                                    <LiquidGlassView style={styles.proBadgeContainer} tintColor={"rgba(0,0,0,0.7)"}>
-                                        <Text style={styles.proBadgeTextName}>Evee</Text>
-                                        <LinearGradient
-                                            colors={['#FF416C', '#FF4B2B']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={styles.premiumBadge}
-                                        >
-                                            <Text style={styles.premiumBadgeText}>Pro</Text>
-                                        </LinearGradient>
-                                    </LiquidGlassView>
-                                    <Text style={styles.title}>Ultimate Experience</Text>
-                                    <Text style={styles.subtitle}>Unlock the full 3D intimate world</Text>
-                                </View>
+                                <LinearGradient
+                                    colors={['#FF416C', '#FF4B2B']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={[StyleSheet.absoluteFill, { opacity: 0.8 }]}
+                                />
+                                <Text style={styles.proBadgeText}>LUSTY PRO</Text>
+                            </LiquidGlassView>
 
-                                <View style={styles.featuresList}>
-                                    {SUBSCRIPTION_FEATURES.map((feature, index) => (
-                                        <View key={index} style={styles.featureRow}>
-                                            <View style={[styles.featureIconContainer, { backgroundColor: feature.color + '20' }]}>
-                                                <feature.icon size={20} color={feature.color} />
-                                            </View>
-                                            <Text style={styles.featureText}>{feature.text}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </ScrollView>
+                            <Text style={styles.heroTitle}>Unlock Your{'\n'}Ultimate Fantasy</Text>
+                            <Text style={styles.heroSubtitle}>
+                                Experience unlimited intimacy, exclusive content, and deeper connections.
+                            </Text>
                         </View>
 
-                        {/* Fixed Bottom Section */}
-                        <View style={[styles.bottomContainer, { paddingBottom: 10 }]}>
-                            <View style={styles.pricingContainer}>
-                                {yearlyPackage && (
-                                    <Pressable
-                                        style={[
-                                            styles.planCard,
-                                            selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
-                                        ]}
-                                        onPress={() => {
-                                            setSelectedPackage(yearlyPackage);
-                                            analyticsService.logSubscriptionSelectPlan(yearlyPackage.identifier, 'Yearly');
-                                        }}
-                                    >
-                                        {activeProductId === yearlyPackage.product.identifier ? (
-                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                            </View>
-                                        ) : (selectedPackage?.identifier === yearlyPackage.identifier && discountPercentage && (
-                                            <View style={styles.blueBadge}>
-                                                <Text style={styles.blueBadgeText}>{discountPercentage}</Text>
-                                            </View>
-                                        ))}
-                                        <Text style={styles.planName}>Yearly</Text>
-                                        <View>
-                                            <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
-                                            <Text style={styles.planPeriod}>12 months</Text>
-                                            <Text style={styles.planSubDetail}>
-                                                {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
-                                                    style: 'currency',
-                                                    currency: yearlyPackage.product.currencyCode
-                                                })}/month
-                                            </Text>
+                        {/* Features List */}
+                        <View style={styles.featuresContainer}>
+                            {SUBSCRIPTION_FEATURES.map((feature, index) => (
+                                <View key={index} style={styles.featureItem}>
+                                    <View style={[styles.featureIcon, { backgroundColor: feature.color + '20' }]}>
+                                        <feature.icon size={20} color={feature.color} />
+                                    </View>
+                                    <Text style={styles.featureText}>{feature.text}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        {/* Spacer for bottom section */}
+                        <View style={{ height: 180 }} />
+                    </ScrollView>
+
+                    {/* Fixed Bottom Selection Panel */}
+                    <BlurView intensity={80} tint="dark" style={[styles.bottomPanel, { paddingBottom: insets.bottom + 10 }]}>
+                        {/* Plan Selection */}
+                        <View style={styles.plansContainer}>
+                            {/* Monthly Plan */}
+                            {monthlyPackage && (
+                                <Pressable
+                                    style={[
+                                        styles.planCard,
+                                        selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedPackage(monthlyPackage);
+                                        analyticsService.logSubscriptionSelectPlan(monthlyPackage.identifier, 'Monthly');
+                                    }}
+                                >
+                                    <View style={styles.planInfo}>
+                                        <Text style={[styles.planName, selectedPackage?.identifier === monthlyPackage.identifier && styles.textHighlight]}>Monthly</Text>
+                                        <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
+                                    </View>
+                                    <View style={[styles.radioButton, selectedPackage?.identifier === monthlyPackage.identifier && styles.radioButtonSelected]} />
+                                </Pressable>
+                            )}
+
+                            {/* Yearly Plan */}
+                            {yearlyPackage && (
+                                <Pressable
+                                    style={[
+                                        styles.planCard,
+                                        selectedPackage?.identifier === yearlyPackage.identifier && styles.planCardSelected
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedPackage(yearlyPackage);
+                                        analyticsService.logSubscriptionSelectPlan(yearlyPackage.identifier, 'Yearly');
+                                    }}
+                                >
+                                    {discountPercentage && (
+                                        <View style={styles.discountBadge}>
+                                            <Text style={styles.discountText}>SAVE {discountPercentage}</Text>
                                         </View>
-                                    </Pressable>
-                                )}
+                                    )}
+                                    <View style={styles.planInfo}>
+                                        <Text style={[styles.planName, selectedPackage?.identifier === yearlyPackage.identifier && styles.textHighlight]}>Yearly</Text>
+                                        <Text style={styles.planPrice}>{yearlyPackage.product.priceString}</Text>
+                                        <Text style={styles.perMonthText}>
+                                            {(yearlyPackage.product.price / 12).toLocaleString(undefined, {
+                                                style: 'currency',
+                                                currency: yearlyPackage.product.currencyCode
+                                            })}/mo
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.radioButton, selectedPackage?.identifier === yearlyPackage.identifier && styles.radioButtonSelected]} />
+                                </Pressable>
+                            )}
+                        </View>
 
-                                {monthlyPackage && (
-                                    <Pressable
-                                        style={[
-                                            styles.planCard,
-                                            selectedPackage?.identifier === monthlyPackage.identifier && styles.planCardSelected
-                                        ]}
-
-                                        onPress={() => {
-                                            setSelectedPackage(monthlyPackage);
-                                            analyticsService.logSubscriptionSelectPlan(monthlyPackage.identifier, 'Monthly');
-                                        }}
-                                    >
-                                        {activeProductId === monthlyPackage.product.identifier && (
-                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                            </View>
-                                        )}
-                                        <Text style={styles.planName}>Monthly</Text>
-                                        <View>
-                                            <Text style={styles.planPrice}>{monthlyPackage.product.priceString}</Text>
-                                            <Text style={styles.planPeriod}>month-to-month</Text>
-                                        </View>
-                                    </Pressable>
-                                )}
-
-                                {/* Fallback if no yearly/monthly found */}
-                                {!yearlyPackage && !monthlyPackage && packages.length > 0 && packages.map(pkg => (
+                        {/* Fallback Only */}
+                        {!yearlyPackage && !monthlyPackage && packages.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                                {packages.map(pkg => (
                                     <Pressable
                                         key={pkg.identifier}
                                         style={[
                                             styles.planCard,
+                                            { width: 140, marginRight: 10 },
                                             selectedPackage?.identifier === pkg.identifier && styles.planCardSelected
                                         ]}
-                                        onPress={() => {
-                                            setSelectedPackage(pkg);
-                                            analyticsService.logSubscriptionSelectPlan(pkg.identifier, pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly');
-                                        }}
+                                        onPress={() => setSelectedPackage(pkg)}
                                     >
-                                        {activeProductId === pkg.product.identifier && (
-                                            <View style={[styles.blueBadge, { backgroundColor: '#4CAF50' }]}>
-                                                <Text style={styles.blueBadgeText}>ACTIVE</Text>
-                                            </View>
-                                        )}
-                                        <Text style={styles.planName}>{pkg.packageType === 'ANNUAL' ? 'Yearly' : 'Monthly'}</Text>
+                                        <Text style={styles.planName}>{pkg.packageType}</Text>
                                         <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
                                     </Pressable>
                                 ))}
-                            </View>
+                            </ScrollView>
+                        )}
 
-                            <Pressable
-                                style={[styles.upgradeButton, (isProcessing || contextLoading) && styles.upgradeButtonDisabled]}
-                                onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
-                                disabled={isProcessing || contextLoading}
-                                android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+                        {/* CTA Button */}
+                        <Pressable
+                            style={[styles.ctaButton, (isProcessing || contextLoading) && styles.disabledButton]}
+                            onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
+                        >
+                            <LinearGradient
+                                colors={['#FF416C', '#FF4B2B']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.ctaGradient}
                             >
-                                <LinearGradient
-                                    colors={['#FF416C', '#FF4B2B']}
-                                    style={styles.upgradeButtonGradient}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                >
-                                    {isProcessing ? (
-                                        <ActivityIndicator color="#000" />
-                                    ) : (
-                                        <Text style={styles.upgradeButtonText}>
-                                            {isPro ? 'Update Subscription' : 'Unlock Premium Access'}
-                                        </Text>
-                                    )}
-                                </LinearGradient>
-                            </Pressable>
+                                {isProcessing ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.ctaText}>
+                                        {isPro ? 'Update Plan' : 'Unlock Lusty Pro'}
+                                    </Text>
+                                )}
+                            </LinearGradient>
+                        </Pressable>
 
-                            <View style={styles.footerLinks}>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/privacy')}>
-                                    Privacy Policy
-                                </LinkText>
-                                <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={handleRestorePurchases}>Restore Purchase</LinkText>
-                                <Text style={styles.footerSeparator}>|</Text>
-                                <LinkText onPress={() => WebBrowser.openBrowserAsync('https://eve-privacy.lovable.app/terms')}>
-                                    Terms of Use
-                                </LinkText>
-                            </View>
-                            {isPro && (
-                                <Pressable
-                                    style={styles.cancelButton}
-                                    onPress={() => {
-                                        // iTunes subscription management URL for iOS
-                                        if (activeProductId) {
-                                            analyticsService.logSubscriptionCancel(activeProductId);
-                                        }
-                                        Linking.openURL('https://apps.apple.com/account/subscriptions');
-                                    }}
-                                >
-                                    <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
-                                </Pressable>
-                            )}
+                        {/* Footer Links */}
+                        <View style={styles.footerLinks}>
+                            <Pressable onPress={handleRestorePurchases}>
+                                <Text style={styles.footerLinkText}>Restore</Text>
+                            </Pressable>
+                            <Text style={styles.footerDot}>•</Text>
+                            <Pressable onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/terms')}>
+                                <Text style={styles.footerLinkText}>Terms</Text>
+                            </Pressable>
+                            <Text style={styles.footerDot}>•</Text>
+                            <Pressable onPress={() => WebBrowser.openBrowserAsync('https://lusty-legal-pages.lovable.app/privacy')}>
+                                <Text style={styles.footerLinkText}>Privacy</Text>
+                            </Pressable>
                         </View>
-                    </View>
+
+                        {isPro && activeProductId && (
+                            <Pressable
+                                onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')}
+                                style={{ marginTop: 8 }}
+                            >
+                                <Text style={[styles.footerLinkText, { opacity: 0.5, fontSize: 11 }]}>Manage Subscription</Text>
+                            </Pressable>
+                        )}
+                    </BlurView>
                 </View>
             </View>
         </Modal>
     );
 };
 
-const LinkText: React.FC<{ onPress: () => void; children: React.ReactNode }> = ({ onPress, children }) => (
-    <Pressable onPress={onPress}>
-        <Text style={styles.footerLink}>{children}</Text>
-    </Pressable>
-);
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#000',
     },
-    vrmHeader: {
+    backgroundContainer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 0,
+    },
+    header: {
         position: 'absolute',
         top: 0,
-        width: '100%',
-        height: '100%',
-    },
-    // gradientOverlay removed
-    header: {
+        left: 0,
+        right: 0,
+        zIndex: 20,
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        paddingHorizontal: 16,
-        zIndex: 10,
-    },
-    contentWrapper: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    sheetContent: {
-        maxHeight: '85%', // Prevent going too high
-        paddingBottom: 20,
-    },
-    featuresScrollContainer: {
-        flexShrink: 1, // Allows scrolling if content is too large
-        marginBottom: 10,
-    },
-    featuresScrollView: {
-        flexGrow: 0,
-    },
-    featuresScrollContent: {
         paddingHorizontal: 20,
-        paddingBottom: 10,
     },
-    heroContent: {
-        alignItems: 'center',
-        marginBottom: 14,
-        paddingTop: 10,
-    },
-    proBadgeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
+    closeButton: {
+        overflow: 'hidden',
         borderRadius: 20,
-        gap: 8,
     },
-    proBadgeTextName: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    premiumBadge: {
-        borderRadius: 8,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-    },
-    premiumBadgeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    title: {
-        color: '#fff',
-        fontSize: 34,
-        fontWeight: '800',
-        textAlign: 'center',
-        lineHeight: 42,
-    },
-    subtitle: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 16,
-        fontWeight: '500',
-        textAlign: 'center',
-        marginTop: 4,
-    },
-    featuresList: {
-        // Removed marginBottom as it's handled by container
-    },
-    featureRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    featureIconContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+    closeButtonInner: {
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+    },
+    pressed: {
+        opacity: 0.8,
+        transform: [{ scale: 0.95 }],
+    },
+    mainContent: {
+        flex: 1,
+        zIndex: 10,
+    },
+    scrollContent: {
+        paddingTop: 100, // Make space for header/top
+        paddingHorizontal: 24,
+    },
+    heroSection: {
+        marginBottom: 32,
+        alignItems: 'flex-start',
+    },
+    proBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginBottom: 16,
+        overflow: 'hidden',
+    },
+    proBadgeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    heroTitle: {
+        color: '#fff',
+        fontSize: 42,
+        fontWeight: '900',
+        lineHeight: 46,
+        marginBottom: 12,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10,
+    },
+    heroSubtitle: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 16,
+        lineHeight: 24,
+        fontWeight: '500',
+    },
+    featuresContainer: {
+        gap: 16,
+    },
+    featureItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    featureIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 14,
     },
     featureText: {
         color: '#fff',
         fontSize: 15,
-        fontWeight: '500',
+        fontWeight: '600',
+        flex: 1,
     },
-    bottomContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
+    bottomPanel: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        paddingTop: 24,
+        paddingHorizontal: 24,
+        overflow: 'hidden', // Essential for BlurView
     },
-    pricingContainer: {
+    plansContainer: {
         flexDirection: 'row',
         gap: 12,
         marginBottom: 24,
     },
     planCard: {
         flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
         borderRadius: 20,
         padding: 16,
-        borderWidth: 2,
-        borderColor: 'transparent',
-        flexDirection: 'column',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.1)',
+        position: 'relative',
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        maxWidth: '50%'
     },
     planCardSelected: {
         borderColor: '#FF416C',
-        backgroundColor: 'rgba(255, 65, 108, 0.15)',
+        backgroundColor: 'rgba(255, 65, 108, 0.1)',
     },
-    blueBadge: {
-        position: 'absolute',
-        top: -12,
-        right: -4,
+    radioButton: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    radioButtonSelected: {
+        borderColor: '#FF416C',
         backgroundColor: '#FF416C',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
     },
-    blueBadgeText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: '700',
+    planInfo: {
+        flex: 1,
     },
     planName: {
-        color: '#fff',
-        fontSize: 16,
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
         fontWeight: '600',
-        marginBottom: 8,
+        marginBottom: 4,
+        textTransform: 'uppercase',
+    },
+    textHighlight: {
+        color: '#FF416C',
     },
     planPrice: {
         color: '#fff',
-        fontSize: 22,
-        fontWeight: '700',
-        marginBottom: 2,
-    },
-    planPeriod: {
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: 12,
-        marginBottom: 4,
-    },
-    planSubDetail: {
-        color: 'rgba(255,255,255,0.4)',
-        fontSize: 11,
-    },
-    upgradeButton: {
-        borderRadius: 30,
-        overflow: 'hidden',
-        marginBottom: 24,
-    },
-    upgradeButtonDisabled: {
-        opacity: 0.7,
-    },
-    upgradeButtonGradient: {
-        paddingVertical: 16,
-        alignItems: 'center',
-    },
-    upgradeButtonText: {
-        color: '#fff',
         fontSize: 18,
         fontWeight: '700',
+    },
+    perMonthText: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: 12,
+        marginTop: 2,
+    },
+    discountBadge: {
+        position: 'absolute',
+        top: -10,
+        right: 12,
+        backgroundColor: '#4CAF50',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    discountText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    ctaButton: {
+        borderRadius: 28,
+        overflow: 'hidden',
+        marginBottom: 16,
+        shadowColor: '#FF416C',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    disabledButton: {
+        opacity: 0.7,
+    },
+    ctaGradient: {
+        paddingVertical: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ctaText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
     footerLinks: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 12,
+        opacity: 0.7,
     },
-    footerLink: {
+    footerLinkText: {
         color: '#fff',
         fontSize: 12,
+        fontWeight: '500',
     },
-    footerSeparator: {
-        color: 'rgba(255,255,255,0.3)',
-        fontSize: 12,
-    },
-    cancelButton: {
-        marginTop: 5,
-        alignItems: 'center',
-        paddingVertical: 12,
-    },
-    cancelButtonText: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 13,
-        textDecorationLine: 'underline',
+    footerDot: {
+        color: '#fff',
+        marginHorizontal: 10,
+        fontSize: 10,
     },
 });
 

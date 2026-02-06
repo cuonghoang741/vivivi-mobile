@@ -129,20 +129,20 @@ export const RewardClaimOverlay: React.FC<Props> = ({
                   {rewards.length > 0 ? (
                     <>
                       {/* First row (max 2 items) */}
-                      <View style={styles.rewardRow}>
+                      {/* <View style={styles.rewardRow}>
                         {rewards.slice(0, 2).map(reward => (
                           <RewardItemView key={reward.id} reward={reward} />
                         ))}
-                      </View>
+                      </View> */}
 
                       {/* Second row (items 3 and 4, if they exist) */}
-                      {rewards.length > 2 && (
+                      {/* {rewards.length > 2 && (
                         <View style={styles.rewardRow}>
                           {rewards.slice(2, 4).map(reward => (
                             <RewardItemView key={reward.id} reward={reward} />
                           ))}
                         </View>
-                      )}
+                      )} */}
                     </>
                   ) : (
                     <Text style={styles.emptyText}>No rewards available</Text>

@@ -1,16 +1,27 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated, Image } from 'react-native';
+import { StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated, Image, LayoutAnimation } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  IconSettings,
+  IconVideo,
+  IconLayoutGrid,
+  IconMovie,
+  IconCamera,
+  IconCube,
+  IconPhoto,
+  IconBadge3d,
+} from '@tabler/icons-react-native';
 import { MediaStream, RTCView } from '@livekit/react-native-webrtc';
 import { BlurView } from 'expo-blur';
 import { VRMWebView } from './src/components/commons/VRMWebView';
 import { VRMUIOverlay } from './src/components/commons/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
-import { useUserStats } from './src/hooks/useUserStats';
+import { LiquidGlass } from './src/components/commons/LiquidGlass';
+import { useUserStats } from './src/hook/useUserStats';
 import { SignInScreen } from './src/pages/SignInScreen';
 import { OnboardingV3Screen } from './src/pages/OnboardingV3Screen';
 import { CharacterPreviewScreen } from './src/pages/CharacterPreviewScreen';
@@ -19,9 +30,9 @@ import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { SubscriptionSheet } from './src/components/sheets/SubscriptionSheet';
 import { StreakRewardPopup } from './src/components/commons/StreakRewardPopup';
-import { useChatManager } from './src/hooks/useChatManager';
-import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
-import { useVoiceCall } from './src/hooks/useVoiceCall';
+import { useChatManager } from './src/hook/useChatManager';
+import { useAppVoiceCall } from './src/hook/useAppVoiceCall';
+import { useVoiceCall } from './src/hook/useVoiceCall';
 import { DetectedAction } from './src/services/ActionDetectionService';
 import { VoiceLoadingOverlay } from './src/components/commons/VoiceLoadingOverlay';
 import { CallEndedModal } from './src/components/commons/CallEndedModal';
@@ -37,9 +48,10 @@ import { CharacterQuickSwitcher } from './src/components/commons/CharacterQuickS
 import { BackgroundItem, BackgroundRepository } from './src/repositories/BackgroundRepository';
 import { CharacterItem, CharacterRepository } from './src/repositories/CharacterRepository';
 import { type CostumeItem, CostumeRepository } from './src/repositories/CostumeRepository';
-import { SceneHeader } from './src/components/header/SceneHeaderComponents';
-import { useLoginRewards } from './src/hooks/useLoginRewards';
-import { useQuests } from './src/hooks/useQuests';
+
+// import { SceneHeader } from './src/components/header/SceneHeaderComponents';
+import { useLoginRewards } from './src/hook/useLoginRewards';
+import { useQuests } from './src/hook/useQuests';
 import { SceneActionsProvider } from './src/context/SceneActionsContext';
 import { PurchaseProvider, usePurchaseContext } from './src/context/PurchaseContext';
 import { SubscriptionProvider, useSubscription } from './src/context/SubscriptionContext';
@@ -49,10 +61,9 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
-import { ToastStackView } from './src/components/toast/ToastStackView';
-import { RewardClaimOverlay, type RewardItem } from './src/components/toast/RewardClaimOverlay';
+import { ToastStackView } from './src/components/alert/ToastStackView';
+import { RewardClaimOverlay, type RewardItem } from './src/components/alert/RewardClaimOverlay';
 import { Persistence } from './src/utils/persistence';
-import { oneSignalService } from './src/services/OneSignalService';
 import { analyticsService } from './src/services/AnalyticsService';
 import { OTAAutoUpdate } from './src/services/OTA-update/OTAAutoUpdate';
 import { AppsFlyerService } from './src/services/AppsFlyerService';
@@ -1674,13 +1685,11 @@ const AppContent = () => {
         userId: session.user.id,
         email: session.user.email,
       });
-      // Link user to OneSignal for targeted notifications
-      oneSignalService.setExternalUserId(session.user.id);
+
       // Set user for analytics
       analyticsService.setUserId(session.user.id);
     } else {
-      // Remove user from OneSignal on logout
-      oneSignalService.removeExternalUserId();
+
       // Clear analytics user
       analyticsService.setUserId(null);
       analyticsService.logSignOut();
@@ -1698,7 +1707,7 @@ const AppContent = () => {
     ensureInitialModelApplied(webViewRef);
 
     // Initialize OneSignal
-    oneSignalService.initialize();
+    // oneSignalService.initialize();
 
     // Log app open event
     analyticsService.logAppOpen();
@@ -1988,7 +1997,7 @@ const AppContent = () => {
 
       // 2. Ask for Notification Permission
       try {
-        await oneSignalService.requestPermission();
+        // await oneSignalService.requestPermission();
       } catch (error) {
         console.warn('[App] Failed to request notification permission', error);
       }
@@ -2048,8 +2057,6 @@ const AppContent = () => {
       );
     }
 
-    console.log("CharacterSelectionScreen", !!session, authManager.isNewUser)
-
     // PRIORITIZE: If AuthManager detected a new user during sign-in, go STRAIGHT to V3.
     if (session && authManager.isNewUser === true) {
       return <OnboardingV3Screen onComplete={handleV3Complete} />;
@@ -2076,31 +2083,116 @@ const AppContent = () => {
             }}
             pointerEvents={isVrmMode ? 'none' : 'auto'}
           >
-            <SceneHeader
-              characterName={characterTitle}
-              relationshipName={currentCharacter?.relationshipName}
-              relationshipProgress={currentCharacter?.relationshipProgress ?? 0}
-              avatarUri={currentCharacter?.avatar}
-              onCharacterCardPress={handleCharacterCardPress}
-              onMediaPress={() => setShowMediaSheet(true)}
-              onSettingsPress={handleOpenSettings}
-              onCharacterMenuPress={() => setShowCharacterSheet(true)}
-              onCallPress={handleToggleMic}
-              remainingQuotaSeconds={remainingQuotaSeconds}
-              viewMode={viewMode}
-              onViewModeChange={(mode) => {
-                if (mode === '3d' && !isPro) {
-                  setShowSubscriptionSheet(true);
-                } else {
-                  setViewMode(mode);
-                }
-              }}
-              isPro={isPro}
-              onUpgradePress={() => setShowSubscriptionSheet(true)}
-              isDarkBackground={isDarkBackground}
-            />
+
+            {/* NEW TOP HUD */}
+            <View style={[styles.topHudContainer]}>
+              {/* TOP LEFT: Character Pill */}
+              <TouchableOpacity
+                onPress={() => setShowCharacterSheet(true)}
+                activeOpacity={0.8}
+                style={{ flexShrink: 1 }}
+              >
+                <LiquidGlass
+                  intensity={20}
+                  style={styles.characterPill}
+                >
+                  <View style={styles.avatarBorder}>
+                    <Image
+                      source={{ uri: currentCharacter?.avatar || initialData?.character?.avatar || 'https://via.placeholder.com/40' }}
+                      style={styles.pillAvatar}
+                    />
+                  </View>
+                  <View style={styles.pillTextContainer}>
+                    <Text style={styles.pillName} numberOfLines={1}>
+                      {currentCharacter?.name || 'Character'}
+                    </Text>
+                    <Text style={styles.pillStatus}>
+                      {currentCharacter?.relationshipName || 'Stranger'}
+                    </Text>
+                  </View>
+                  {isPro && (
+                    <View style={styles.proBadgeMini}>
+                      <Text style={styles.proBadgeText}>PRO</Text>
+                    </View>
+                  )}
+                </LiquidGlass>
+              </TouchableOpacity>
+
+              {/* TOP RIGHT: Actions Pill */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {/* Mode Toggle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    const newMode = viewMode === '2d' ? '3d' : '2d';
+                    if (newMode === '3d' && !isPro) {
+                      setShowSubscriptionSheet(true);
+                      return;
+                    }
+                    setViewMode(newMode);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  activeOpacity={0.8}
+                  style={{ position: 'relative' }}
+                >
+                  <LiquidGlass intensity={20} style={styles.iconButtonGlass}>
+                    <IconBadge3d size={20} color={viewMode === '3d' ? '#FF416C' : '#fff'} />
+                  </LiquidGlass>
+                  {!isPro && (
+                    <View style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      zIndex: 10,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }} pointerEvents="none">
+                      <View style={{
+                        backgroundColor: '#FF416C',
+                        paddingHorizontal: 4,
+                        paddingVertical: 2,
+                        borderRadius: 6,
+                        borderWidth: 1.5,
+                        borderColor: '#fff',
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 8, fontWeight: '800' }}>PRO</Text>
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleToggleMic}
+                  activeOpacity={0.8}
+                >
+                  <LiquidGlass intensity={20} style={styles.iconButtonGlass}>
+                    <IconVideo size={20} color="#fff" />
+                  </LiquidGlass>
+                </TouchableOpacity>
+
+                {/* Media */}
+                <TouchableOpacity
+                  onPress={() => setShowMediaSheet(true)}
+                  activeOpacity={0.8}
+                >
+                  <LiquidGlass intensity={20} style={styles.iconButtonGlass}>
+                    <IconMovie size={20} color="#fff" />
+                  </LiquidGlass>
+                </TouchableOpacity>
+
+                {/* Settings */}
+                <TouchableOpacity
+                  onPress={handleOpenSettings}
+                  activeOpacity={0.8}
+                >
+                  <LiquidGlass intensity={20} style={styles.iconButtonGlass}>
+                    <IconSettings size={20} color="#fff" />
+                  </LiquidGlass>
+                </TouchableOpacity>
+              </View>
+            </View>
           </Animated.View>
-        )}
+        )
+        }
         {/* Persistent VRMWebView lifted out to root render */}
         <VoiceLoadingOverlay
           visible={voiceState.isBooting || voiceState.status === 'connecting'}
@@ -2136,23 +2228,25 @@ const AppContent = () => {
           isPro={isPro}
         />
         {/* Invisible tap zone in center area to enter VRM mode - only show when NOT in vrmMode and not in call */}
-        {!isVrmMode && !isCameraMode && !voiceState.isConnected && (
-          <Pressable
-            style={{
-              position: 'absolute',
-              top: '25%',
-              left: '15%',
-              right: '15%',
-              height: '35%',
-              // backgroundColor: 'rgba(255,0,0,0.1)', // Uncomment to debug tap area
-            }}
-            onPress={() => {
-              console.log('[App] Center tap - entering VRM mode');
-              Keyboard.dismiss();
-              setIsVrmMode(true);
-            }}
-          />
-        )}
+        {
+          !isVrmMode && !isCameraMode && !voiceState.isConnected && (
+            <Pressable
+              style={{
+                position: 'absolute',
+                top: '25%',
+                left: '15%',
+                right: '15%',
+                height: '35%',
+                // backgroundColor: 'rgba(255,0,0,0.1)', // Uncomment to debug tap area
+              }}
+              onPress={() => {
+                console.log('[App] Center tap - entering VRM mode');
+                Keyboard.dismiss();
+                setIsVrmMode(true);
+              }}
+            />
+          )
+        }
         {/* Exit VRM mode button - only show when in vrmMode */}
         <Animated.View
           style={{
@@ -2195,11 +2289,13 @@ const AppContent = () => {
           stream={cameraStream}
           onClose={handleCameraOverlayClose}
         />
-        {showSavedToast ? (
-          <View pointerEvents="none" style={styles.savedToastContainer}>
-            <Text style={styles.savedToastText}>Saved to Photos</Text>
-          </View>
-        ) : null}
+        {
+          showSavedToast ? (
+            <View pointerEvents="none" style={styles.savedToastContainer}>
+              <Text style={styles.savedToastText}>Saved to Photos</Text>
+            </View>
+          ) : null
+        }
         <Animated.View
           style={[
             styles.chatOverlay,
@@ -2254,32 +2350,34 @@ const AppContent = () => {
           />
         </Animated.View>
         {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
-        {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
-          <Animated.View
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              zIndex: 90,
-              opacity: vrmModeAnim,
-              transform: [{
-                translateY: vrmModeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [80, 0],
-                })
-              }]
-            }}
-            pointerEvents={isVrmMode ? 'none' : 'box-none'}
-          >
-            <CharacterQuickSwitcher
-              characters={allCharacters}
-              currentIndex={currentCharacterIndex}
-              onCharacterTap={handleCharacterSelectByIndex}
-              onAddCharacter={() => setShowCharacterSheet(true)}
-              isInputActive={isKeyboardVisible || chatState.showChatList}
-              keyboardHeight={0}
-              isModelLoading={false}
-            />
-          </Animated.View>
-        )}
+        {
+          !(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
+            <Animated.View
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                zIndex: 90,
+                opacity: vrmModeAnim,
+                transform: [{
+                  translateY: vrmModeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [80, 0],
+                  })
+                }]
+              }}
+              pointerEvents={isVrmMode ? 'none' : 'box-none'}
+            >
+              <CharacterQuickSwitcher
+                characters={allCharacters}
+                currentIndex={currentCharacterIndex}
+                onCharacterTap={handleCharacterSelectByIndex}
+                onAddCharacter={() => setShowCharacterSheet(true)}
+                isInputActive={isKeyboardVisible || chatState.showChatList}
+                keyboardHeight={0}
+                isModelLoading={false}
+              />
+            </Animated.View>
+          )
+        }
         <AppSheets
           showQuestSheet={showQuestSheet}
           setShowQuestSheet={setShowQuestSheet}
@@ -2388,18 +2486,20 @@ const AppContent = () => {
           }}
           isPro={isPro}
         />
-        {rewardOverlayData && (
-          <RewardClaimOverlay
-            isPresented={showRewardOverlay}
-            rewards={rewardOverlayData.rewards}
-            title={rewardOverlayData.title}
-            subtitle={rewardOverlayData.subtitle}
-            onClaim={() => {
-              setShowRewardOverlay(false);
-              setRewardOverlayData(null);
-            }}
-          />
-        )}
+        {
+          rewardOverlayData && (
+            <RewardClaimOverlay
+              isPresented={showRewardOverlay}
+              rewards={rewardOverlayData.rewards}
+              title={rewardOverlayData.title}
+              subtitle={rewardOverlayData.subtitle}
+              onClaim={() => {
+                setShowRewardOverlay(false);
+                setRewardOverlayData(null);
+              }}
+            />
+          )
+        }
 
         <StreakRewardPopup
           visible={!!streakRewardCostume}
@@ -2505,7 +2605,7 @@ const AppContent = () => {
             setShowSubscriptionSheet(true);
           }}
         />
-      </View>
+      </View >
     );
   };
 
@@ -2514,7 +2614,7 @@ const AppContent = () => {
   const content = renderContent();
   return (
     <SceneActionsProvider value={sceneActions}>
-      <View style={{ flex: 1, backgroundColor: 'pink' }}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
         {/* Persistently Mounted VRMWebView */}
         {/* Persistently Mounted VRMWebView OR Static Image for Non-Pro */}
         {!(Platform.OS === 'ios' && showSwiftUIDemo) && (
@@ -2646,7 +2746,7 @@ export default function App() {
                   headerTransparent: true,
                   headerTitleAlign: 'center',
                   headerTintColor: '#fff',
-                  contentStyle: { backgroundColor: 'pink' },
+                  contentStyle: { backgroundColor: '#000' },
                 }}
               >
                 <Stack.Screen
@@ -2773,9 +2873,74 @@ const CameraPreviewOverlay: React.FC<CameraPreviewOverlayProps> = ({ visible, st
 };
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
-    backgroundColor: 'pink',
+    backgroundColor: '#000',
+  },
+  topHudContainer: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  characterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 6,
+    paddingRight: 16,
+    borderRadius: 100,
+    maxWidth: 220,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  avatarBorder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  pillAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  pillTextContainer: {
+    flexShrink: 1,
+  },
+  pillName: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  pillStatus: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  proBadgeMini: {
+    marginLeft: 8,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  proBadgeText: {
+    color: '#000',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  iconButtonGlass: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   webViewWrapper: {
     flex: 1,

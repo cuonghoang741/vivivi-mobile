@@ -4,7 +4,7 @@ import { mediaDevices, MediaStream } from '@livekit/react-native-webrtc';
 // @ts-ignore
 import { CharacterRepository } from '../repositories/CharacterRepository';
 import { analyticsService } from '../services/AnalyticsService';
-import { useVoiceConversation } from './useVoiceConversation';
+import { useVoiceConversation } from '../hook/useVoiceConversation';
 import { callQuotaService, CallQuotaService } from '../services/CallQuotaService';
 
 type UseAppVoiceCallOptions = {

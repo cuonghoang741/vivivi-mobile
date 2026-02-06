@@ -29,7 +29,7 @@ import { BackgroundRepository } from '../repositories/BackgroundRepository';
 import { CurrencyRepository } from '../repositories/CurrencyRepository';
 import { authManager } from '../services/AuthManager';
 import { PersistKeys } from '../config/supabase';
-import { oneSignalService } from '../services/OneSignalService';
+// import { oneSignalService } from '../services/OneSignalService';
 import { analyticsService } from '../services/AnalyticsService';
 import { brand } from '../styles/palette';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
@@ -190,26 +190,26 @@ export const OnboardingV2Screen: React.FC<Props> = ({ onComplete, selectedCharac
         }
     }, [currentStepIndex, navigation]);
 
-    const requestNotificationPermission = async (): Promise<boolean> => {
-        try {
-            // Use OneSignal to request notification permission
-            const granted = await oneSignalService.requestPermission();
-            return granted;
-        } catch (error) {
-            console.warn('[OnboardingV2] Could not request permission:', error);
-            return false;
-        }
-    };
+    // const requestNotificationPermission = async (): Promise<boolean> => {
+    //     try {
+    //         // Use OneSignal to request notification permission
+    //         const granted = await oneSignalService.requestPermission();
+    //         return granted;
+    //     } catch (error) {
+    //         console.warn('[OnboardingV2] Could not request permission:', error);
+    //         return false;
+    //     }
+    // };
 
     const handleEnableNotifications = async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
-        const granted = await requestNotificationPermission();
-        // Track notification permission result
-        analyticsService.logNotificationPermission(granted);
-        if (granted) {
-            await AsyncStorage.setItem('settings.notificationsEnabled', 'true');
-        }
-        await completeOnboarding();
+        // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
+        // // const granted = await requestNotificationPermission();
+        // // Track notification permission result
+        // analyticsService.logNotificationPermission(granted);
+        // if (granted) {
+        //     await AsyncStorage.setItem('settings.notificationsEnabled', 'true');
+        // }
+        // await completeOnboarding();
     };
 
     const completeOnboarding = async () => {

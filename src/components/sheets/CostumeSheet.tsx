@@ -10,8 +10,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Skeleton } from '../ui/Skeleton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { GoProButton } from '../commons/GoProButton';
 import { CostumeRepository, type CostumeItem } from '../../repositories/CostumeRepository';
@@ -21,6 +21,7 @@ import { DiamondBadge } from '../commons/DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../commons/BottomSheet';
 import { LiquidGlass } from '../commons/LiquidGlass';
 import { useVRMContext } from '../../context/VRMContext';
+import { IconLock, IconCheck, IconShirt } from '@tabler/icons-react-native';
 
 interface CostumeSheetProps {
   isOpened: boolean;
@@ -54,20 +55,16 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
   const { selectCostume } = useSceneActions();
   const { currentCostume } = useVRMContext();
 
-  // Dynamic colors
   const textColor = isDarkBackground ? '#fff' : '#000';
-  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const secondaryTextColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
 
-  // Expose present/dismiss via ref
   useImperativeHandle(ref, () => ({
     present: (index?: number) => sheetRef.current?.present(index),
     dismiss: () => sheetRef.current?.dismiss(),
   }));
 
   const effectiveCharacterId = useMemo(() => {
-    if (characterId && characterId.trim().length > 0) {
-      return characterId;
-    }
+    if (characterId && characterId.trim().length > 0) return characterId;
     return undefined;
   }, [characterId]);
 
@@ -88,17 +85,13 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
       const filtered = costumes.filter(costume => costume.available !== false);
 
-      // Sort: Owned first, then streak items, then natural order (Tier ASC from DB)
       const sorted = filtered.sort((a, b) => {
         const ownedA = ownedSet.has(a.id);
         const ownedB = ownedSet.has(b.id);
         if (ownedA !== ownedB) return ownedA ? -1 : 1;
-
-        // Streak items after owned but before regular locked
         if (a.streak_days && !b.streak_days) return -1;
         if (!a.streak_days && b.streak_days) return 1;
         if (a.streak_days && b.streak_days) return (a.streak_days ?? 0) - (b.streak_days ?? 0);
-
         return 0;
       });
 
@@ -112,9 +105,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
   }, [effectiveCharacterId]);
 
   useEffect(() => {
-    if (isOpened) {
-      load();
-    }
+    if (isOpened) load();
   }, [isOpened, load]);
 
   const handleSelect = useCallback(async (item: CostumeItem) => {
@@ -124,16 +115,13 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
     const isFree = item.tier === 'free';
 
-    // User request: trigger StreakSheet for any unowned streak item if not Pro
     if (isStreakItem && !isPro && !isOwned) {
       sheetRef.current?.dismiss();
       setTimeout(() => onOpenStreak?.(), 300);
       return;
     }
 
-    // If PRO, Free tier, or already owned, can select directly
     if (isPro || isOwned || isFree) {
-      // If (PRO or Free) but not owned, auto-add to owned assets
       if ((isPro || isFree) && !isOwned) {
         try {
           const assetRepository = new AssetRepository();
@@ -145,7 +133,6 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       }
       void selectCostume(item);
     } else {
-      // Not PRO, not Free, not owned - open subscription
       sheetRef.current?.dismiss();
       setTimeout(() => onOpenSubscription?.(), 300);
     }
@@ -157,134 +144,146 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
       const isFree = item.tier === 'free';
       const isStreakLocked = !isPro && isStreakItem && !isOwned && streakDays < (item.streak_days ?? 0);
-      // Locked if: Not Pro AND Not Owned AND Not Streak Item AND Not Free
       const isProLocked = !isPro && !isOwned && !isStreakItem && !isFree;
+      const isLocked = isProLocked || isStreakLocked;
 
-      const maxWidth = (width * 28.2) / 100;
-      const itemWidth = Math.min((width - 40 - 24) / 3, maxWidth);
-      const itemHeight = itemWidth / 0.7;
+      // 2 columns Logic
+      const cardWidth = (width - 48) / 2; // 48 = 20 (left) + 20 (right) + 8 (gap)
+      const cardHeight = cardWidth * 1.5;
 
       const isSelected = currentCostume ? item.id === currentCostume.id : false;
 
       return (
-        <View style={[styles.itemContainer, { width: itemWidth }]}>
+        <Pressable
+          onPress={() => handleSelect(item)}
+          style={[styles.itemWrapper, { width: cardWidth }]}
+        >
           <LiquidGlass
-            onPress={() => handleSelect(item)}
             style={[
-              styles.imageContainer,
-              { width: itemWidth, height: itemHeight },
-              isSelected && { borderWidth: 2, borderColor: isDarkBackground ? '#fff' : 'rgba(0,0,0,0.5)' }
+              styles.cardContainer,
+              { height: cardHeight },
+              isSelected && styles.selectedBorder
             ]}
+            intensity={20}
           >
-            <View style={[styles.placeholder, { width: itemWidth, height: itemHeight }]} />
-
+            {/* Background Image */}
             {item.thumbnail ? (
               <Image
                 source={{ uri: item.thumbnail }}
                 style={[
-                  styles.image,
-                  { width: itemWidth, height: itemHeight },
-                  isStreakLocked && styles.imageBlurred
+                  styles.cardImage,
+                  { width: cardWidth, height: cardHeight },
+                  isLocked && { opacity: 0.5 }
                 ]}
                 resizeMode="cover"
-                blurRadius={isStreakLocked ? 10 : 0}
+                blurRadius={isLocked ? 15 : 0}
               />
-            ) : null}
-
-            {(isProLocked || isStreakLocked) && (
-              <View style={[styles.darkenOverlay, { width: itemWidth, height: itemHeight }]} />
-            )}
-
-            {/* Diamond Badge for PRO locked items */}
-            {isProLocked && (
-              <DiamondBadge size="sm" style={styles.diamondBadgeContainer} />
-            )}
-
-            {/* Diamond badge for Streak items */}
-            {isStreakItem && !isOwned && (
-              <DiamondBadge size="sm" style={styles.streakBadgeContainer} />
-            )}
-
-            {/* Lock overlay content */}
-            {(isProLocked || isStreakLocked) ? (
-              <View style={styles.lockContentContainer}>
-                {/* <View style={[styles.lockIconCircle, isStreakLocked && styles.glassCircle]}>
-                  <Ionicons name="lock-closed" size={16} color="#fff" />
-                </View> */}
-
-                {isStreakLocked && (
-                  <Text style={styles.streakLockText}>
-                    Hit {item.streak_days}-day{'\n'}streak
-                  </Text>
-                )}
+            ) : (
+              <View style={[styles.placeholder, { width: cardWidth, height: cardHeight }]}>
+                <IconShirt size={32} color="rgba(255,255,255,0.2)" />
               </View>
-            ) : null}
+            )}
+
+            {/* Gradient & Overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.8)']}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Status Badges (Top Right) */}
+            <View style={styles.topRightBadges}>
+              {isProLocked && <DiamondBadge size="sm" />}
+              {isStreakItem && !isOwned && <DiamondBadge size="sm" />}
+            </View>
+
+            {/* Center Lock Status */}
+            {isLocked && (
+              <View style={StyleSheet.absoluteFill}>
+                <View style={styles.centerLockContent}>
+                  <View style={styles.lockIconCircle}>
+                    <IconLock size={20} color="#fff" />
+                  </View>
+                  {isStreakLocked && (
+                    <Text style={styles.lockLabel}>
+                      {item.streak_days} Day Streak
+                    </Text>
+                  )}
+                  {isProLocked && (
+                    <Text style={styles.lockLabel}>
+                      VIP Only
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Selected Checkmark Overlay */}
+            {isSelected && (
+              <View style={styles.selectedOverlay}>
+                <View style={styles.checkCircle}>
+                  <IconCheck size={16} color="#fff" />
+                </View>
+              </View>
+            )}
+
+            {/* Bottom Text Info */}
+            <View style={styles.bottomInfo}>
+              <Text style={styles.costumeName} numberOfLines={1}>
+                {item.costume_name}
+              </Text>
+              <Text style={styles.costumeTier}>
+                {isFree ? 'Free' : isStreakItem ? 'Streak Reward' : 'Premium'}
+              </Text>
+            </View>
+
           </LiquidGlass>
-          <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
-            {item.costume_name}
-          </Text>
-        </View>
+        </Pressable>
       );
     },
-    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground]
+    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground, currentCostume]
   );
 
   const renderContent = () => {
     if (isLoading && items.length === 0) {
-      const itemWidth = (width - 40 - 24) / 3;
-      const itemHeight = itemWidth / 0.7;
-      const skeletons = Array.from({ length: 15 }).map((_, i) => ({ id: i.toString() }));
-
+      const cardWidth = (width - 48) / 2;
+      const cardHeight = cardWidth * 1.5;
+      const skeletons = Array.from({ length: 6 }).map((_, i) => ({ id: i.toString() }));
       return (
-        <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+        <View style={{ flex: 1 }}>
           <FlatList
             data={skeletons}
-            keyExtractor={(item) => item.id}
-            numColumns={3}
+            keyExtractor={(i) => i.id}
+            numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
             renderItem={() => (
-              <View style={[styles.itemContainer, { width: itemWidth }]}>
-                <Skeleton width={itemWidth} height={itemHeight} borderRadius={16} />
-                <Skeleton width="80%" height={14} borderRadius={4} style={{ marginTop: 8 }} />
+              <View style={{ width: cardWidth, marginBottom: 12 }}>
+                <Skeleton width={cardWidth} height={cardHeight} borderRadius={20} />
               </View>
             )}
           />
         </View>
-      );
+      )
     }
 
-    if (errorMessage) {
+    if (items.length === 0 && !isLoading) {
       return (
         <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: textColor }]}>Failed to load</Text>
-          <Text style={[styles.errorDetailText, { color: secondaryTextColor }]}>{errorMessage}</Text>
+          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No costumes found.</Text>
           <Pressable onPress={load} style={styles.retryButton}>
-            <Text style={[styles.retryButtonText, { color: textColor }]}>Retry</Text>
-          </Pressable>
-        </View>
-      );
-    }
-
-    if (items.length === 0) {
-      return (
-        <View style={styles.centerContainer}>
-          <Text style={[styles.emptyText, { color: secondaryTextColor }]}>No costumes</Text>
-          <Pressable onPress={load} style={styles.retryButton}>
-            <Text style={[styles.retryButtonText, { color: textColor }]}>Reload</Text>
+            <Text style={[styles.retryButtonText, { color: textColor }]}>Refresh</Text>
           </Pressable>
         </View>
       );
     }
 
     return (
-      <View style={{ flex: 1, maxHeight: height * 0.9 }}>
+      <View style={{ flex: 1 }}>
         <FlatList
           data={items}
           renderItem={renderItem}
           keyExtractor={item => item.id}
-          numColumns={3}
+          numColumns={2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -298,7 +297,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       ref={sheetRef}
       isOpened={isOpened}
       onIsOpenedChange={onIsOpenedChange}
-      title="Costumes"
+      title="Wardrobe"
       isDarkBackground={isDarkBackground}
       headerLeft={
         !isPro ? (
@@ -320,58 +319,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    minHeight: 200,
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
   },
   columnWrapper: {
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  itemContainer: {
-    alignItems: 'center',
-    gap: 8,
+  itemWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  imageContainer: {
-    borderRadius: 16,
+  cardContainer: {
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    position: 'relative',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  placeholder: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  selectedBorder: {
+    borderWidth: 2,
+    borderColor: '#FF416C', // Brand pink/red
   },
-  image: {
-    // borderRadius handled by container overflow: 'hidden'
-  },
-  imageBlurred: {
-    opacity: 0.6,
-  },
-  darkenOverlay: {
+  cardImage: {
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 16,
   },
-  itemName: {
-    fontSize: 13,
-    textAlign: 'center',
-    fontWeight: '500',
+  placeholder: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  errorText: {
-    fontSize: 16,
-    marginBottom: 4,
+  topRightBadges: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'column',
+    gap: 4,
   },
-  errorDetailText: {
+  centerLockContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  lockIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  lockLabel: {
+    color: '#fff',
     fontSize: 12,
-    marginBottom: 12,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
     textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  selectedOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FF416C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+  },
+  costumeName: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  costumeTier: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '500',
   },
   emptyText: {
     fontSize: 16,
@@ -385,53 +438,5 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: 14,
-  },
-  diamondBadgeContainer: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 10,
-  },
-  streakBadgeContainer: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 10,
-  },
-  lockContentContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    zIndex: 5,
-  },
-  lockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glassCircle: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  streakLockText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 14,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
   },
 });

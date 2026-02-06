@@ -7,7 +7,7 @@ import { MediaSheet } from '../sheets/MediaSheet';
 import { EnergySheet } from '../sheets/EnergySheet';
 import { LevelSheet } from '../sheets/LevelSheet';
 import { CharacterDetailSheet } from '../sheets/CharacterDetailSheet';
-import type { useQuests } from '../../hooks/useQuests';
+import type { useQuests } from '../../hook/useQuests';
 
 type AppSheetsProps = {
   // Quest Sheet

@@ -11,7 +11,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LiquidGlassView, isLiquidGlassSupported } from '@callstack/liquid-glass';
+import { BlurView } from 'expo-blur';
 import HapticPressable from '../ui/HapticPressable';
 import { buttonColors, type ButtonColorKey } from '../../styles/color';
 import { glassButtonStyle } from '../../styles/glass';
@@ -19,7 +19,6 @@ import { glassButtonStyle } from '../../styles/glass';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 export type ButtonVariant = 'solid' | 'outline' | 'ghost' | 'link' | 'liquid';
 
-// ... imports ...
 export interface ButtonProps {
   children?: React.ReactNode;
   size?: ButtonSize;
@@ -79,7 +78,7 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyle = style ? StyleSheet.flatten([buttonStyle, style]) : buttonStyle;
   const combinedTextStyle = StyleSheet.flatten([generatedTextStyle, customTextStyle]);
 
-  // Button content - tách riêng như ví dụ
+  // Button content
   const buttonContent = (
     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -135,13 +134,12 @@ export const Button: React.FC<ButtonProps> = ({
     </View>
   );
 
-  // Render with liquid glass effect
-  if (variant === 'liquid' && isLiquidGlassSupported) {
+  // Render with liquid/blur effect
+  if (variant === 'liquid') {
     const glassStyle = { ...(baseStyle as ViewStyle) };
 
-    // Determine effective tint color: explicit tintColor > background-based default > style background color
     const styleBg = getBackgroundColor(glassStyle);
-    const effectiveTintColor = tintColor ?? (isDarkBackground !== undefined ? (isDarkBackground ? "#000000a7" : "#ffffff50") : undefined) ?? styleBg;
+    const effectiveTintColor = tintColor ?? styleBg; // simplified
 
     if ('backgroundColor' in glassStyle) {
       delete glassStyle.backgroundColor;
@@ -149,37 +147,21 @@ export const Button: React.FC<ButtonProps> = ({
 
     return (
       <HapticPressable onPress={onPress} disabled={disabled || loading}>
-        <LiquidGlassView
-          effect="regular"
-          tintColor={effectiveTintColor}
-          interactive
-          style={[
-            glassButtonStyle,
-            buttonStyle,
-            {
-              backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            },
-            style,
-          ]}
-        >
-          {buttonContent}
-        </LiquidGlassView>
-      </HapticPressable>
-    );
-  } else if (variant === 'liquid' && !isLiquidGlassSupported) {
-    // Fallback for devices that don't support liquid glass
-    return (
-      <HapticPressable
-        style={({ pressed }) => [
+        <View style={[
+          glassButtonStyle,
           buttonStyle,
-          { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
-          pressed && !disabled && !loading && styles.pressed,
-          style,
-        ]}
-        onPress={onPress}
-        disabled={disabled || loading}
-      >
-        {buttonContent}
+          { backgroundColor: 'transparent', overflow: 'hidden' },
+          style
+        ]}>
+          <BlurView
+            intensity={20}
+            tint={isDarkBackground ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ zIndex: 1 }}>
+            {buttonContent}
+          </View>
+        </View>
       </HapticPressable>
     );
   }

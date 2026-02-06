@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
-  Modal,
   Platform,
   Pressable,
   StatusBar,
@@ -11,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,10 +20,13 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { PersistKeys } from '../config/supabase';
 import { PreviewVRM } from '../components/commons/PreviewVRM';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// Icons (imported as React components via react-native-svg-transformer)
-import AppleIcon from '../assets/icons/apple.svg';
-import GoogleIcon from '../assets/icons/google.svg';
+import {
+  IconBrandApple,
+  IconBrandGoogle,
+  IconSquare,
+  IconSquareCheckFilled,
+  IconShieldCheck
+} from '@tabler/icons-react-native';
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
 
@@ -36,9 +39,9 @@ type Props = {
 };
 
 const LEGAL_LINKS: Record<LegalDocument, string> = {
-  terms: 'https://example.com/terms',
-  privacy: 'https://example.com/privacy',
-  eula: 'https://example.com/eula',
+  terms: 'https://lusty-legal-pages.lovable.app/terms',
+  privacy: 'https://lusty-legal-pages.lovable.app/privacy',
+  eula: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
 };
 
 export const SignInScreen: React.FC<Props> = ({
@@ -51,16 +54,16 @@ export const SignInScreen: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const [isAgeVerified, setIsAgeVerified] = useState(false);
   const [checkingAge, setCheckingAge] = useState(true);
-  const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
 
+  // Load persisted age verification state
   useEffect(() => {
     let isMounted = true;
     const loadAgeFlag = async () => {
       try {
         const value = await AsyncStorage.getItem(PersistKeys.ageVerified18);
-        if (isMounted) {
-          setIsAgeVerified(value === 'true');
+        if (isMounted && value === 'true') {
+          setIsAgeVerified(true);
         }
       } finally {
         if (isMounted) {
@@ -74,52 +77,16 @@ export const SignInScreen: React.FC<Props> = ({
     };
   }, []);
 
-  useEffect(() => {
-    if (!isLoading && !showAgePrompt) {
-      setPendingProvider(null);
-    }
-  }, [isLoading, showAgePrompt]);
-
-  const triggerProvider = useCallback(
-    (provider: 'apple' | 'google') => {
-      if (provider === 'google' && !onSignInWithGoogle) {
-        return;
-      }
-
-      if (checkingAge) {
-        return;
-      }
-
-      setPendingProvider(provider);
-
-      if (isAgeVerified) {
-        if (provider === 'apple') {
-          onSignInWithApple();
-        } else {
-          onSignInWithGoogle?.();
-        }
-      } else {
-        setShowAgePrompt(true);
-      }
-    },
-    [checkingAge, isAgeVerified, onSignInWithApple, onSignInWithGoogle]
-  );
-
-  const handleAgeConfirmation = useCallback(async () => {
-    try {
+  // Handle toggling age verification
+  const toggleAgeVerification = useCallback(async () => {
+    const newValue = !isAgeVerified;
+    setIsAgeVerified(newValue);
+    if (newValue) {
       await AsyncStorage.setItem(PersistKeys.ageVerified18, 'true');
-      setIsAgeVerified(true);
-      setShowAgePrompt(false);
-      const provider = pendingProvider ?? 'apple';
-      if (provider === 'apple') {
-        onSignInWithApple();
-      } else {
-        onSignInWithGoogle?.() ?? onSignInWithApple();
-      }
-    } catch (error) {
-      console.error('[SignIn] Failed to persist age verification', error);
+    } else {
+      await AsyncStorage.removeItem(PersistKeys.ageVerified18);
     }
-  }, [onSignInWithApple, onSignInWithGoogle, pendingProvider]);
+  }, [isAgeVerified]);
 
   const handleLegalPress = useCallback(
     async (doc: LegalDocument) => {
@@ -128,153 +95,168 @@ export const SignInScreen: React.FC<Props> = ({
         return;
       }
       const link = LEGAL_LINKS[doc];
-      if (!link) {
-        return;
-      }
+      if (!link) return;
+
       try {
         await WebBrowser.openBrowserAsync(link);
       } catch (error) {
-        console.warn('[SignIn] Could not open legal link', error);
         try {
           await Linking.openURL(link);
-        } catch (linkingError) {
-          console.warn('[SignIn] Linking fallback failed', linkingError);
+        } catch (e) {
+          console.warn('Failed to open link', e);
         }
       }
     },
     [onOpenLegal]
   );
 
-  const handleApplePress = useCallback(() => {
-    triggerProvider('apple');
-  }, [triggerProvider]);
+  const handleSignIn = useCallback(
+    (provider: 'apple' | 'google') => {
+      if (!isAgeVerified) {
+        Alert.alert(
+          "Age Verification Required",
+          "You must be 18+ to access this application. Please confirm your age to continue."
+        );
+        return;
+      }
 
-  const handleGooglePress = useCallback(() => {
-    triggerProvider('google');
-  }, [triggerProvider]);
+      setPendingProvider(provider);
+      if (provider === 'apple') {
+        onSignInWithApple();
+      } else {
+        onSignInWithGoogle?.();
+      }
+    },
+    [isAgeVerified, onSignInWithApple, onSignInWithGoogle]
+  );
 
-  const pendingProviderLabel = pendingProvider === 'google' ? 'Google' : 'Apple';
-  const showAppleSpinner = isLoading && (pendingProvider ?? 'apple') === 'apple';
+  const showAppleSpinner = isLoading && pendingProvider === 'apple';
   const showGoogleSpinner = isLoading && pendingProvider === 'google';
-  const disableAuthButtons = isLoading || checkingAge;
+
+  const isButtonsDisabled = isLoading || checkingAge;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* VRM Preview with character switching and action buttons */}
+      {/* Background VRM Preview */}
       <PreviewVRM
-        showActionButtons={true}
-        showNavigation={true}
+        showActionButtons={false}
+        showNavigation={false}
       />
 
-      {/* Bottom content overlay */}
+      {/* Main Content Overlay */}
       <View style={styles.contentOverlay} pointerEvents="box-none">
+
+        {/* Gradient Mask for smooth fade */}
         <MaskedView
           style={StyleSheet.absoluteFill}
           maskElement={
             <LinearGradient
-              colors={['transparent', '#000']}
-              locations={[0, 0.3]}
+              colors={['transparent', 'transparent', '#000']}
+              locations={[0, 0.4, 0.8]}
               style={StyleSheet.absoluteFill}
             />
           }
         >
           <BlurView
-            intensity={80}
+            intensity={90}
             tint="dark"
             style={StyleSheet.absoluteFill}
           />
         </MaskedView>
 
-        <View
-          style={[styles.contentSection, { paddingBottom: insets.bottom }]}
-        >
-          <View style={styles.logoStack}>
-            <View style={styles.logoTextBlock}>
-              <Text style={styles.title}>Welcome</Text>
-              {/* <Text style={styles.subtitle}>Your exclusive experience awaits</Text> */}
+        <View style={[styles.contentSection, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+
+          {/* Header / Titles */}
+          <View style={styles.headerBlock}>
+            <View style={styles.iconBadge}>
+              <IconShieldCheck size={32} color="#FF416C" />
             </View>
+            <Text style={styles.title}>Welcome back</Text>
+            <Text style={styles.subtitle}>
+              Log in to continue your intimate experience.
+            </Text>
           </View>
 
-          {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+          {errorMessage ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
 
-          <View style={styles.buttonArea}>
+          {/* Age Verification Checkbox (Inline) */}
+          <Pressable
+            onPress={toggleAgeVerification}
+            style={styles.checkboxContainer}
+            activeOpacity={0.8}
+            hitSlop={8}
+          >
+            {isAgeVerified ? (
+              <IconSquareCheckFilled size={24} color="#FF416C" />
+            ) : (
+              <IconSquare size={24} color="rgba(255,255,255,0.4)" />
+            )}
+            <View style={styles.checkboxTextContainer}>
+              <Text style={[styles.checkboxLabel, isAgeVerified && styles.checkboxLabelActive]}>
+                I confirm that I am <Text style={styles.highlight}>18 years or older</Text>
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Buttons */}
+          <View style={styles.buttonStack}>
             {Platform.OS === 'ios' && (
               <TouchableOpacity
                 activeOpacity={0.8}
-                disabled={disableAuthButtons}
-                style={[styles.appleButton, disableAuthButtons && styles.buttonDisabled]}
-                onPress={handleApplePress}
+                disabled={isButtonsDisabled}
+                style={[styles.authButton, styles.appleButton, isButtonsDisabled && styles.disabledButton]}
+                onPress={() => handleSignIn('apple')}
               >
                 {showAppleSpinner ? (
-                  <ActivityIndicator color="#05030D" />
+                  <ActivityIndicator color="#000" />
                 ) : (
                   <>
-                    <AppleIcon width={24} height={24} style={styles.buttonIcon} />
-                    <Text style={styles.appleLabel}>Sign in with Apple</Text>
+                    <IconBrandApple size={24} color="#000" style={styles.btnIcon} />
+                    <Text style={styles.appleBtnText}>Continue with Apple</Text>
                   </>
                 )}
               </TouchableOpacity>
             )}
+
             {onSignInWithGoogle && (Platform.OS !== 'ios' || __DEV__) ? (
               <TouchableOpacity
-                activeOpacity={0.85}
-                disabled={disableAuthButtons}
-                style={[styles.googleButton, disableAuthButtons && styles.buttonDisabled]}
-                onPress={handleGooglePress}
+                activeOpacity={0.8}
+                disabled={isButtonsDisabled}
+                style={[styles.authButton, styles.googleButton, isButtonsDisabled && styles.disabledButton]}
+                onPress={() => handleSignIn('google')}
               >
                 {showGoogleSpinner ? (
-                  <ActivityIndicator color="#05030D" />
+                  <ActivityIndicator color="#000" />
                 ) : (
                   <>
-                    <GoogleIcon width={24} height={24} style={styles.buttonIcon} />
-                    <Text style={styles.googleLabel}>Sign in with Google</Text>
+                    <IconBrandGoogle size={24} color="#000" style={styles.btnIcon} />
+                    <Text style={styles.googleBtnText}>Continue with Google</Text>
                   </>
                 )}
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {/* Legal text moved to age verification modal */}
+          {/* Legal Links */}
+          <View style={styles.legalLinks}>
+            <Text style={styles.legalText}>
+              By continuing, you agree to our{' '}
+              <Text onPress={() => handleLegalPress('terms')} style={styles.linkText}>Terms</Text>
+              {', '}
+              <Text onPress={() => handleLegalPress('privacy')} style={styles.linkText}>Privacy</Text>
+              {' & '}
+              <Text onPress={() => handleLegalPress('eula')} style={styles.linkText}>EULA</Text>
+            </Text>
+          </View>
+
         </View>
       </View>
-
-      {/* Age verification modal */}
-      <Modal animationType="fade" transparent visible={showAgePrompt}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Age Verification Required</Text>
-            <Text style={[styles.modalBody, { marginBottom: 16 }]}>
-              Access is restricted to adults only. Please confirm your eligibility to proceed with {pendingProviderLabel} sign-in.
-            </Text>
-
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 20, textAlign: 'left' }}>
-                By continuing, you agree to our{' '}
-                <Text onPress={() => handleLegalPress('terms')} style={{ color: '#fff', textDecorationLine: 'underline', fontWeight: '600' }}>Terms of Service</Text>,{' '}
-                <Text onPress={() => handleLegalPress('privacy')} style={{ color: '#fff', textDecorationLine: 'underline', fontWeight: '600' }}>Privacy Policy</Text>, and{' '}
-                <Text onPress={() => handleLegalPress('eula')} style={{ color: '#fff', textDecorationLine: 'underline', fontWeight: '600' }}>EULA</Text>.
-              </Text>
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => {
-                  setShowAgePrompt(false);
-                  setPendingProvider(null);
-                }}
-                style={styles.modalSecondary}
-              >
-                <Text style={styles.modalSecondaryLabel}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={handleAgeConfirmation} style={styles.modalPrimary}>
-                <Text style={styles.modalPrimaryLabel}>Confirm I'm 18+</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -289,175 +271,134 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  gradientOverlay: {
-    position: 'absolute',
-    top: -100, // Move it up to fade in before the blur starts
-    left: 0,
-    right: 0,
-    height: 100, // Height of the fade area above the blur
-    zIndex: 0,
+    top: 0,
+    justifyContent: 'flex-end',
   },
   contentSection: {
-    // backgroundColor: '#000', // Replaced with BlurView
-    paddingHorizontal: 28,
-    paddingTop: 32, // Add some top padding inside the blur
-    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingTop: 40,
     gap: 24,
   },
-  logoStack: {
+  headerBlock: {
     alignItems: 'center',
-    gap: 16,
     marginBottom: 8,
   },
-  logoTextBlock: {
+  iconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 65, 108, 0.1)',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 65, 108, 0.2)',
   },
   title: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
     color: '#fff',
+    letterSpacing: -0.5,
+    marginBottom: 8,
     textAlign: 'center',
-    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.75)',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: '80%',
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(255, 107, 129, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 129, 0.2)',
+  },
+  errorText: {
+    color: '#FF6B81',
+    fontSize: 14,
     textAlign: 'center',
     fontWeight: '500',
-    letterSpacing: 0.3,
   },
-  error: {
-    color: '#FF6B81',
-    marginBottom: 16,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '600',
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  buttonArea: {
-    width: '100%',
-    gap: 14,
+  checkboxTextContainer: {
+    marginLeft: 12,
+    flex: 1,
   },
-  appleButton: {
+  checkboxLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  checkboxLabelActive: {
+    color: '#fff',
+  },
+  highlight: {
+    color: '#FF416C',
+    fontWeight: '700',
+  },
+  buttonStack: {
+    gap: 12,
+  },
+  authButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
     paddingVertical: 18,
-    paddingHorizontal: 24,
-    backgroundColor: '#fff',
-    shadowColor: '#fff',
+    borderRadius: 20,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonIcon: {
-    marginRight: 12,
-  },
-  appleLabel: {
-    fontSize: 17,
-    color: '#05030D',
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  appleButton: {
+    backgroundColor: '#fff',
   },
   googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#4285F4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  googleLabel: {
-    fontSize: 17,
-    color: '#05030D',
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 28,
-  },
-  modalCard: {
-    width: '100%',
-    borderRadius: 24,
-    padding: 28,
-    backgroundColor: 'rgba(15,11,31,0.98)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  modalTitle: {
-    fontSize: 22,
-    color: '#fff',
-    fontWeight: '800',
-    marginBottom: 14,
-    letterSpacing: 0.3,
-  },
-  modalBody: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 15,
-    marginBottom: 24,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  modalActionsSpacer: {
-    width: 12,
-  },
-  modalSecondary: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  modalSecondaryLabel: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalPrimary: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 14,
     backgroundColor: '#fff',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
   },
-  modalPrimaryLabel: {
-    color: '#FF416C',
-    fontWeight: '800',
-    fontSize: 15,
+  disabledButton: {
+    opacity: 0.7,
+  },
+  btnIcon: {
+    marginRight: 10,
+  },
+  appleBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
     letterSpacing: 0.3,
+  },
+  googleBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
+    letterSpacing: 0.3,
+  },
+  legalLinks: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  legalText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  linkText: {
+    color: 'rgba(255,255,255,0.7)',
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
 });
