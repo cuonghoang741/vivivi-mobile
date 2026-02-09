@@ -24,7 +24,6 @@ import type {
   UserLevelQuest,
 } from '../../repositories/QuestRepository';
 import { usePurchaseContext } from '../../context/PurchaseContext';
-import { ToastStackView } from '../alert/ToastStackView';
 
 const VCOIN_ICON = require('../../assets/images/VCoin.png');
 const RUBY_ICON = require('../../assets/images/Ruby.png');
@@ -365,7 +364,6 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
           </Pressable>
         </View>
         <View style={styles.contentWrapper}>{content}</View>
-        <ToastStackView />
       </LinearGradient>
     </Modal>
   );

@@ -3,7 +3,7 @@ import { StyleSheet, View, Keyboard, Platform } from 'react-native';
 import { ChatMessagesOverlay } from './ChatMessagesOverlay';
 import type { ChatMessage } from '../../types/chat';
 import { ChatBottomActions } from './ChatBottomActions';
-import { ChatInputBar } from './ChatInputBar';
+import { ChatInputBarV2 as ChatInputBar } from './ChatInputBarV2';
 
 type Props = {
   messages: ChatMessage[];

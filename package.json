@@ -49,6 +49,7 @@
     "expo-auth-session": "^7.0.9",
     "expo-av": "^16.0.7",
     "expo-blur": "~15.0.8",
+    "expo-clipboard": "^8.0.8",
     "expo-crypto": "~15.0.7",
     "expo-dev-client": "^6.0.20",
     "expo-file-system": "^19.0.18",
@@ -91,6 +92,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "babel-plugin-module-resolver": "^5.0.2",
     "typescript": "~5.9.2"
   },
   "private": true

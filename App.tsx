@@ -18,7 +18,7 @@ import {
 import { MediaStream, RTCView } from '@livekit/react-native-webrtc';
 import { BlurView } from 'expo-blur';
 import { VRMWebView } from './src/components/commons/VRMWebView';
-import { VRMUIOverlay } from './src/components/commons/VRMUIOverlay';
+import { VRMUIOverlayV2 as VRMUIOverlay } from './src/components/commons/VRMUIOverlayV2';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
 import { LiquidGlass } from './src/components/commons/LiquidGlass';
 import { useUserStats } from './src/hook/useUserStats';
@@ -61,17 +61,19 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { QuestProgressTracker } from './src/utils/QuestProgressTracker';
-import { ToastStackView } from './src/components/alert/ToastStackView';
-import { RewardClaimOverlay, type RewardItem } from './src/components/alert/RewardClaimOverlay';
 import { Persistence } from './src/utils/persistence';
 import { analyticsService } from './src/services/AnalyticsService';
 import { OTAAutoUpdate } from './src/services/OTA-update/OTAAutoUpdate';
 import { AppsFlyerService } from './src/services/AppsFlyerService';
 import { FacebookService } from './src/services/FacebookService';
 import { TikTokService } from './src/services/TikTokService';
+import { RoomProvider } from './src/context/RoomContext';
+import { PlayModeScreen } from './src/pages/PlayModeScreen';
 
 type RootStackParamList = {
+  PlayModeSelect: undefined;
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
+  MultiplayerExperience: { roomId: string };
   CharacterPreview: { characters: CharacterItem[]; initialIndex?: number; ownedCharacterIds?: string[] };
   OnboardingV2: { selectedCharacterId: string };
   OnboardingV3: undefined;
@@ -2349,8 +2351,8 @@ const AppContent = () => {
             onToggleFullscreen={setIsChatFullScreen}
           />
         </Animated.View>
-        {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
-        {
+        {/* CharacterQuickSwitcher - Hidden, replaced by vertical sidebar menu in VRMUIOverlayV2 */}
+        {/* {
           !(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
             <Animated.View
               style={{
@@ -2377,7 +2379,7 @@ const AppContent = () => {
               />
             </Animated.View>
           )
-        }
+        } */}
         <AppSheets
           showQuestSheet={showQuestSheet}
           setShowQuestSheet={setShowQuestSheet}
@@ -2470,7 +2472,6 @@ const AppContent = () => {
           }}
         />
 
-        <ToastStackView />
         <SettingsModal
           visible={showSettings}
           onClose={() => setShowSettings(false)}
@@ -2486,20 +2487,6 @@ const AppContent = () => {
           }}
           isPro={isPro}
         />
-        {
-          rewardOverlayData && (
-            <RewardClaimOverlay
-              isPresented={showRewardOverlay}
-              rewards={rewardOverlayData.rewards}
-              title={rewardOverlayData.title}
-              subtitle={rewardOverlayData.subtitle}
-              onClaim={() => {
-                setShowRewardOverlay(false);
-                setRewardOverlayData(null);
-              }}
-            />
-          )
-        }
 
         <StreakRewardPopup
           visible={!!streakRewardCostume}
@@ -2739,52 +2726,54 @@ export default function App() {
     <ElevenLabsProvider>
       <VRMProvider>
         <SubscriptionProvider>
-          <PurchaseProvider>
-            <NavigationContainer>
-              <Stack.Navigator
-                screenOptions={{
-                  headerTransparent: true,
-                  headerTitleAlign: 'center',
-                  headerTintColor: '#fff',
-                  contentStyle: { backgroundColor: '#000' },
-                }}
-              >
-                <Stack.Screen
-                  name="Experience"
-                  component={AppContent}
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="CharacterPreview"
-                  component={CharacterPreviewScreen}
-                  options={{
-                    headerShown: false,
-                    presentation: 'fullScreenModal',
-                    animation: 'slide_from_bottom',
+          <RoomProvider userId={null}>
+            <PurchaseProvider>
+              <NavigationContainer>
+                <Stack.Navigator
+                  screenOptions={{
+                    headerTransparent: true,
+                    headerTitleAlign: 'center',
+                    headerTintColor: '#fff',
+                    contentStyle: { backgroundColor: '#000' },
                   }}
-                />
-                <Stack.Screen
-                  name="OnboardingV2"
-                  component={OnboardingV3ScreenWrapper}
-                  options={{
-                    headerShown: false,
-                    presentation: 'fullScreenModal',
-                    animation: 'slide_from_right',
-                  }}
-                />
-                <Stack.Screen
-                  name="OnboardingV3"
-                  component={OnboardingV3ScreenWrapper}
-                  options={{
-                    headerShown: false,
-                    presentation: 'fullScreenModal',
-                    animation: 'slide_from_right',
-                  }}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-            <OTAAutoUpdate />
-          </PurchaseProvider>
+                >
+                  <Stack.Screen
+                    name="Experience"
+                    component={AppContent}
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="CharacterPreview"
+                    component={CharacterPreviewScreen}
+                    options={{
+                      headerShown: false,
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="OnboardingV2"
+                    component={OnboardingV3ScreenWrapper}
+                    options={{
+                      headerShown: false,
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="OnboardingV3"
+                    component={OnboardingV3ScreenWrapper}
+                    options={{
+                      headerShown: false,
+                      presentation: 'fullScreenModal',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+              <OTAAutoUpdate />
+            </PurchaseProvider>
+          </RoomProvider>
         </SubscriptionProvider>
       </VRMProvider>
     </ElevenLabsProvider>
@@ -2891,16 +2880,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 6,
     paddingRight: 16,
-    borderRadius: 100,
+    borderRadius: 26,
     maxWidth: 220,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(167, 139, 250, 0.4)',
   },
   avatarBorder: {
     width: 36,
     height: 36,
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(167, 139, 250, 0.5)',
     overflow: 'hidden',
     marginRight: 10,
   },
@@ -2935,12 +2926,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   iconButtonGlass: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(167, 139, 250, 0.4)',
   },
   webViewWrapper: {
     flex: 1,

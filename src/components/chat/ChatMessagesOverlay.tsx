@@ -5,7 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { IconX } from '@tabler/icons-react-native';
 import { Button } from '../commons/Button';
 import type { ChatMessage } from '../../types/chat';
-import { ChatMessageBubble } from './ChatMessageBubble';
+import { ChatMessageBubbleV2 as ChatMessageBubble } from './ChatMessageBubbleV2';
 import { TypingIndicator } from './TypingIndicator';
 
 type Props = {

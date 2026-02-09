@@ -151,12 +151,6 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         />
       )}
 
-      <EnergySheet
-        isOpened={showEnergySheet}
-        onIsOpenedChange={setShowEnergySheet}
-        energy={energy}
-        energyMax={energyMax}
-      />
     </>
   );
 };

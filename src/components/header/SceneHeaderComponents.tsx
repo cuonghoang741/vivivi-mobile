@@ -382,6 +382,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFD700',
   },
+  headerBlurContainer: {
+    borderRadius: 26,
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: 'rgba(167, 139, 250, 0.4)',
+    overflow: 'hidden',
+  },
 });
 
 // Scene Header Left Component
@@ -512,7 +519,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
   return (
     <View style={[styles.sceneHeader, { paddingTop: insets.top + 8 }]}>
       {/* Left */}
-      <LiquidGlass tintColor={isDarkBackground ? "#000000a7" : "#ffffff50"} style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
+      <LiquidGlass tintColor="rgba(20, 20, 30, 0.6)" style={[styles.headerActions, styles.headerBlurContainer]}>
         <HeaderIconButton
           Icon={IconSettings}
           onPress={onSettingsPress}
@@ -555,7 +562,7 @@ export const SceneHeader: React.FC<SceneHeaderProps> = ({
       )}
 
       {/* Right */}
-      <LiquidGlass tintColor={isDarkBackground ? "#000000a7" : "#ffffff50"} style={[styles.headerActions, { borderRadius: 160, height: 44 }]}>
+      <LiquidGlass tintColor="rgba(20, 20, 30, 0.6)" style={[styles.headerActions, styles.headerBlurContainer]}>
         {/* Call button with time display */}
         {onCallPress && (
           <View style={styles.callButtonWrapper}>
