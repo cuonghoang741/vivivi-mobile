@@ -2137,7 +2137,7 @@ const AppContent = () => {
                   style={{ position: 'relative' }}
                 >
                   <LiquidGlass intensity={20} style={styles.iconButtonGlass}>
-                    <IconBadge3d size={20} color={viewMode === '3d' ? '#FF416C' : '#fff'} />
+                    <IconBadge3d size={20} color={viewMode === '3d' ? '#8b5cf6' : '#fff'} />
                   </LiquidGlass>
                   {!isPro && (
                     <View style={{
@@ -2149,7 +2149,7 @@ const AppContent = () => {
                       justifyContent: 'center',
                     }} pointerEvents="none">
                       <View style={{
-                        backgroundColor: '#FF416C',
+                        backgroundColor: '#8b5cf6',
                         paddingHorizontal: 4,
                         paddingVertical: 2,
                         borderRadius: 6,

@@ -269,7 +269,7 @@ export const PreviewVRM: React.FC<Props> = ({
                 {/* Loading overlay */}
                 {(isLoadingCharacters || !isModelReady) && (
                     <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="large" color="#FF416C" />
+                        <ActivityIndicator size="large" color="#8b5cf6" />
                         <Text style={styles.loadingText}>Loading preview...</Text>
                     </View>
                 )}

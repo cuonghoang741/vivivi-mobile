@@ -165,7 +165,7 @@ export const ModeTabSwitch: React.FC<ModeTabSwitchProps> = ({
           {!isPro && (
             <View style={styles.proLabel}>
               <DiamondPinkIcon width={12} height={12} />
-              <Text style={[styles.proLabelText, { color: '#FF416C' }]}>PRO</Text>
+              <Text style={[styles.proLabelText, { color: '#8b5cf6' }]}>PRO</Text>
             </View>
           )}
         </View>

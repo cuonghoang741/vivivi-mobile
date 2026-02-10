@@ -246,7 +246,7 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
         />
         {!isPro && (
           <Pressable style={styles.upgradeBanner} onPress={() => { onClose(); setTimeout(() => onOpenSubscription?.(), 300); }}>
-            <LinearGradient colors={['#FF416C', '#FF4B2B']} style={styles.upgradeGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={['#8b5cf6', '#7c3aed']} style={styles.upgradeGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <View style={styles.upgradeContent}>
                 <IconCreditCard size={24} color="#fff" />
                 <View style={{ marginLeft: 12 }}>
@@ -450,7 +450,7 @@ const SubscriptionHistoryScreen: React.FC = () => {
     load();
   }, []);
 
-  if (loading) return <ActivityIndicator color="#FF416C" style={{ marginTop: 50 }} />;
+  if (loading) return <ActivityIndicator color="#8b5cf6" style={{ marginTop: 50 }} />;
 
   return (
     <ScrollView contentContainerStyle={styles.subScreenContent}>
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#FF416C',
+    backgroundColor: '#8b5cf6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,

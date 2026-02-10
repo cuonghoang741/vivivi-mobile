@@ -271,7 +271,7 @@ export const StreakRewardPopup: React.FC<StreakRewardPopupProps> = ({
                                 disabled={isClaiming}
                             >
                                 <LinearGradient
-                                    colors={isClaimed ? ['#999', '#777'] : ['#FF5FA1', '#FF247C']}
+                                    colors={isClaimed ? ['#999', '#777'] : ['#a78bfa', '#8b5cf6']}
                                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                                     style={styles.claimButtonGradient}
                                 >
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
         width: '90%',
         borderRadius: 999,
         overflow: 'hidden',
-        shadowColor: '#FF247C',
+        shadowColor: '#8b5cf6',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.5,
         shadowRadius: 8,

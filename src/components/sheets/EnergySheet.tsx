@@ -39,7 +39,7 @@ export const EnergySheet: React.FC<EnergySheetProps> = ({
     >
       <LinearGradient
         style={[styles.gradient, { paddingTop: 20, paddingBottom: insets.bottom + 16 }]}
-        colors={['#E2005A', '#FF3888', '#FFFFFF']}
+        colors={['#7c3aed', '#8b5cf6', '#FFFFFF']}
         start={{ x: 0.5, y: -0.1 }}
         end={{ x: 0.1, y: 1 }}
       >
@@ -124,15 +124,15 @@ const EnergyTipsCard: React.FC = () => (
       <Text style={styles.cardSubtitle}>Keep energy handy</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="gift" size={16} color="#F52B7B" />
+      <Ionicons name="gift" size={16} color="#8b5cf6" />
       <Text style={styles.tipText}>Claim daily check-ins to refill a chunk of energy.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="checkmark-done" size={16} color="#F52B7B" />
+      <Ionicons name="checkmark-done" size={16} color="#8b5cf6" />
       <Text style={styles.tipText}>Complete quests and missions for bonus refills.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="time" size={16} color="#F52B7B" />
+      <Ionicons name="time" size={16} color="#8b5cf6" />
       <Text style={styles.tipText}>Take short breaks so regeneration can catch up.</Text>
     </View>
   </View>
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   energyPercent: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F52B7B',
+    color: '#8b5cf6',
   },
   progressTrack: {
     height: 14,
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 7,
-    backgroundColor: '#FF247C',
+    backgroundColor: '#8b5cf6',
   },
   cardBodyText: {
     fontSize: 14,

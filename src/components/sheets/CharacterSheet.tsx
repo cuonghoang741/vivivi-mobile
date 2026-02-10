@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.05)',
   },
   rowItemSelected: {
-    backgroundColor: 'rgba(230, 85, 197, 0.15)', // brand color tint
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     borderColor: brand[500],
   },
   pressed: {
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
 
   // Badges
   proPill: {
-    backgroundColor: '#FF416C',
+    backgroundColor: '#8b5cf6',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,

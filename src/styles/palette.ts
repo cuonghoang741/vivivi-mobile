@@ -41,18 +41,18 @@ export const grayDark = {
 } as const;
 
 export const brand = {
-  25: '#fef5fb',
-  50: '#fde8f5',
-  100: '#fcd1ea',
-  200: '#f9a3d5',
-  300: '#f675c0',
-  400: '#f347ab',
-  500: '#e655c5',
-  600: '#cf4db3',
-  700: '#b8449f',
-  800: '#a03b8b',
-  900: '#883277',
-  950: '#5c2150',
+  25: '#faf8ff',
+  50: '#f3f0ff',
+  100: '#ece9fe',
+  200: '#ddd6fe',
+  300: '#c4b5fd',
+  400: '#a78bfa',
+  500: '#8b5cf6',
+  600: '#7c3aed',
+  700: '#6d28d9',
+  800: '#5b21b6',
+  900: '#4c1d95',
+  950: '#2e1065',
 } as const;
 
 export const error = {

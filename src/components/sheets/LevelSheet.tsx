@@ -105,7 +105,7 @@ export const LevelSheet: React.FC<LevelSheetProps> = ({
     >
       <LinearGradient
         style={[styles.gradient, { paddingTop: 16, paddingBottom: insets.bottom + 16 }]}
-        colors={['#E2005A', '#FF3888', '#FFFFFF']}
+        colors={['#7c3aed', '#8b5cf6', '#FFFFFF']}
         start={{ x: 0.5, y: -0.1 }}
         end={{ x: 0.1, y: 1 }}
       >
@@ -218,15 +218,15 @@ const LevelTipsCard: React.FC = () => (
       <Text style={styles.cardSubtitle}>Level up faster</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="checkmark-circle" size={18} color="#F52B7B" />
+      <Ionicons name="checkmark-circle" size={18} color="#8b5cf6" />
       <Text style={styles.tipText}>Claim streak rewards daily to lock in bonus XP.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="chatbubble-ellipses" size={18} color="#F52B7B" />
+      <Ionicons name="chatbubble-ellipses" size={18} color="#8b5cf6" />
       <Text style={styles.tipText}>Run multi-step chats instead of single-line replies.</Text>
     </View>
     <View style={styles.tipRow}>
-      <Ionicons name="flame" size={18} color="#F52B7B" />
+      <Ionicons name="flame" size={18} color="#8b5cf6" />
       <Text style={styles.tipText}>Keep events and photo shoots active for premium XP rewards.</Text>
     </View>
   </View>
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 7,
-    backgroundColor: '#FF247C',
+    backgroundColor: '#8b5cf6',
   },
   listBody: {
     gap: 10,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flexBasis: '48%',
-    backgroundColor: '#FFF5F9',
+    backgroundColor: '#F0EAFF',
     borderRadius: 20,
     padding: 16,
     gap: 4,

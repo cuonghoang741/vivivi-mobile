@@ -171,7 +171,7 @@ export const SignInScreen: React.FC<Props> = ({
           {/* Header / Titles */}
           <View style={styles.headerBlock}>
             <View style={styles.iconBadge}>
-              <IconShieldCheck size={32} color="#FF416C" />
+              <IconShieldCheck size={32} color="#8b5cf6" />
             </View>
             <Text style={styles.title}>Welcome back</Text>
             <Text style={styles.subtitle}>
@@ -193,7 +193,7 @@ export const SignInScreen: React.FC<Props> = ({
             hitSlop={8}
           >
             {isAgeVerified ? (
-              <IconSquareCheckFilled size={24} color="#FF416C" />
+              <IconSquareCheckFilled size={24} color="#8b5cf6" />
             ) : (
               <IconSquare size={24} color="rgba(255,255,255,0.4)" />
             )}
@@ -287,12 +287,12 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 65, 108, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 65, 108, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   title: {
     fontSize: 32,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   highlight: {
-    color: '#FF416C',
+    color: '#a78bfa',
     fontWeight: '700',
   },
   buttonStack: {

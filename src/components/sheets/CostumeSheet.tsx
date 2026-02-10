@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   selectedBorder: {
     borderWidth: 2,
-    borderColor: '#FF416C', // Brand pink/red
+    borderColor: '#8b5cf6',
   },
   cardImage: {
     position: 'absolute',
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF416C',
+    backgroundColor: '#8b5cf6',
     alignItems: 'center',
     justifyContent: 'center',
   },

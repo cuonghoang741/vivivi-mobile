@@ -44,7 +44,7 @@ import {
 } from '@tabler/icons-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const BRAND_GRADIENT = ['#FF416C', '#FF4B2B'] as const;
+const BRAND_GRADIENT = ['#8b5cf6', '#7c3aed'] as const;
 
 type OnboardingStep = 'name' | 'age' | 'hobbies' | 'personality' | 'notification' | 'analyzing' | 'selection' | 'reveal';
 
@@ -283,7 +283,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
     const renderNameStep = () => (
         <View style={styles.stepContent}>
             <View style={styles.iconHeader}>
-                <IconUser size={48} color="#FF416C" />
+                <IconUser size={48} color="#8b5cf6" />
             </View>
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>What's your name?</Text>
@@ -324,7 +324,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
         return (
             <View style={styles.stepContent}>
                 <View style={styles.iconHeader}>
-                    <IconCalendar size={48} color="#FF416C" />
+                    <IconCalendar size={48} color="#8b5cf6" />
                 </View>
                 <View style={styles.titleContainer}>
                     <Text style={styles.title}>How old are you?</Text>
@@ -373,7 +373,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
     const renderHobbiesStep = () => (
         <View style={styles.stepContent}>
             <View style={styles.iconHeader}>
-                <IconHeartHandshake size={48} color="#FF416C" />
+                <IconHeartHandshake size={48} color="#8b5cf6" />
             </View>
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>Your interests?</Text>
@@ -399,7 +399,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
     const renderPersonalityStep = () => (
         <View style={styles.stepContent}>
             <View style={styles.iconHeader}>
-                <IconSparkles size={48} color="#FF416C" />
+                <IconSparkles size={48} color="#8b5cf6" />
             </View>
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>Describe yourself</Text>
@@ -461,7 +461,7 @@ export const OnboardingV3Screen: React.FC<Props> = ({ onComplete }) => {
             <View style={styles.centerContainer}>
                 <StatusBar barStyle="light-content" />
                 <LinearGradient colors={['#0f0c29', '#302b63', '#24243e']} style={StyleSheet.absoluteFill} />
-                <ActivityIndicator size="large" color="#FF416C" />
+                <ActivityIndicator size="large" color="#8b5cf6" />
                 <Text style={styles.analyzingText}>Analyzing your profile...</Text>
                 <Text style={styles.analyzingSubText}>Finding your perfect match</Text>
             </View>
@@ -696,10 +696,10 @@ const styles = StyleSheet.create({
         borderRadius: 2,
     },
     progressSegmentActive: {
-        backgroundColor: '#FF416C',
+        backgroundColor: '#8b5cf6',
     },
     progressSegmentCompleted: {
-        backgroundColor: '#FF416C',
+        backgroundColor: '#8b5cf6',
     },
     contentContainer: {
         flex: 1,
@@ -715,11 +715,11 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(255, 65, 108, 0.1)',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 65, 108, 0.2)',
+        borderColor: 'rgba(139, 92, 246, 0.2)',
     },
     titleContainer: {
         alignItems: 'center',
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
         paddingVertical: 18,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#FF416C',
+        shadowColor: '#8b5cf6',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 16,
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#FF416C',
+        backgroundColor: '#8b5cf6',
     },
 
     // Notification
@@ -910,7 +910,7 @@ const styles = StyleSheet.create({
         color: '#fff',
         marginBottom: 40,
         textAlign: 'center',
-        shadowColor: '#FF416C',
+        shadowColor: '#8b5cf6',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.8,
         shadowRadius: 10,

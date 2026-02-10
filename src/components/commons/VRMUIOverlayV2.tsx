@@ -31,7 +31,7 @@ import * as Haptics from "expo-haptics";
 import { HapticPressable } from "../ui/HapticPressable";
 import DiamondPinkIcon from "../../assets/icons/diamond-pink.svg";
 import { useSceneActions } from "../../context/SceneActionsContext";
-import ReAnimated, { FadeIn, FadeOut, SlideInUp, useSharedValue, useAnimatedStyle, withSpring, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import ReAnimated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withSpring, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 
 type VRMUIOverlayProps = ViewProps & {
     hasMessages?: boolean;
@@ -300,8 +300,7 @@ export const VRMUIOverlayV2: React.FC<VRMUIOverlayProps> = ({
             pointerEvents="box-none"
         >
             {/* Top Bar */}
-            <ReAnimated.View
-                entering={SlideInUp.springify().damping(12)}
+            <View
                 style={[styles.topBar, { paddingTop: insets.top + (isTablet ? 30 : 20) }]}
             >
                 {/* PRO Badge with animated gradient */}
@@ -333,7 +332,7 @@ export const VRMUIOverlayV2: React.FC<VRMUIOverlayProps> = ({
                 {(isInCall || remainingQuotaSeconds > 0) && (
                     <PulsingCallIndicator remainingSeconds={remainingQuotaSeconds} />
                 )}
-            </ReAnimated.View>
+            </View>
 
             {/* Right Vertical Sidebar Menu */}
             {!isInCall && (

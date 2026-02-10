@@ -39,7 +39,7 @@ export const RewardClaimModal: React.FC<RewardClaimModalProps> = ({
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <LinearGradient colors={['#FF5FA1', '#FF247C']} style={styles.modalShell}>
+        <LinearGradient colors={['#a78bfa', '#8b5cf6']} style={styles.modalShell}>
           <View style={styles.content}>
             <View style={styles.header}>
               <Text style={styles.title}>{title}</Text>
@@ -64,8 +64,8 @@ export const RewardClaimModal: React.FC<RewardClaimModalProps> = ({
                       {reward.type === 'vcoin'
                         ? 'VCoin'
                         : reward.type === 'ruby'
-                        ? 'Ruby'
-                        : 'XP'}
+                          ? 'Ruby'
+                          : 'XP'}
                     </Text>
                     <Text style={styles.rewardAmount}>+{reward.amount}</Text>
                   </View>
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 28,
     padding: 1,
-    shadowColor: '#FF247C',
+    shadowColor: '#8b5cf6',
     shadowOpacity: 0.4,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },

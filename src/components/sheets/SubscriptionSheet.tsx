@@ -39,12 +39,12 @@ import {
 } from '@tabler/icons-react-native';
 
 const SUBSCRIPTION_FEATURES = [
-    { icon: IconCube3dSphere, text: 'Full 3D VRM interaction experience', color: '#FF416C' },
+    { icon: IconCube3dSphere, text: 'Full 3D VRM interaction experience', color: '#8b5cf6' },
     { icon: IconVideo, text: 'Unlimited HD Video Calls anytime', color: '#9C27B0' },
     { icon: IconLock, text: 'Unlock all secret & exclusive content', color: '#FF9800' },
     { icon: IconUsers, text: 'Access every character instantly', color: '#4CAF50' },
     { icon: IconSparkles, text: 'Premium costumes & animations', color: '#2196F3' },
-    { icon: IconHeart, text: 'Deeper intimacy & special moments', color: '#E91E63' },
+    { icon: IconHeart, text: 'Deeper intimacy & special moments', color: '#a78bfa' },
 ];
 
 interface SubscriptionSheetProps {
@@ -354,10 +354,10 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                         <View style={styles.heroSection}>
                             <LiquidGlassView
                                 style={styles.proBadge}
-                                tintColor="rgba(255, 65, 108, 0.3)"
+                                tintColor="rgba(139, 92, 246, 0.3)"
                             >
                                 <LinearGradient
-                                    colors={['#FF416C', '#FF4B2B']}
+                                    colors={['#8b5cf6', '#7c3aed']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
                                     style={[StyleSheet.absoluteFill, { opacity: 0.8 }]}
@@ -469,7 +469,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                             onPress={(isProcessing || contextLoading) ? undefined : handleSubscribe}
                         >
                             <LinearGradient
-                                colors={['#FF416C', '#FF4B2B']}
+                                colors={['#8b5cf6', '#7c3aed']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.ctaGradient}
@@ -645,8 +645,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     planCardSelected: {
-        borderColor: '#FF416C',
-        backgroundColor: 'rgba(255, 65, 108, 0.1)',
+        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
     },
     radioButton: {
         width: 20,
@@ -656,8 +656,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.3)',
     },
     radioButtonSelected: {
-        borderColor: '#FF416C',
-        backgroundColor: '#FF416C',
+        borderColor: '#8b5cf6',
+        backgroundColor: '#8b5cf6',
     },
     planInfo: {
         flex: 1,
@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     textHighlight: {
-        color: '#FF416C',
+        color: '#a78bfa',
     },
     planPrice: {
         color: '#fff',
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         overflow: 'hidden',
         marginBottom: 16,
-        shadowColor: '#FF416C',
+        shadowColor: '#8b5cf6',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 12,

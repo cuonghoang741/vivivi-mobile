@@ -333,7 +333,7 @@ export const QuestSheet: React.FC<QuestSheetProps> = ({
           styles.gradient,
           { paddingTop: 24 },
         ]}
-        colors={['#E2005A', '#FF3888', '#FFFFFF']}
+        colors={['#7c3aed', '#8b5cf6', '#FFFFFF']}
         start={{ x: 0.5, y: -0.1 }}
         end={{ x: 0.1, y: 1 }}
       >
@@ -386,7 +386,7 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, claiming, onClaim }) => {
   const textColor = isCompleted ? '#FFFFFF' : '#000000';
   const progressTextColor = isCompleted ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.7)';
   const progressTrackColor = isCompleted ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.7)';
-  const progressFillColor = isCompleted ? '#FFFFFF' : '#FF247C';
+  const progressFillColor = isCompleted ? '#FFFFFF' : '#8b5cf6';
   const progressDescription = isCompleted ? 'Completed!' : `${quest.progress}/${progressTarget}`;
 
   return (
@@ -398,7 +398,7 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, claiming, onClaim }) => {
     >
       {isCompleted && (
         <LinearGradient
-          colors={['#FF3B8A', '#E20E62']}
+          colors={['#8b5cf6', '#7c3aed']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFill}
@@ -502,7 +502,7 @@ const LevelQuestCard: React.FC<LevelQuestCardProps> = ({ quest, claiming, onClai
   const textColor = isCompleted ? '#FFFFFF' : '#000000';
   const progressTextColor = isCompleted ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.7)';
   const progressTrackColor = isCompleted ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.7)';
-  const progressFillColor = isCompleted ? '#FFFFFF' : '#FF247C';
+  const progressFillColor = isCompleted ? '#FFFFFF' : '#8b5cf6';
   const progressDescription = isCompleted ? 'Completed!' : `${quest.progress}/${target}`;
 
   return (
@@ -514,7 +514,7 @@ const LevelQuestCard: React.FC<LevelQuestCardProps> = ({ quest, claiming, onClai
     >
       {isCompleted && (
         <LinearGradient
-          colors={['#FF3B8A', '#E20E62']}
+          colors={['#8b5cf6', '#7c3aed']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFill}
@@ -1030,7 +1030,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#FF247C',
+    backgroundColor: '#8b5cf6',
   },
   progressLabels: {
     flexDirection: 'row',
@@ -1153,7 +1153,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFF5F9',
+    backgroundColor: '#F0EAFF',
   },
   levelQuestCardCompleted: {
     borderWidth: 2,
@@ -1215,7 +1215,7 @@ const styles = StyleSheet.create({
   levelQuestClaimButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF3B8A',
+    color: '#8b5cf6',
   },
   levelQuestClaimedContainer: {
     marginTop: 12,
@@ -1291,12 +1291,12 @@ const styles = StyleSheet.create({
   currentLevelProgressBar: {
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#FFF5F9',
+    backgroundColor: '#F0EAFF',
     overflow: 'hidden',
   },
   currentLevelProgressFill: {
     height: '100%',
-    backgroundColor: '#FF247C',
+    backgroundColor: '#8b5cf6',
     borderRadius: 6,
   },
   currentLevelHint: {
@@ -1386,7 +1386,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F52B7B',
+    backgroundColor: '#7c3aed',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -1407,13 +1407,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#F52B7B',
+    backgroundColor: '#7c3aed',
   },
   weeklyDayCheckedCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FF6CA6',
+    backgroundColor: '#a78bfa',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1431,19 +1431,19 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF5F9',
+    backgroundColor: '#F0EAFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   weeklyDayMonthInactive: {
     fontSize: 8,
     fontWeight: '500',
-    color: '#F52B7B',
+    color: '#7c3aed',
   },
   weeklyDayNumberInactive: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F52B7B',
+    color: '#7c3aed',
   },
   dailyTasksSkeleton: {
     gap: 16,
@@ -1478,7 +1478,7 @@ const styles = StyleSheet.create({
   dailyQuestCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFF5F9',
+    backgroundColor: '#F0EAFF',
   },
   dailyQuestCardCompleted: {
     borderWidth: 2,
@@ -1540,7 +1540,7 @@ const styles = StyleSheet.create({
   dailyQuestClaimButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF3B8A',
+    color: '#8b5cf6',
   },
   dailyQuestClaimedContainer: {
     marginTop: 0,
