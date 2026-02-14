@@ -25,7 +25,8 @@ import {
   IconBrandGoogle,
   IconSquare,
   IconSquareCheckFilled,
-  IconShieldCheck
+  IconShieldCheck,
+  IconUser,
 } from '@tabler/icons-react-native';
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';
@@ -35,6 +36,7 @@ type Props = {
   errorMessage?: string | null;
   onSignInWithApple: () => void;
   onSignInWithGoogle?: () => void;
+  onSignInAsGuest?: () => void;
   onOpenLegal?: (doc: LegalDocument) => void;
 };
 
@@ -49,12 +51,13 @@ export const SignInScreen: React.FC<Props> = ({
   errorMessage,
   onSignInWithApple,
   onSignInWithGoogle,
+  onSignInAsGuest,
   onOpenLegal,
 }) => {
   const insets = useSafeAreaInsets();
   const [isAgeVerified, setIsAgeVerified] = useState(false);
   const [checkingAge, setCheckingAge] = useState(true);
-  const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
+  const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | 'guest' | null>(null);
 
   // Load persisted age verification state
   useEffect(() => {
@@ -111,7 +114,7 @@ export const SignInScreen: React.FC<Props> = ({
   );
 
   const handleSignIn = useCallback(
-    (provider: 'apple' | 'google') => {
+    (provider: 'apple' | 'google' | 'guest') => {
       if (!isAgeVerified) {
         Alert.alert(
           "Age Verification Required",
@@ -123,15 +126,18 @@ export const SignInScreen: React.FC<Props> = ({
       setPendingProvider(provider);
       if (provider === 'apple') {
         onSignInWithApple();
+      } else if (provider === 'guest') {
+        onSignInAsGuest?.();
       } else {
         onSignInWithGoogle?.();
       }
     },
-    [isAgeVerified, onSignInWithApple, onSignInWithGoogle]
+    [isAgeVerified, onSignInWithApple, onSignInWithGoogle, onSignInAsGuest]
   );
 
   const showAppleSpinner = isLoading && pendingProvider === 'apple';
   const showGoogleSpinner = isLoading && pendingProvider === 'google';
+  const showGuestSpinner = isLoading && pendingProvider === 'guest';
 
   const isButtonsDisabled = isLoading || checkingAge;
 
@@ -241,6 +247,25 @@ export const SignInScreen: React.FC<Props> = ({
                 )}
               </TouchableOpacity>
             ) : null}
+
+            {/* Guest Account Button */}
+            {onSignInAsGuest && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                disabled={isButtonsDisabled}
+                style={[styles.authButton, styles.guestButton, isButtonsDisabled && styles.disabledButton]}
+                onPress={() => handleSignIn('guest')}
+              >
+                {showGuestSpinner ? (
+                  <ActivityIndicator color="#a78bfa" />
+                ) : (
+                  <>
+                    <IconUser size={24} color="#a78bfa" style={styles.btnIcon} />
+                    <Text style={styles.guestBtnText}>Use Guest Account</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Legal Links */}
@@ -368,6 +393,11 @@ const styles = StyleSheet.create({
   googleButton: {
     backgroundColor: '#fff',
   },
+  guestButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(167, 139, 250, 0.4)',
+  },
   disabledButton: {
     opacity: 0.7,
   },
@@ -384,6 +414,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#000',
+    letterSpacing: 0.3,
+  },
+  guestBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#a78bfa',
     letterSpacing: 0.3,
   },
   legalLinks: {

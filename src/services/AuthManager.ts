@@ -458,6 +458,20 @@ export class AuthManager {
   }
 
   /**
+   * Sign in as Guest user (pre-created account with Pro subscription)
+   */
+  async signInAsGuest(): Promise<void> {
+    const GUEST_EMAIL = 'guest@gmail.com';
+    const GUEST_PASSWORD = '123456';
+    try {
+      await this.signInWithEmail(GUEST_EMAIL, GUEST_PASSWORD);
+    } catch (error: any) {
+      console.error('[AuthManager] Guest sign-in failed:', error);
+      this.setState({ errorMessage: error?.message || 'Failed to sign in as guest' });
+    }
+  }
+
+  /**
    * Sign in with email and password
    */
   async signInWithEmail(
