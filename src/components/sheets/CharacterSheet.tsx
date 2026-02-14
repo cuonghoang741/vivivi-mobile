@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CharacterRepository, type CharacterItem } from '../../repositories/CharacterRepository';
 import AssetRepository from '../../repositories/AssetRepository';
@@ -291,7 +292,16 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
             />
           )}
 
-          {item.thumbnail_url || item.avatar ? (
+          {item.video_url ? (
+            <Video
+              source={{ uri: item.video_url }}
+              style={styles.cardImage}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay
+              isLooping
+              isMuted
+            />
+          ) : item.thumbnail_url || item.avatar ? (
             <Image
               source={{ uri: item.thumbnail_url || item.avatar }}
               style={[styles.cardImage]}
