@@ -1671,6 +1671,22 @@ const AppContent = () => {
     console.log(playing ? '🔊 [App] BGM on' : '🔇 [App] BGM off');
   }, []);
 
+  const handleMultiplayerPress = useCallback(() => {
+    // Only PRO users can use party mode
+    if (!isPro) {
+      setShowSubscriptionSheet(true);
+      return;
+    }
+
+    // Auto switch to 3D/VRM mode if not already
+    // The requirement "party defaults to vrm mode" implies ensuring 3D view is active
+    if (viewMode !== '3d') {
+      setViewMode('3d');
+    }
+
+    navigation.navigate('PlayModeSelect');
+  }, [isPro, viewMode, navigation]);
+
   useEffect(() => {
     setPurchaseCompleteCallback(handleCurrencyPurchaseComplete);
     return () => {
@@ -2222,6 +2238,7 @@ const AppContent = () => {
             console.log('[App] Manually triggering dance');
             webBridgeRef.current?.triggerDance();
           }}
+          onMultiplayerPress={handleMultiplayerPress}
           onToggleChatList={toggleChatListInternal}
           onSwipeBackground={advanceBackground}
           onSwipeCharacter={changeCharacter}

@@ -286,7 +286,7 @@ export const VRMUIOverlayV2: React.FC<VRMUIOverlayProps> = ({
     const menuActions = [
         { icon: IconMapPin, label: 'Scene', onPress: onBackgroundPress },
         { icon: IconShirt, label: 'Style', onPress: onCostumePress },
-        { icon: IconUsers, label: 'Party', onPress: onMultiplayerPress },
+        { icon: IconUsers, label: 'Party', onPress: onMultiplayerPress, showBadge: !isProUser },
         { icon: IconWoman, label: 'Dance', onPress: onDancePress, showBadge: !isProUser },
         { icon: IconMessage2, label: 'Chat', onPress: onToggleChatList, isActive: showChatList },
         { icon: IconSettings, label: 'More', onPress: onSettingsPress },
