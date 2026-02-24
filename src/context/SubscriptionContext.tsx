@@ -173,6 +173,27 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 }
             }
 
+            // FALLBACK: If RevenueCat says not Pro, check DB for manually-granted subscriptions
+            // (e.g., guest accounts, admin-granted Pro, etc.)
+            if (userId && !finalIsPro) {
+                try {
+                    const { data: dbSub, error } = await getSupabaseClient()
+                        .from('subscriptions')
+                        .select('status, expires_at')
+                        .eq('user_id', userId)
+                        .in('status', ['active', 'trialing'])
+                        .gt('expires_at', new Date().toISOString())
+                        .maybeSingle();
+
+                    if (!error && dbSub) {
+                        console.log('[SubscriptionProvider] DB fallback: Found active subscription, granting Pro:', dbSub);
+                        finalIsPro = true;
+                    }
+                } catch (dbError) {
+                    console.warn('[SubscriptionProvider] DB fallback check error:', dbError);
+                }
+            }
+
             setState(prev => ({
                 ...prev,
                 isPro: finalIsPro,

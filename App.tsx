@@ -2069,6 +2069,7 @@ const AppContent = () => {
             errorMessage={errorMessage}
             onSignInWithApple={() => authManager.signInWithApple()}
             onSignInWithGoogle={() => authManager.signInWithGoogle()}
+            onSignInAsGuest={() => authManager.signInAsGuest()}
             onOpenLegal={handleOpenLegal}
           />
         </View>
