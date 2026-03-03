@@ -283,16 +283,16 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
         ]}
       >
         <View style={styles.imageBackground}>
-          {item.default_background?.image && (
+          {item.thumbnail_url && (
             <Image
-              source={{ uri: item.default_background.image }}
+              source={{ uri: item.thumbnail_url }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={200}
             />
           )}
 
-          {item.video_url ? (
+          {false ? (
             <Video
               source={{ uri: item.video_url }}
               style={styles.cardImage}

@@ -46,6 +46,7 @@ export const AnalyticsEvents = {
   DANCE_TRIGGER: 'dance_trigger',
   LOVE_TRIGGER: 'love_trigger',
   CAPTURE_PHOTO: 'capture_photo',
+  ACTION_SUGGESTED: 'action_suggested',
 
   // Purchase Events  
   PURCHASE_START: 'purchase_start',
@@ -343,6 +344,14 @@ class AnalyticsService {
     });
   }
 
+  async logActionSuggested(action: string, confidence: number, parameters?: any): Promise<void> {
+    await this.logEvent(AnalyticsEvents.ACTION_SUGGESTED, {
+      action,
+      confidence,
+      parameters: JSON.stringify(parameters || {})
+    });
+  }
+
   // ============ Purchase Events ============
 
   async logPurchaseStart(itemType: string, itemId?: string): Promise<void> {
@@ -564,4 +573,3 @@ class AnalyticsService {
 }
 
 export const analyticsService = AnalyticsService.shared;
-

@@ -578,10 +578,18 @@ export const CharacterPreviewScreen: React.FC<CharacterPreviewScreenProps> = (pr
                                     await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {});
 
                                     // Navigate back like a standard back action
-                                    navigation.goBack();
+                                    navigation.navigate({
+                                        name: 'Experience',
+                                        params: { selectedCharacterId: character.id },
+                                        merge: true,
+                                    } as any);
                                 } catch (e) {
                                     console.warn('Failed to save character preference:', e);
-                                    navigation.goBack();
+                                    navigation.navigate({
+                                        name: 'Experience',
+                                        params: { selectedCharacterId: character.id },
+                                        merge: true,
+                                    } as any);
                                     setIsSelectingCharacter(false);
                                 }
                                 // No finally block here to keep spinner during goBack transition

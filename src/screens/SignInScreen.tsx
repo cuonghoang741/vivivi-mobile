@@ -23,7 +23,6 @@ import { Video, ResizeMode } from 'expo-av';
 // Icons (imported as React components via react-native-svg-transformer)
 import AppleIcon from '../assets/icons/apple.svg';
 import GoogleIcon from '../assets/icons/google.svg';
-import { LiquidGlass } from '../components/LiquidGlass';
 
 
 type LegalDocument = 'terms' | 'privacy' | 'eula';

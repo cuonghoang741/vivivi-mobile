@@ -6,6 +6,7 @@ import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-na
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { mediaDevices, MediaStream, RTCView } from '@livekit/react-native-webrtc';
+import { BlurView } from 'expo-blur';
 import { VRMWebView } from './src/components/VRMWebView';
 import { VRMUIOverlay } from './src/components/VRMUIOverlay';
 import { WebSceneBridge } from './src/utils/WebSceneBridge';
@@ -88,11 +89,13 @@ const AppContent = () => {
     currentCharacter,
     setCurrentCharacterState,
     setCurrentCostume,
+    currentCostume,
   } = useVRMContext();
   const { session, isLoading, errorMessage, hasRestoredSession } = authState;
 
   const navigation = useNavigation<ExperienceNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'Experience'>>();
+  const pendingNudeRevertRef = useRef(false);
   const webViewRef = useRef<any>(null);
   const snapshotViewRef = useRef<View | null>(null);
   const webBridgeRef = useRef<WebSceneBridge | null>(null);
@@ -140,7 +143,10 @@ const AppContent = () => {
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+  const [isVrmMode, setIsVrmMode] = useState(false);
+  const vrmModeAnim = useRef(new Animated.Value(1)).current; // 1 = overlays visible, 0 = hidden
   const [isDancing, setIsDancing] = useState(false);
+  const [isCharacterBlurred, setIsCharacterBlurred] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
     title: string;
@@ -168,46 +174,7 @@ const AppContent = () => {
     setShowPurchaseSheet,
   } = usePurchaseContext();
 
-  // Handle character selection from CharacterPreviewScreen
-  useEffect(() => {
-    if (route.params?.selectedCharacterId) {
-      const selectedId = route.params.selectedCharacterId;
-      console.log('🔄 [App] Selected character from preview:', selectedId);
 
-      const updateCharacter = async () => {
-        try {
-          // 1. Try to find in loaded owned characters
-          let character = allCharacters.find(c => c.id === selectedId);
-
-          // 2. If not found (e.g. PRO character not owned), fetch it
-          if (!character) {
-            const characterRepo = new CharacterRepository();
-            const fetched = await characterRepo.fetchCharacter(selectedId);
-            if (fetched) {
-              character = fetched;
-            }
-          }
-
-          if (character) {
-            // Update state
-            setCurrentCharacterState(character);
-
-            // Save preference
-            await UserCharacterPreferenceService.saveUserCharacterPreference(character.id, {});
-
-            // Clear params to avoid re-triggering
-            navigation.setParams({ selectedCharacterId: undefined });
-
-            console.log('✅ [App] Updated current character to:', character.name);
-          }
-        } catch (error) {
-          console.error('❌ [App] Failed to update character from preview:', error);
-        }
-      };
-
-      updateCharacter();
-    }
-  }, [route.params?.selectedCharacterId, allCharacters, setCurrentCharacterState, navigation]);
   const [isBgmOn, setIsBgmOn] = useState(false);
   const isBgmOnRef = useRef(false);
   const [autoPlayMusic, setAutoPlayMusic] = useState(false);
@@ -305,6 +272,34 @@ const AppContent = () => {
     };
   }, [quests.trackProgress]);
 
+  // Enable/disable OrbitControls in WebView when vrmMode changes
+  useEffect(() => {
+    // Animate overlays
+    Animated.timing(vrmModeAnim, {
+      toValue: isVrmMode ? 0 : 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+
+    if (webViewRef.current) {
+      if (isVrmMode) {
+        // Enable controls when entering VRM mode
+        const js = `window.setControlsEnabled && window.setControlsEnabled(true); true;`;
+        webViewRef.current.injectJavaScript(js);
+        console.log('[App] Set WebView OrbitControls enabled: true');
+      } else {
+        // Disable controls AND reset camera when exiting VRM mode
+        const js = `
+          if (window.setControlsEnabled) window.setControlsEnabled(false);
+          if (window.resetCamera) window.resetCamera();
+          true;
+        `;
+        webViewRef.current.injectJavaScript(js);
+        console.log('[App] Set WebView OrbitControls enabled: false & Reset Camera');
+      }
+    }
+  }, [isVrmMode]);
+
   // Load all characters and owned characters
   useEffect(() => {
     if (!session) return;
@@ -384,10 +379,12 @@ const AppContent = () => {
         break;
 
       case 'change_costume':
+        setIsCharacterBlurred(false);
         setShowCostumeSheet(true);
         break;
 
       case 'change_character':
+        setIsCharacterBlurred(false);
         setShowCharacterSheet(true);
         break;
 
@@ -398,6 +395,95 @@ const AppContent = () => {
           webBridgeRef.current?.loadAnimationByName(action.parameters.animationName);
         } else {
           webBridgeRef.current?.triggerDance();
+        }
+        break;
+
+      case 'become_nude':
+        return;
+        console.log('[App] Handling become_nude action');
+        if (currentCharacter) {
+          console.log("currentCharacter", currentCharacter)
+          // Find full character object to get order
+          const charItem = allCharacters.find(c => c.id === currentCharacter.id);
+          const order = charItem?.order;
+
+          if (order) {
+            // Apply blur
+            setIsCharacterBlurred(true);
+
+            // If NOT Pro, show uncensored alert immediately
+            if (!isPro) {
+              Alert.alert(
+                'Unlock All',
+                'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
+                [
+                  {
+                    text: 'Go Back',
+                    style: 'cancel',
+                    onPress: async () => {
+                      // Revert costume
+                      if (currentCharacter && webViewRef.current) {
+                        try {
+                          const currentCostumeId = currentCostume?.id;
+                          if (currentCostumeId) {
+                            await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                          } else {
+                            // Fallback to default or base
+                            const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                            if (fullChar?.default_costume_id) {
+                              await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                            } else if (fullChar?.base_model_url) {
+                              await UserCharacterPreferenceService.loadFallbackModel(
+                                currentCharacter.name,
+                                fullChar.base_model_url,
+                                webViewRef,
+                                currentCharacter.id
+                              );
+                            }
+                          }
+                          // Wait for reload then unblur
+                          setTimeout(() => setIsCharacterBlurred(false), 1000);
+                        } catch (e) {
+                          console.warn("Revert failed", e);
+                          setIsCharacterBlurred(false);
+                        }
+                      } else {
+                        setIsCharacterBlurred(false);
+                      }
+                    }
+                  },
+                  {
+                    text: 'Upgrade',
+                    onPress: () => {
+                      pendingNudeRevertRef.current = true;
+                      setShowSubscriptionSheet(true);
+                      // Keep blurred
+                    }
+                  }
+                ]
+              );
+            }
+
+            // Load model regardless (visual is blurred, so loading behind blur is fine/good UX for instant reveal)
+            // Or should we BLOCK loading if not pro? 
+            // The prompt says "nếu là tài khoản free thì bị blur khi become_nude, và hiện lên popup".
+            // It suggests blur happens when nude. 
+            // If we don't load nude model, there is nothing to blur (except normal model).
+            // Let's load it so if they upgrade it reveals.
+            const orderStr = String(order).padStart(3, '0');
+            const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
+            const nudeModelName = `${orderStr}_nude.vrm`;
+
+            console.log("nudeUrl", nudeUrl)
+
+            // Inject JS to load model
+            if (webViewRef.current) {
+              const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const escapedName = nudeModelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+              webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+            }
+          }
         }
         break;
 
@@ -417,7 +503,7 @@ const AppContent = () => {
       default:
         break;
     }
-  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation]);
+  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation, currentCharacter, allCharacters]);
 
   const {
     state: chatState,
@@ -807,6 +893,12 @@ const AppContent = () => {
   const handleCharacterSelect = useCallback(
     async (item: CharacterItem) => {
       try {
+        // Clear VRM immediately for UX
+        webViewRef.current?.injectJavaScript(`
+          if (window.clearVRM) { window.clearVRM(); }
+          true;
+        `);
+
         const assetRepo = new AssetRepository();
         let ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
         let isOwned = ownedCharacterIds.has(item.id);
@@ -1486,6 +1578,50 @@ const AppContent = () => {
     [handleBackgroundSelect, handleCharacterSelect, handleCostumeSelect]
   );
 
+  // Handle character selection from CharacterPreviewScreen
+  useEffect(() => {
+    if (route.params?.selectedCharacterId) {
+      const selectedId = route.params.selectedCharacterId;
+      console.log('🔄 [App] Selected character from preview:', selectedId);
+
+      const updateCharacter = async () => {
+        try {
+          // 1. Try to find in loaded owned characters
+          let character = allCharacters.find(c => c.id === selectedId);
+
+          // 2. If not found (e.g. PRO character not owned), fetch it
+          if (!character) {
+            const characterRepo = new CharacterRepository();
+            const fetched = await characterRepo.fetchCharacter(selectedId);
+            if (fetched) {
+              character = fetched;
+            }
+          }
+
+          if (character) {
+            // Clear VRM first
+            webViewRef.current?.injectJavaScript(`
+              if (window.clearVRM) { window.clearVRM(); }
+              true;
+            `);
+
+            // Update state via handleCharacterSelect
+            await handleCharacterSelect(character);
+
+            // Clear params to avoid re-triggering
+            navigation.setParams({ selectedCharacterId: undefined });
+
+            console.log('✅ [App] Updated current character to:', character.name);
+          }
+        } catch (error) {
+          console.error('❌ [App] Failed to update character from preview:', error);
+        }
+      };
+
+      updateCharacter();
+    }
+  }, [route.params?.selectedCharacterId, allCharacters, handleCharacterSelect, navigation]);
+
   useEffect(() => {
     if (!hasRestoredSession || !session) {
       return;
@@ -1916,7 +2052,19 @@ const AppContent = () => {
       <View style={[styles.container, { backgroundColor: 'transparent' }]} pointerEvents="box-none">
         <StatusBar barStyle="light-content" />
         {!isChatFullScreen && (
-          <View style={{ zIndex: 100 }}>
+          <Animated.View
+            style={{
+              zIndex: 100,
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-50, 0],
+                })
+              }]
+            }}
+            pointerEvents={isVrmMode ? 'none' : 'auto'}
+          >
             <SceneHeader
               characterName={characterTitle}
               relationshipName={currentCharacter?.relationshipName}
@@ -1927,7 +2075,7 @@ const AppContent = () => {
               onCharacterMenuPress={() => setShowCharacterSheet(true)}
               isDarkBackground={isDarkBackground}
             />
-          </View>
+          </Animated.View>
         )}
         {/* Persistent VRMWebView lifted out to root render */}
         <VoiceLoadingOverlay
@@ -1946,7 +2094,7 @@ const AppContent = () => {
           isBgmOn={isBgmOn}
           remainingQuotaSeconds={remainingQuotaSeconds}
           isInCall={isCameraMode || voiceState.isConnected}
-          isHidden={isChatFullScreen}
+          isHidden={isChatFullScreen || isVrmMode}
           onBackgroundPress={() => setShowBackgroundSheet(true)}
           onCostumePress={() => setShowCostumeSheet(true)}
           onCalendarPress={handleCalendarPress}
@@ -1959,8 +2107,63 @@ const AppContent = () => {
           canSwipeCharacter={allCharacters.length > 1}
           isPro={isPro}
         />
+        {/* Invisible tap zone in center area to enter VRM mode - only show when NOT in vrmMode */}
+        {!isVrmMode && (
+          <Pressable
+            style={{
+              position: 'absolute',
+              top: '25%',
+              left: '15%',
+              right: '15%',
+              height: '35%',
+              // backgroundColor: 'rgba(255,0,0,0.1)', // Uncomment to debug tap area
+            }}
+            onPress={() => {
+              console.log('[App] Center tap - entering VRM mode');
+              Keyboard.dismiss();
+              setIsVrmMode(true);
+            }}
+          />
+        )}
+        {/* Exit VRM mode button - only show when in vrmMode */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 60,
+            right: 16,
+            zIndex: 999,
+            opacity: vrmModeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 0], // Opposite - show when vrmMode is active
+            }),
+            transform: [{
+              scale: vrmModeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0.5],
+              })
+            }]
+          }}
+          pointerEvents={isVrmMode ? 'auto' : 'none'}
+        >
+          <Pressable
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => {
+              console.log('[App] Exit VRM mode');
+              setIsVrmMode(false);
+            }}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </Pressable>
+        </Animated.View>
         <CameraPreviewOverlay
-          visible={showCameraPreview && !!cameraStream}
+          visible={!isVrmMode && showCameraPreview && !!cameraStream}
           stream={cameraStream}
           onClose={handleCameraOverlayClose}
         />
@@ -1969,13 +2172,22 @@ const AppContent = () => {
             <Text style={styles.savedToastText}>Saved to Photos</Text>
           </View>
         ) : null}
-        <View
+        <Animated.View
           style={[
             styles.chatOverlay,
             { bottom: keyboardHeight },
-            isChatFullScreen && { top: 0, paddingBottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' }
+            isChatFullScreen && { top: 0, paddingBottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
+            {
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [100, 0],
+                })
+              }]
+            }
           ]}
-          pointerEvents="box-none"
+          pointerEvents={isVrmMode ? 'none' : 'box-none'}
         >
           <ChatBottomOverlay
             messages={chatState.messages}
@@ -2012,19 +2224,33 @@ const AppContent = () => {
             isFullScreen={isChatFullScreen}
             onToggleFullscreen={setIsChatFullScreen}
           />
-        </View>
-        {/* Hide CharacterQuickSwitcher when in call mode */}
+        </Animated.View>
         {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
         {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
-          <CharacterQuickSwitcher
-            characters={allCharacters}
-            currentIndex={currentCharacterIndex}
-            onCharacterTap={handleCharacterSelectByIndex}
-            onAddCharacter={() => setShowCharacterSheet(true)}
-            isInputActive={isKeyboardVisible || chatState.showChatList}
-            keyboardHeight={0}
-            isModelLoading={false}
-          />
+          <Animated.View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              zIndex: 90,
+              opacity: vrmModeAnim,
+              transform: [{
+                translateY: vrmModeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [80, 0],
+                })
+              }]
+            }}
+            pointerEvents={isVrmMode ? 'none' : 'box-none'}
+          >
+            <CharacterQuickSwitcher
+              characters={allCharacters}
+              currentIndex={currentCharacterIndex}
+              onCharacterTap={handleCharacterSelectByIndex}
+              onAddCharacter={() => setShowCharacterSheet(true)}
+              isInputActive={isKeyboardVisible || chatState.showChatList}
+              keyboardHeight={0}
+              isModelLoading={false}
+            />
+          </Animated.View>
         )}
         <AppSheets
           showQuestSheet={showQuestSheet}
@@ -2192,10 +2418,52 @@ const AppContent = () => {
 
         <SubscriptionSheet
           isOpened={showSubscriptionSheet}
-          onClose={() => setShowSubscriptionSheet(false)}
+          onClose={async () => {
+            setShowSubscriptionSheet(false);
+
+            // If we were in a pending nude revert state (user canceled upgrade flow)
+            if (pendingNudeRevertRef.current) {
+              pendingNudeRevertRef.current = false;
+
+              // Revert to normal costume/character
+              if (currentCharacter && webViewRef.current) {
+                try {
+                  const currentCostumeId = currentCostume?.id;
+                  if (currentCostumeId) {
+                    await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                  } else {
+                    const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                    if (fullChar?.default_costume_id) {
+                      await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                    } else if (fullChar?.base_model_url) {
+                      await UserCharacterPreferenceService.loadFallbackModel(
+                        currentCharacter.name,
+                        fullChar.base_model_url,
+                        webViewRef,
+                        currentCharacter.id
+                      );
+                    }
+                  }
+                  // Wait for reload then unblur
+                  setTimeout(() => setIsCharacterBlurred(false), 1000);
+                } catch (e) {
+                  console.warn("Revert failed", e);
+                  setIsCharacterBlurred(false);
+                }
+              } else {
+                setIsCharacterBlurred(false);
+              }
+            }
+          }}
           onPurchaseSuccess={() => {
             console.log('[App] Purchase success callback, refreshing quota...');
             refreshQuota();
+
+            // If they bought pro while in nude flow, let them see it!
+            if (pendingNudeRevertRef.current) {
+              pendingNudeRevertRef.current = false;
+              setIsCharacterBlurred(false);
+            }
           }}
         />
         <CallEndedModal
@@ -2233,6 +2501,13 @@ const AppContent = () => {
                 enableDebug={false}
               />
             </Pressable>
+            {isCharacterBlurred && (
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                intensity={60}
+                tint={isDarkBackground ? 'dark' : 'light'}
+              />
+            )}
           </View>
         )}
 

@@ -90,6 +90,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         try {
             const offerings = await Purchases.getOfferings();
+            console.log('[SubscriptionProvider] Offerings:', offerings);
             if (offerings.current) {
                 setState(prev => ({
                     ...prev,

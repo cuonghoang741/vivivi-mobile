@@ -24,7 +24,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
 
   const containerStyles = [
     !isMedia && styles.bubble,
-    !isMedia && (alignLeft ? styles.agentBubble : styles.userBubble),
+    !isMedia && (message.isAgent ? styles.agentBubble : styles.userBubble),
     !isMedia && variant === 'compact' && styles.compactBubble,
     isMedia && styles.mediaContainer,
   ];
@@ -45,12 +45,12 @@ export const ChatMessageBubble: React.FC<Props> = ({
   };
 
   return (
-    <View style={[styles.container, alignLeft ? styles.leftAlign : styles.rightAlign]}>
+    <View style={[styles.container, styles.leftAlign]}>
       <Pressable
         style={({ pressed }) => [...containerStyles, pressed && styles.bubblePressed]}
         onPress={handlePress}
       >
-        {isText ? renderTextContent(message, variant, alignLeft) : null}
+        {isText ? renderTextContent(message, variant) : null}
         {isMedia ? renderMediaContent(message, variant, isLocked) : null}
       </Pressable>
     </View>
@@ -59,8 +59,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
 
 const renderTextContent = (
   message: ChatMessage,
-  variant: 'compact' | 'full',
-  alignLeft: boolean
+  variant: 'compact' | 'full'
 ) => {
   if (message.kind.type !== 'text' && message.kind.type !== 'system') {
     return null;
@@ -83,7 +82,7 @@ const renderTextContent = (
       <Text
         style={[
           styles.text,
-          alignLeft ? styles.agentText : styles.userText,
+          message.isAgent ? styles.agentText : styles.userText,
           variant === 'compact' && styles.compactText,
         ]}
         numberOfLines={undefined}

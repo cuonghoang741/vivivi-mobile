@@ -81,6 +81,8 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
+    console.log('packages', packages);
+
     // Find yearly and monthly packages
     const yearlyPackage = packages.find(p =>
         p.packageType === 'ANNUAL' ||
@@ -520,10 +522,6 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                         <Text style={styles.planPrice}>{pkg.product.priceString}</Text>
                                     </Pressable>
                                 ))}
-
-                                {(contextLoading || isProcessing) && packages.length === 0 && (
-                                    <ActivityIndicator color="#FFE66D" size="large" style={{ marginVertical: 20 }} />
-                                )}
                             </View>
 
                             <Pressable
