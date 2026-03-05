@@ -244,6 +244,24 @@ export const VRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (persistedSelection?.backgroundURL) {
             await Persistence.setBackgroundURL(persistedSelection.backgroundURL);
             await Persistence.setBackgroundName(persistedSelection.backgroundName || '');
+          } else if (character.background_default_id) {
+            // Fallback: use character's default background
+            const backgroundRepo = new BackgroundRepository();
+            const defaultBg = await backgroundRepo.fetchBackground(character.background_default_id);
+            if (defaultBg?.image) {
+              await Persistence.setBackgroundURL(defaultBg.image);
+              await Persistence.setBackgroundName(defaultBg.name || '');
+              await Persistence.setCharacterBackgroundSelection(character.id, {
+                backgroundId: character.background_default_id,
+                backgroundURL: defaultBg.image,
+                backgroundName: defaultBg.name || '',
+              });
+              console.log('[VRMProvider] No background preference, seeded character default:', character.background_default_id);
+            } else {
+              await Persistence.setBackgroundURL('');
+              await Persistence.setBackgroundName('');
+              await Persistence.setCharacterBackgroundSelection(character.id, null);
+            }
           } else {
             await Persistence.setBackgroundURL('');
             await Persistence.setBackgroundName('');

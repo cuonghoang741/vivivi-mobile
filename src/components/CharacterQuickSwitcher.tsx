@@ -9,7 +9,6 @@ import {
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CharacterItem } from '../repositories/CharacterRepository';
 
 type CharacterQuickSwitcherProps = {

@@ -399,20 +399,19 @@ const AppContent = () => {
         break;
 
       case 'become_nude':
-        return;
         console.log('[App] Handling become_nude action');
+        console.log("currentCharacter", currentCharacter)
+
         if (currentCharacter) {
-          console.log("currentCharacter", currentCharacter)
           // Find full character object to get order
           const charItem = allCharacters.find(c => c.id === currentCharacter.id);
           const order = charItem?.order;
 
           if (order) {
-            // Apply blur
-            setIsCharacterBlurred(true);
-
             // If NOT Pro, show uncensored alert immediately
             if (!isPro) {
+              setIsCharacterBlurred(true);
+
               Alert.alert(
                 'Unlock All',
                 'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
@@ -464,25 +463,59 @@ const AppContent = () => {
               );
             }
 
-            // Load model regardless (visual is blurred, so loading behind blur is fine/good UX for instant reveal)
-            // Or should we BLOCK loading if not pro? 
-            // The prompt says "nếu là tài khoản free thì bị blur khi become_nude, và hiện lên popup".
-            // It suggests blur happens when nude. 
-            // If we don't load nude model, there is nothing to blur (except normal model).
-            // Let's load it so if they upgrade it reveals.
-            const orderStr = String(order).padStart(3, '0');
-            const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
-            const nudeModelName = `${orderStr}_nude.vrm`;
+            // Try to find "Nude" costume from DB first, fallback to hardcoded URL
+            (async () => {
+              try {
+                const costumeRepo = new CostumeRepository();
+                const nudeCostume = await costumeRepo.fetchLockedCostume(currentCharacter.id);
 
-            console.log("nudeUrl", nudeUrl)
+                if (nudeCostume && nudeCostume.model_url) {
+                  console.log('[App] Found locked costume in DB:', nudeCostume.id);
 
-            // Inject JS to load model
-            if (webViewRef.current) {
-              const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-              const escapedName = nudeModelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-              const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
-              webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
-            }
+                  // Update isLocked to false in metadata (unlock the key UI)
+                  const updatedMetadata = { ...(nudeCostume.metadata || {}), isLocked: false };
+                  costumeRepo.updateCostumeMetadata(nudeCostume.id, updatedMetadata).catch(err => {
+                    console.warn('[App] Failed to update nude costume metadata:', err);
+                  });
+
+                  // Load the costume model from DB
+                  if (webViewRef.current) {
+                    const escapedURL = nudeCostume.model_url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    const escapedName = (nudeCostume.costume_name || 'Nude').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+                    webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+                  }
+                } else {
+                  // Fallback to hardcoded URL
+                  console.log('[App] No locked costume in DB, using hardcoded URL');
+                  const orderStr = String(order).padStart(3, '0');
+                  const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
+                  const nudeModelName = `${orderStr}_nude.vrm`;
+
+                  console.log("nudeUrl", nudeUrl);
+
+                  if (webViewRef.current) {
+                    const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    const escapedName = nudeModelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+                    webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+                  }
+                }
+              } catch (err) {
+                console.warn('[App] Error in become_nude flow:', err);
+                // Fallback to hardcoded URL on error
+                const orderStr = String(order).padStart(3, '0');
+                const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
+                const nudeModelName = `${orderStr}_nude.vrm`;
+
+                if (webViewRef.current) {
+                  const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                  const escapedName = nudeModelName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                  const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
+                  webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+                }
+              }
+            })();
           }
         }
         break;
@@ -503,7 +536,7 @@ const AppContent = () => {
       default:
         break;
     }
-  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation, currentCharacter, allCharacters]);
+  }, [setShowBackgroundSheet, setShowCostumeSheet, setShowCharacterSheet, navigation, currentCharacter, allCharacters, isPro, currentCostume]);
 
   const {
     state: chatState,
@@ -654,13 +687,17 @@ const AppContent = () => {
   useEffect(() => {
     if (initialData?.preference?.backgroundId) {
       setCurrentBackgroundId(initialData.preference.backgroundId);
+    } else if (initialData?.character?.background_default_id) {
+      // Fallback: use character's default background
+      setCurrentBackgroundId(initialData.character.background_default_id);
+      console.log('[App] No background preference, using character default:', initialData.character.background_default_id);
     } else if (initialData?.ownedBackgroundIds && initialData.ownedBackgroundIds.length > 0) {
-      // Fallback: if no cached preference, select first owned background as default
+      // Last fallback: select first owned background
       const firstOwnedBgId = initialData.ownedBackgroundIds[0];
       setCurrentBackgroundId(firstOwnedBgId);
-      console.log('[App] No background preference, using first owned:', firstOwnedBgId);
+      console.log('[App] No background preference or character default, using first owned:', firstOwnedBgId);
     }
-  }, [initialData?.preference?.backgroundId, initialData?.ownedBackgroundIds]);
+  }, [initialData?.preference?.backgroundId, initialData?.character?.background_default_id, initialData?.ownedBackgroundIds]);
 
   // Sync ownedBackgroundIds from initialData
   useEffect(() => {
@@ -1033,7 +1070,6 @@ const AppContent = () => {
             if (!ownedBgs.has(item.background_default_id)) {
               await assetRepo.createAsset(item.background_default_id, 'background');
               ownedBgs.add(item.background_default_id);
-              console.log('[App] Granted ownership of default background during switch:', item.background_default_id);
             }
 
             // Apply default background
@@ -1693,9 +1729,17 @@ const AppContent = () => {
     streakSheetRef.current?.present();
   }, []);
 
+  // Determine if user is still in onboarding/character selection flow
+  const isInCharacterSelectionFlow = !hasRestoredSession || !session || authManager.isNewUser === true || showOnboardingV2;
+
   useEffect(() => {
     ensureWebBridge();
-    ensureInitialModelApplied(webViewRef);
+
+    // Only apply initial model when user has completed character selection
+    // Otherwise the VRMWebView would load a model from cached data before the user picks a character
+    if (!isInCharacterSelectionFlow) {
+      ensureInitialModelApplied(webViewRef);
+    }
 
     // Initialize OneSignal
     oneSignalService.initialize();
@@ -1704,26 +1748,13 @@ const AppContent = () => {
     analyticsService.logAppOpen();
 
     // Note: RevenueCat is now initialized and managed by SubscriptionProvider
-  }, [ensureInitialModelApplied, ensureWebBridge]);
+  }, [ensureInitialModelApplied, ensureWebBridge, isInCharacterSelectionFlow]);
 
 
   const shouldShowSignIn = hasRestoredSession && !session;
 
-  // Preload random VRM files if waiting at SignIn screen
-  useEffect(() => {
-    if (shouldShowSignIn) {
-      const timer = setTimeout(() => {
-        webViewRef.current?.injectJavaScript(`
-          if(window.loadRandomFiles) {
-             console.log('Native forcing loadRandomFiles for caching...');
-             window.loadRandomFiles();
-          }
-          true;
-        `);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [shouldShowSignIn]);
+  // Note: Do NOT preload or load any VRM model when at SignIn screen.
+  // User has not selected a character yet, so any random model load would be incorrect.
 
   useEffect(() => {
     setOverlayFlags(prev => ({
@@ -1742,8 +1773,11 @@ const AppContent = () => {
   const handleModelReady = useCallback(async () => {
     console.log('🎉 [App] VRM Model is ready!');
     ensureWebBridge();
-    await ensureInitialModelApplied(webViewRef);
-  }, [ensureInitialModelApplied, ensureWebBridge]);
+    // Only apply initial model if user has completed character selection
+    if (!isInCharacterSelectionFlow) {
+      await ensureInitialModelApplied(webViewRef);
+    }
+  }, [ensureInitialModelApplied, ensureWebBridge, isInCharacterSelectionFlow]);
 
   const handleMessage = (message: string) => {
     console.log('📨 [App] Message from WebView:', message);
@@ -2230,7 +2264,7 @@ const AppContent = () => {
           <Animated.View
             style={{
               ...StyleSheet.absoluteFillObject,
-              zIndex: 90,
+              zIndex: 101,
               opacity: vrmModeAnim,
               transform: [{
                 translateY: vrmModeAnim.interpolate({

@@ -1,5 +1,10 @@
 import { BaseRepository } from './BaseRepository';
 
+export interface CostumeItemMetadata {
+  isLocked?: boolean;
+  [key: string]: any;
+}
+
 export interface CostumeItem {
   id: string;
   character_id: string;
@@ -13,6 +18,7 @@ export interface CostumeItem {
   price_vcoin?: number | null;
   price_ruby?: number | null;
   streak_days?: number | null;
+  metadata?: CostumeItemMetadata | null;
   created_at?: string;
 }
 
@@ -28,7 +34,7 @@ export class CostumeRepository extends BaseRepository {
     const { data, error } = await this.client
       .from('character_costumes')
       .select(
-        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,created_at'
+        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,metadata,created_at'
       )
       .eq('character_id', targetCharacterId)
       .eq('available', true)
@@ -45,7 +51,7 @@ export class CostumeRepository extends BaseRepository {
     const { data, error } = await this.client
       .from('character_costumes')
       .select(
-        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,created_at'
+        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,metadata,created_at'
       )
       .eq('id', costumeId)
       .limit(1);
@@ -55,6 +61,35 @@ export class CostumeRepository extends BaseRepository {
     }
 
     return data && data.length > 0 ? data[0] : null;
+  }
+
+  async fetchLockedCostume(characterId: string): Promise<CostumeItem | null> {
+    const { data, error } = await this.client
+      .from('character_costumes')
+      .select(
+        'id,character_id,costume_name,url,video_url,thumbnail,model_url,tier,available,price_vcoin,price_ruby,streak_days,metadata,created_at'
+      )
+      .eq('character_id', characterId)
+      .contains('metadata', { isLocked: true })
+      .limit(1);
+
+    if (error) {
+      console.warn('[CostumeRepository] Failed to fetch locked costume:', error.message);
+      return null;
+    }
+
+    return data && data.length > 0 ? data[0] : null;
+  }
+
+  async updateCostumeMetadata(costumeId: string, metadata: CostumeItemMetadata): Promise<void> {
+    const { error } = await this.client
+      .from('character_costumes')
+      .update({ metadata })
+      .eq('id', costumeId);
+
+    if (error) {
+      console.warn(`[CostumeRepository] Failed to update metadata for costume ${costumeId}:`, error.message);
+    }
   }
 }
 

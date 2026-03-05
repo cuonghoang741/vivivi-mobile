@@ -1485,43 +1485,17 @@
                 if (!initialBackgroundReady) { initialBackgroundReady = true; notifyInitialReadyIfDone(); }
             }
 
-            // Allow native (Swift) to preselect a model name or URL for later, but do not auto-load here.
-            // Swift will explicitly call window.loadModelByName/URL at the appropriate time after preferences/assets are ready.
+            // Do NOT auto-load any VRM model here.
+            // The native side (ensureInitialModelApplied) will explicitly call
+            // window.loadModelByName() or window.loadModelByURL() when the user
+            // has completed character selection and the app is ready.
+            // This prevents a "random" model from appearing before character selection is done.
             const nativeName = (typeof window.nativeSelectedModelName === 'string' && window.nativeSelectedModelName.trim().length) ? window.nativeSelectedModelName.trim() : null;
             const nativeURL = (typeof window.nativeSelectedModelURL === 'string' && window.nativeSelectedModelURL.trim().length) ? window.nativeSelectedModelURL.trim() : null;
-            const isReactNative =
-                typeof window.__isReactNativeShell !== 'undefined'
-                    ? !!window.__isReactNativeShell
-                    : typeof window.ReactNativeWebView !== 'undefined';
-            console.log('🔍 Initial model context', { nativeName, nativeURL, isReactNative });
+            console.log('🔍 Initial model context (will NOT auto-load, waiting for native):', { nativeName, nativeURL });
 
-            // Auto-load model if provided (for React Native version)
-            if (nativeName) {
-                try {
-                    console.log('📦 Loading model by name:', nativeName);
-                    await window.loadModelByName(nativeName);
-                } catch (e) {
-                    console.error('Failed to load model by name:', e);
-                    if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-                }
-            } else if (nativeURL) {
-                try {
-                    console.log('📦 Loading model by URL:', nativeURL);
-                    await window.loadModelByURL(nativeURL);
-                } catch (e) {
-                    console.error('Failed to load model by URL:', e);
-                    if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-                }
-            } else if (!isReactNative) {
-                // If no model selected, we used to load a random model.
-                // Now disabled per user request.
-                if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-            } else {
-                // Running inside React Native but no persisted selection yet.
-                // Avoid flashing a random model; wait for native to instruct via injected JS.
-                console.log('⏳ React Native context detected with no persisted VRM. Waiting for native model load...');
-                if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
-            }
+            // Mark animation as ready immediately so initialReady can fire once native loads a model
+            if (!initialAnimationApplied) { initialAnimationApplied = true; notifyInitialReadyIfDone(); }
 
             // No HTML-side BGM initialization
         });

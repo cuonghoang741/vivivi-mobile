@@ -557,7 +557,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                     Terms of Use
                                 </LinkText>
                             </View>
-                            {isPro && (
+                            {/* {isPro && (
                                 <Pressable
                                     style={styles.cancelButton}
                                     onPress={() => {
@@ -570,7 +570,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
                                 >
                                     <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
                                 </Pressable>
-                            )}
+                            )} */}
                         </View>
                     </View>
                 </View>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -88,10 +89,16 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
       const filtered = costumes.filter(costume => costume.available !== false);
 
-      // Sort: Owned first, then streak items, then others
+      // Sort: Owned first, then streak items, then others, locked items last
       const sorted = filtered.sort((a, b) => {
         const ownedA = ownedSet.has(a.id);
         const ownedB = ownedSet.has(b.id);
+
+        // Metadata-locked items always go last
+        const metaLockedA = a.metadata?.isLocked === true;
+        const metaLockedB = b.metadata?.isLocked === true;
+        if (metaLockedA !== metaLockedB) return metaLockedA ? 1 : -1;
+
         if (ownedA !== ownedB) return ownedA ? -1 : 1;
 
         // Streak items after owned but before regular locked
@@ -119,6 +126,16 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
   const handleSelect = useCallback(async (item: CostumeItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
+
+    // Check metadata isLocked first
+    if (item.metadata?.isLocked === true) {
+      Alert.alert(
+        '🔒',
+        "This is a secret that you'll surely love, do your best to unlock it.",
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
     const isOwned = ownedCostumeIds.has(item.id);
     const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
@@ -155,6 +172,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
       const isStreakLocked = !isPro && isStreakItem && !isOwned && streakDays < (item.streak_days ?? 0);
       const isProLocked = !isPro && !isOwned && !isStreakItem;
+      const isMetaLocked = item.metadata?.isLocked === true;
 
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;
@@ -179,34 +197,39 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
                 style={[
                   styles.image,
                   { width: itemWidth, height: itemHeight },
-                  isStreakLocked && styles.imageBlurred
+                  (isStreakLocked || isMetaLocked) && styles.imageBlurred
                 ]}
                 resizeMode="cover"
-                blurRadius={isStreakLocked ? 10 : 0}
+                blurRadius={(isStreakLocked || isMetaLocked) ? 10 : 0}
               />
             ) : null}
 
-            {(isProLocked || isStreakLocked) && (
+            {(isProLocked || isStreakLocked || isMetaLocked) && (
               <View style={[styles.darkenOverlay, { width: itemWidth, height: itemHeight }]} />
             )}
 
             {/* Diamond Badge for PRO locked items */}
-            {isProLocked && (
+            {isProLocked && !isMetaLocked && (
               <DiamondBadge size="sm" style={styles.diamondBadgeContainer} />
             )}
 
             {/* Diamond badge for Streak items */}
-            {isStreakItem && !isOwned && (
+            {isStreakItem && !isOwned && !isMetaLocked && (
               <DiamondBadge size="sm" style={styles.streakBadgeContainer} />
             )}
 
-            {/* Lock overlay content */}
-            {(isProLocked || isStreakLocked) ? (
+            {/* Metadata locked overlay - key icon */}
+            {isMetaLocked && (
               <View style={styles.lockContentContainer}>
-                {/* <View style={[styles.lockIconCircle, isStreakLocked && styles.glassCircle]}>
-                  <Ionicons name="lock-closed" size={16} color="#fff" />
-                </View> */}
+                <View style={styles.metaLockIconCircle}>
+                  <Ionicons name="key" size={20} color="#fff" />
+                </View>
+              </View>
+            )}
 
+            {/* Lock overlay content */}
+            {!isMetaLocked && (isProLocked || isStreakLocked) ? (
+              <View style={styles.lockContentContainer}>
                 {isStreakLocked && (
                   <Text style={styles.streakLockText}>
                     Hit {item.streak_days}-day{'\n'}streak
@@ -216,7 +239,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
             ) : null}
           </LiquidGlass>
           <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
-            {item.costume_name}
+            {isMetaLocked ? '???' : item.costume_name}
           </Text>
         </View>
       );
@@ -409,6 +432,14 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metaLockIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
