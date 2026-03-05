@@ -62,6 +62,7 @@ import { OTAAutoUpdate } from './src/services/OTA-update/OTAAutoUpdate';
 import { AppsFlyerService } from './src/services/AppsFlyerService';
 import { FacebookService } from './src/services/FacebookService';
 import { TikTokService } from './src/services/TikTokService';
+import { ConfirmDialog } from './src/components/ConfirmDialog';
 
 type RootStackParamList = {
   Experience: { purchaseCharacterId?: string; selectedCharacterId?: string } | undefined;
@@ -148,6 +149,7 @@ const AppContent = () => {
   const [isDancing, setIsDancing] = useState(false);
   const [isCharacterBlurred, setIsCharacterBlurred] = useState(false);
   const [showRewardOverlay, setShowRewardOverlay] = useState(false);
+  const [unlockDialogVisible, setUnlockDialogVisible] = useState(false);
   const [rewardOverlayData, setRewardOverlayData] = useState<{
     title: string;
     subtitle?: string;
@@ -412,78 +414,101 @@ const AppContent = () => {
             if (!isPro) {
               setIsCharacterBlurred(true);
 
-              Alert.alert(
-                'Unlock All',
-                'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
-                [
-                  {
-                    text: 'Go Back',
-                    style: 'cancel',
-                    onPress: async () => {
-                      // Revert costume
-                      if (currentCharacter && webViewRef.current) {
-                        try {
-                          const currentCostumeId = currentCostume?.id;
-                          if (currentCostumeId) {
-                            await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
-                          } else {
-                            // Fallback to default or base
-                            const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
-                            if (fullChar?.default_costume_id) {
-                              await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
-                            } else if (fullChar?.base_model_url) {
-                              await UserCharacterPreferenceService.loadFallbackModel(
-                                currentCharacter.name,
-                                fullChar.base_model_url,
-                                webViewRef,
-                                currentCharacter.id
-                              );
+              if (Platform.OS === 'android') {
+                setUnlockDialogVisible(true);
+              } else {
+                Alert.alert(
+                  'Unlock All',
+                  'For the moments only lovers are meant to share. Unlock the way we really feel about each other.',
+                  [
+                    {
+                      text: 'Go Back',
+                      style: 'cancel',
+                      onPress: async () => {
+                        // Revert costume
+                        if (currentCharacter && webViewRef.current) {
+                          try {
+                            const currentCostumeId = currentCostume?.id;
+                            if (currentCostumeId) {
+                              await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                            } else {
+                              // Fallback to default or base
+                              const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                              if (fullChar?.default_costume_id) {
+                                await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                              } else if (fullChar?.base_model_url) {
+                                await UserCharacterPreferenceService.loadFallbackModel(
+                                  currentCharacter.name,
+                                  fullChar.base_model_url,
+                                  webViewRef,
+                                  currentCharacter.id
+                                );
+                              }
                             }
+                            // Wait for reload then unblur
+                            setTimeout(() => setIsCharacterBlurred(false), 1000);
+                          } catch (e) {
+                            console.warn("Revert failed", e);
+                            setIsCharacterBlurred(false);
                           }
-                          // Wait for reload then unblur
-                          setTimeout(() => setIsCharacterBlurred(false), 1000);
-                        } catch (e) {
-                          console.warn("Revert failed", e);
+                        } else {
                           setIsCharacterBlurred(false);
                         }
-                      } else {
-                        setIsCharacterBlurred(false);
+                      }
+                    },
+                    {
+                      text: 'Upgrade',
+                      onPress: () => {
+                        pendingNudeRevertRef.current = true;
+                        setShowSubscriptionSheet(true);
+                        // Keep blurred
                       }
                     }
-                  },
-                  {
-                    text: 'Upgrade',
-                    onPress: () => {
-                      pendingNudeRevertRef.current = true;
-                      setShowSubscriptionSheet(true);
-                      // Keep blurred
-                    }
-                  }
-                ]
-              );
+                  ]
+                );
+              }
             }
 
-            // Try to find "Nude" costume from DB first, fallback to hardcoded URL
+            // Try to find a random secret costume from DB first, fallback to hardcoded URL
             (async () => {
               try {
                 const costumeRepo = new CostumeRepository();
-                const nudeCostume = await costumeRepo.fetchLockedCostume(currentCharacter.id);
+                // Find all costumes, including unavailable ones
+                const allCostumes = await costumeRepo.fetchCostumes(currentCharacter.id, true);
+
+                // Find all costumes that have an 'isLocked' config in metadata (true or false)
+                const secretCostumes = allCostumes.filter(c => c.metadata && c.metadata.isLocked !== undefined);
+
+                console.log('[App] Secret costumes:', secretCostumes);
+
+                let nudeCostume = null;
+                if (secretCostumes.length > 0) {
+                  const randomIndex = Math.floor(Math.random() * secretCostumes.length);
+                  nudeCostume = secretCostumes[randomIndex];
+                }
 
                 if (nudeCostume && nudeCostume.model_url) {
-                  console.log('[App] Found locked costume in DB:', nudeCostume.id);
+                  console.log('[App] Randomly selected secret costume in DB:', nudeCostume.id);
 
-                  // Update isLocked to false in metadata (unlock the key UI)
-                  const updatedMetadata = { ...(nudeCostume.metadata || {}), isLocked: false };
-                  costumeRepo.updateCostumeMetadata(nudeCostume.id, updatedMetadata).catch(err => {
-                    console.warn('[App] Failed to update nude costume metadata:', err);
-                  });
+                  // Update isLocked to false in metadata (unlock the key UI) if it was true
+                  if (nudeCostume.metadata?.isLocked === true) {
+                    console.log(`[App] Attempting to unlock costume: ${nudeCostume.id}...`);
+                    const updatedMetadata = { ...(nudeCostume.metadata || {}), isLocked: false };
+                    costumeRepo.updateCostumeMetadata(nudeCostume.id, updatedMetadata).then(() => {
+                      console.log('[App] ✅ Successfully updated metadata to unlock the costume!');
+                    }).catch((err: any) => {
+                      console.warn('[App] ❌ Failed to update nude costume metadata:', err);
+                    });
+                  } else {
+                    console.log(`[App] Costume ${nudeCostume.id} is already unlocked.`);
+                  }
 
                   // Load the costume model from DB
                   if (webViewRef.current) {
                     const escapedURL = nudeCostume.model_url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
                     const escapedName = (nudeCostume.costume_name || 'Nude').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
                     const js = `window.loadModelByURL("${escapedURL}", "${escapedName}");`;
-                    webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return 'READY';}catch(e){return 'READY';}})();`);
+                    webViewRef.current.injectJavaScript(`(async()=>{try{const r=(function(){${js}})(); if(r&&typeof r.then==='function'){await r;} return true;}catch(e){return true;}})(); true;`);
                   }
                 } else {
                   // Fallback to hardcoded URL
@@ -2406,6 +2431,52 @@ const AppContent = () => {
             }}
           />
         )}
+
+        <ConfirmDialog
+          visible={unlockDialogVisible}
+          title="Unlock All"
+          message="For the moments only lovers are meant to share. Unlock the way we really feel about each other."
+          cancelText="Go Back"
+          confirmText="Upgrade"
+          onCancel={async () => {
+            // Revert costume
+            if (currentCharacter && webViewRef.current) {
+              try {
+                const currentCostumeId = currentCostume?.id;
+                if (currentCostumeId) {
+                  await UserCharacterPreferenceService.applyCostumeById(currentCostumeId, webViewRef, currentCharacter.id);
+                } else {
+                  // Fallback to default or base
+                  const fullChar = allCharacters.find(c => c.id === currentCharacter.id);
+                  if (fullChar?.default_costume_id) {
+                    await UserCharacterPreferenceService.applyCostumeById(fullChar.default_costume_id, webViewRef, currentCharacter.id);
+                  } else if (fullChar?.base_model_url) {
+                    await UserCharacterPreferenceService.loadFallbackModel(
+                      currentCharacter.name,
+                      fullChar.base_model_url,
+                      webViewRef,
+                      currentCharacter.id
+                    );
+                  }
+                }
+                // Wait for reload then unblur
+                setTimeout(() => setIsCharacterBlurred(false), 1000);
+              } catch (e) {
+                console.warn("Revert failed", e);
+                setIsCharacterBlurred(false);
+              }
+            } else {
+              setIsCharacterBlurred(false);
+            }
+            setUnlockDialogVisible(false);
+          }}
+          onConfirm={() => {
+            pendingNudeRevertRef.current = true;
+            setShowSubscriptionSheet(true);
+            setUnlockDialogVisible(false);
+            // Keep blurred
+          }}
+        />
 
         <StreakRewardPopup
           visible={!!streakRewardCostume}

@@ -51,3 +51,6 @@ dist
 
 build-*.ipa
 build-*.aabservice-account.json
+
+scripts/rooms
+scripts/thumb_rooms

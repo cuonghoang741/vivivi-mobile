@@ -10,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Skeleton } from '../ui/Skeleton';
@@ -22,6 +23,10 @@ import { DiamondBadge } from '../DiamondBadge';
 import { BottomSheet, type BottomSheetRef } from '../BottomSheet';
 import { LiquidGlass } from '../LiquidGlass';
 import { useVRMContext } from '../../context/VRMContext';
+
+type CostumeListItem =
+  | { type: 'costume'; data: CostumeItem }
+  | { type: 'secret'; count: number };
 
 interface CostumeSheetProps {
   isOpened: boolean;
@@ -80,24 +85,24 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
       const costumeRepository = new CostumeRepository();
       const assetRepository = new AssetRepository();
       const [costumes, ownedIds] = await Promise.all([
-        costumeRepository.fetchCostumes(effectiveCharacterId),
+        costumeRepository.fetchCostumes(effectiveCharacterId, true),
         assetRepository.fetchOwnedAssets('character_costume'),
       ]);
 
       const ownedSet = ownedIds instanceof Set ? ownedIds : new Set(ownedIds as Iterable<string>);
       setOwnedCostumeIds(new Set(ownedSet));
 
-      const filtered = costumes.filter(costume => costume.available !== false);
+      const filtered = costumes.filter(costume =>
+        costume.available !== false || (costume.metadata && costume.metadata.isLocked !== undefined)
+      );
 
-      // Sort: Owned first, then streak items, then others, locked items last
       const sorted = filtered.sort((a, b) => {
         const ownedA = ownedSet.has(a.id);
         const ownedB = ownedSet.has(b.id);
 
-        // Metadata-locked items always go last
-        const metaLockedA = a.metadata?.isLocked === true;
-        const metaLockedB = b.metadata?.isLocked === true;
-        if (metaLockedA !== metaLockedB) return metaLockedA ? 1 : -1;
+        const lockedA = a.metadata?.isLocked === true;
+        const lockedB = b.metadata?.isLocked === true;
+        if (lockedA !== lockedB) return lockedA ? 1 : -1;
 
         if (ownedA !== ownedB) return ownedA ? -1 : 1;
 
@@ -124,18 +129,17 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     }
   }, [isOpened, load]);
 
+  const handleSecretPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
+    Alert.alert(
+      '🔒',
+      "This is a secret that you'll surely love, do your best to unlock it.",
+      [{ text: 'OK' }]
+    );
+  }, []);
+
   const handleSelect = useCallback(async (item: CostumeItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
-
-    // Check metadata isLocked first
-    if (item.metadata?.isLocked === true) {
-      Alert.alert(
-        '🔒',
-        "This is a secret that you'll surely love, do your best to unlock it.",
-        [{ text: 'OK' }]
-      );
-      return;
-    }
 
     const isOwned = ownedCostumeIds.has(item.id);
     const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
@@ -166,13 +170,12 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     }
   }, [isPro, ownedCostumeIds, selectCostume, onOpenSubscription, onOpenStreak, streakDays]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: CostumeItem }) => {
+  const renderCostumeCard = useCallback(
+    (item: CostumeItem) => {
       const isOwned = ownedCostumeIds.has(item.id);
       const isStreakItem = typeof item.streak_days === 'number' && item.streak_days > 0;
       const isStreakLocked = !isPro && isStreakItem && !isOwned && streakDays < (item.streak_days ?? 0);
       const isProLocked = !isPro && !isOwned && !isStreakItem;
-      const isMetaLocked = item.metadata?.isLocked === true;
 
       const itemWidth = (width - 40 - 24) / 3;
       const itemHeight = itemWidth / 0.7;
@@ -197,38 +200,29 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
                 style={[
                   styles.image,
                   { width: itemWidth, height: itemHeight },
-                  (isStreakLocked || isMetaLocked) && styles.imageBlurred
+                  isStreakLocked && styles.imageBlurred
                 ]}
                 resizeMode="cover"
-                blurRadius={(isStreakLocked || isMetaLocked) ? 10 : 0}
+                blurRadius={isStreakLocked ? 10 : 0}
               />
             ) : null}
 
-            {(isProLocked || isStreakLocked || isMetaLocked) && (
+            {(isProLocked || isStreakLocked) && (
               <View style={[styles.darkenOverlay, { width: itemWidth, height: itemHeight }]} />
             )}
 
             {/* Diamond Badge for PRO locked items */}
-            {isProLocked && !isMetaLocked && (
+            {isProLocked && (
               <DiamondBadge size="sm" style={styles.diamondBadgeContainer} />
             )}
 
             {/* Diamond badge for Streak items */}
-            {isStreakItem && !isOwned && !isMetaLocked && (
+            {isStreakItem && !isOwned && (
               <DiamondBadge size="sm" style={styles.streakBadgeContainer} />
             )}
 
-            {/* Metadata locked overlay - key icon */}
-            {isMetaLocked && (
-              <View style={styles.lockContentContainer}>
-                <View style={styles.metaLockIconCircle}>
-                  <Ionicons name="key" size={20} color="#fff" />
-                </View>
-              </View>
-            )}
-
             {/* Lock overlay content */}
-            {!isMetaLocked && (isProLocked || isStreakLocked) ? (
+            {(isProLocked || isStreakLocked) ? (
               <View style={styles.lockContentContainer}>
                 {isStreakLocked && (
                   <Text style={styles.streakLockText}>
@@ -239,12 +233,93 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
             ) : null}
           </LiquidGlass>
           <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
-            {isMetaLocked ? '???' : item.costume_name}
+            {item.costume_name}
           </Text>
         </View>
       );
     },
-    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground]
+    [handleSelect, ownedCostumeIds, width, secondaryTextColor, isPro, streakDays, isDarkBackground, currentCostume]
+  );
+
+  const renderSecretCard = useCallback(
+    (count: number) => {
+      const itemWidth = (width - 40 - 24) / 3;
+      const itemHeight = itemWidth / 0.7;
+
+      return (
+        <View style={[styles.itemContainer, { width: itemWidth }]}>
+          <Pressable onPress={handleSecretPress}>
+            <LinearGradient
+              colors={['rgba(255, 130, 180, 0.15)', 'rgba(255, 87, 154, 0.1)', 'rgba(200, 60, 120, 0.08)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.secretCard,
+                { width: itemWidth, height: itemHeight },
+              ]}
+            >
+              {/* Sparkle decorations */}
+              <View style={[styles.sparkle, { top: '15%', left: '18%' }]}>
+                <Ionicons name="sparkles" size={10} color="rgba(255, 130, 180, 0.35)" />
+              </View>
+              <View style={[styles.sparkle, { top: '25%', right: '15%' }]}>
+                <Ionicons name="sparkles" size={8} color="rgba(255, 150, 200, 0.3)" />
+              </View>
+              <View style={[styles.sparkle, { bottom: '20%', left: '22%' }]}>
+                <Ionicons name="sparkles" size={7} color="rgba(255, 120, 170, 0.3)" />
+              </View>
+
+              {/* Key icon */}
+              <View style={styles.secretIconContainer}>
+                <LinearGradient
+                  colors={['rgba(255, 130, 180, 0.2)', 'rgba(255, 87, 154, 0.12)']}
+                  style={styles.secretIconGlow}
+                >
+                  <Ionicons name="key" size={22} color="rgba(255, 120, 170, 0.7)" />
+                </LinearGradient>
+              </View>
+
+              {/* Secret count text */}
+              <Text style={styles.secretLabel}>
+                {count} {count === 1 ? 'secret' : 'secrets'}
+              </Text>
+            </LinearGradient>
+          </Pressable>
+          <Text style={[styles.itemName, { color: secondaryTextColor }]} numberOfLines={1}>
+            Secret
+          </Text>
+        </View>
+      );
+    },
+    [width, secondaryTextColor, handleSecretPress]
+  );
+
+  // Build the list data with secret card appended
+  const listData = useMemo((): CostumeListItem[] => {
+    if (isPro) {
+      // PRO users see all costumes directly
+      return items.map(item => ({ type: 'costume' as const, data: item }));
+    }
+
+    // Free users see normal items, and one secret card for locked ones
+    const normalItems = items.filter(c => c.metadata?.isLocked !== true);
+    const hiddenCount = items.filter(c => c.metadata?.isLocked === true).length;
+
+    const costumeItems: CostumeListItem[] = normalItems.map(item => ({ type: 'costume' as const, data: item }));
+    if (hiddenCount > 0) {
+      costumeItems.push({ type: 'secret' as const, count: hiddenCount });
+    }
+    return costumeItems;
+  }, [items, isPro]);
+
+  const renderListItem = useCallback(
+    ({ item }: { item: CostumeListItem }) => {
+      if (item.type === 'secret') {
+        return renderSecretCard(item.count);
+      }
+      return renderCostumeCard(item.data);
+    },
+    [renderCostumeCard, renderSecretCard]
   );
 
   const renderContent = () => {
@@ -299,9 +374,9 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     return (
       <View style={{ flex: 1, maxHeight: height * 0.9 }}>
         <FlatList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
+          data={listData}
+          renderItem={renderListItem}
+          keyExtractor={(item, index) => item.type === 'costume' ? item.data.id : `secret-${index}`}
           numColumns={3}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
@@ -427,25 +502,6 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 5,
   },
-  lockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metaLockIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glassCircle: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
   streakLockText: {
     color: '#fff',
     fontSize: 11,
@@ -455,6 +511,36 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  // Secret card styles
+  secretCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 130, 180, 0.15)',
+  },
+  sparkle: {
+    position: 'absolute',
+  },
+  secretIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secretIconGlow: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secretLabel: {
+    color: 'rgba(255, 130, 180, 0.8)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
   },
   pressed: {
     opacity: 0.85,
