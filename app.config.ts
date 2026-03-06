@@ -65,10 +65,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     permissions: [
       'android.permission.CAMERA',
       'android.permission.RECORD_AUDIO',
-      'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE',
+    ],
+    blockedPermissions: [
       'android.permission.READ_MEDIA_IMAGES',
       'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+      'android.permission.READ_EXTERNAL_STORAGE',
     ],
     intentFilters: [
       {

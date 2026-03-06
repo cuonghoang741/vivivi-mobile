@@ -316,8 +316,11 @@ const AppContent = () => {
           assetRepo.fetchOwnedAssets('character'),
         ]);
 
+        console.log('[DEBUG loadCharacters] total characters:', characters.length, 'owned count:', owned.size, 'owned ids:', [...owned]);
+
         // Filter to only owned characters
         const ownedCharacters = characters.filter(c => owned.has(c.id));
+        console.log('[DEBUG loadCharacters] ownedCharacters:', ownedCharacters.length, ownedCharacters.map(c => c.id));
         setAllCharacters(ownedCharacters);
         setOwnedCharacterIds(owned);
       } catch (error) {
@@ -818,7 +821,7 @@ const AppContent = () => {
   );
 
   const ensureMediaPermission = useCallback(async () => {
-    const current = await MediaLibrary.getPermissionsAsync();
+    const current = await MediaLibrary.getPermissionsAsync(true);
     if (current.granted) {
       return true;
     }
@@ -2285,6 +2288,7 @@ const AppContent = () => {
           />
         </Animated.View>
         {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
+        {console.log('[DEBUG QuickSwitcher] allCharacters:', allCharacters.length, 'isCameraMode:', isCameraMode, 'voiceConnected:', voiceState.isConnected, 'chatFullScreen:', isChatFullScreen, 'isVrmMode:', isVrmMode, 'currentIndex:', currentCharacterIndex)}
         {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
           <Animated.View
             style={{
