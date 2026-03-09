@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  LayoutAnimation,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -376,9 +377,20 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
     }
   }, []);
 
-  const pushScreen = useCallback((screen: SettingsScreen) => setScreenStack(prev => [...prev, screen]), []);
-  const popScreen = useCallback(() => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev)), []);
-  const resetToRoot = useCallback(() => setScreenStack([{ key: 'root' }]), []);
+  const pushScreen = useCallback((screen: SettingsScreen) => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(200, 'easeInEaseOut', 'opacity'));
+    setScreenStack(prev => [...prev, screen]);
+  }, []);
+
+  const popScreen = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(200, 'easeInEaseOut', 'opacity'));
+    setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  }, []);
+
+  const resetToRoot = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(200, 'easeInEaseOut', 'opacity'));
+    setScreenStack([{ key: 'root' }]);
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {

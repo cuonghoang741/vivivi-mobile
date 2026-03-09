@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   },
   overlayContent: {
     gap: 6,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     // Ensure content is visible
     minHeight: 0,
   },

@@ -5,9 +5,19 @@ import {
   StyleSheet,
   Pressable,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import * as Haptics from 'expo-haptics';
 import type { CharacterItem } from '../repositories/CharacterRepository';
 
@@ -46,6 +56,13 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
 
   // Animate khi đổi nhân vật được chọn (giả lập swipe feedback)
   useEffect(() => {
+    LayoutAnimation.configureNext({
+      duration: 350,
+      create: { type: 'easeInEaseOut', property: 'opacity' },
+      update: { type: 'spring', springDamping: 0.7 },
+      delete: { type: 'easeInEaseOut', property: 'opacity' },
+    });
+
     selectionAnim.setValue(0);
     Animated.spring(selectionAnim, {
       toValue: 1,
@@ -102,13 +119,9 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
       {displayItems.map((item) => {
         const itemIndex = characters.findIndex(c => c.id === item.id);
         const isSelected = item.id === characters[currentIndex]?.id;
-        const animatedScale = selectionAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.9, 1.0],
-        });
         const animatedOpacity = selectionAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: [0.7, 1.0],
+          outputRange: [0.6, 1.0],
         });
         const avatarURL = item.avatar || item.thumbnail_url || '';
         const unseenCount = unseenCounts[item.id] || 0;
@@ -119,8 +132,8 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
               style={[
                 styles.avatarContainer,
                 isSelected
-                  ? { opacity: animatedOpacity, transform: [{ scale: animatedScale }] }
-                  : { opacity: 0.5, transform: [{ scale: 0.92 }] },
+                  ? { opacity: animatedOpacity }
+                  : { opacity: 0.6 },
               ]}
             >
               <Pressable
@@ -168,7 +181,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
           onAddCharacter();
         }}
       >
-        <Ionicons name="add-circle" size={24} color="#fff" style={styles.addIcon} />
+        <Ionicons name="add-circle" size={26} color="#fff" style={styles.addIcon} />
         <View style={styles.addButtonBorder} />
       </Pressable>
     </Animated.View>
@@ -187,9 +200,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   avatarContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     overflow: 'hidden',
   },
   avatar: {
@@ -203,7 +216,7 @@ const styles = StyleSheet.create({
   },
   avatarBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
+    borderRadius: 25,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
   },
@@ -227,9 +240,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -240,7 +253,7 @@ const styles = StyleSheet.create({
   },
   addButtonBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
+    borderRadius: 25,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
   },

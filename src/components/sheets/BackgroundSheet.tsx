@@ -190,7 +190,7 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
           ) : null}
 
           {item.video_url && (
-            <Button variant='liquid'
+            <View pointerEvents="none"
               style={[styles.videoIconContainer, {
                 backgroundColor: !isDarkBackground ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
               }]}
@@ -198,16 +198,16 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
               <IconCarambolaFilled size={14}
                 color="rgba(255,255,255,0.9)"
               />
-            </Button>
+            </View>
           )}
 
-          <Button variant='liquid' style={styles.themeIconContainer}>
+          <View pointerEvents="none" style={styles.themeIconContainer}>
             <Ionicons
               name={item.is_dark ? "moon" : "sunny"}
               size={14}
               color="rgba(255,255,255,0.9)"
             />
-          </Button>
+          </View>
 
           {isLocked && (
             <View style={[styles.darkenOverlay, { width: itemWidth, height: itemWidth }]} />

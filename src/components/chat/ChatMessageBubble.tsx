@@ -146,8 +146,8 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '82%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
     marginVertical: 4,
   },
@@ -157,8 +157,8 @@ const styles = StyleSheet.create({
   },
   compactBubble: {
     maxWidth: '90%',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   agentBubble: {
     backgroundColor: 'rgba(244, 28, 42, 0.33)',

@@ -53,6 +53,8 @@ export const ChatInputBar: React.FC<Props> = ({
   const textColor = isDarkBackground ? '#fff' : '#000';
   const placeholderColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
 
+  const inputRef = useRef<TextInput>(null);
+
   // Pulsing animation for user speaking indicator
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -147,6 +149,7 @@ export const ChatInputBar: React.FC<Props> = ({
       <LiquidGlass style={styles.liquidGlass} isDarkBackground={isDarkBackground}>
         <View style={styles.row}>
           <TextInput
+            ref={inputRef}
             style={[styles.input, { color: textColor }]}
             value={value}
             onChangeText={onChangeText}
@@ -154,7 +157,11 @@ export const ChatInputBar: React.FC<Props> = ({
             placeholderTextColor={placeholderColor}
             editable={!disabled}
             returnKeyType="send"
-            onSubmitEditing={onSend}
+            onSubmitEditing={() => {
+              onSend();
+              inputRef.current?.focus();
+            }}
+            blurOnSubmit={false}
           />
           <View style={styles.rightActions}>
             {showSend && (
@@ -168,6 +175,7 @@ export const ChatInputBar: React.FC<Props> = ({
                 onPress={() => {
                   if (disabled) return;
                   onSend();
+                  inputRef.current?.focus();
                 }}
               >
                 <IconSend2 width={20} height={20} color={textColor} />

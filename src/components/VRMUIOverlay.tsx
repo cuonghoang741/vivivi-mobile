@@ -23,7 +23,6 @@ import {
   IconVolumeOff,
   IconChevronDown,
   IconChevronUp,
-  IconHanger,
   IconMessageOff,
   IconMessageCircle,
   IconMessageCircleOff,
@@ -35,6 +34,7 @@ import { HapticPressable } from "./ui/HapticPressable";
 import { NotificationDot } from "./ui/NotificationDot";
 import StreakIcon from "../assets/icons/streak.svg";
 import DiamondPinkIcon from "../assets/icons/diamond-pink.svg";
+import DressIcon from "../assets/icons/dress.svg";
 import { useSceneActions } from "../context/SceneActionsContext";
 
 // Enable LayoutAnimation for Android
@@ -259,7 +259,7 @@ export const VRMUIOverlay: React.FC<VRMUIOverlayProps> = ({
       {
         key: 'outfit',
         label: 'Outfit',
-        Icon: IconHanger,
+        Icon: DressIcon,
         onPress: onCostumePress,
       },
       {
