@@ -286,10 +286,9 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
 
             const isPro = options?.isPro ?? false;
 
-            // Promise to fetch media
-            const mediaPromise = isNudeRequest
-              ? mediaRequestService.getProMedia(characterId, type)
-              : mediaRequestService.getAccessibleMedia(characterId, type, isPro);
+            // Promise to fetch media - use getAccessibleMedia for all types
+            // (it returns all media including locked ones, UI handles blurring)
+            const mediaPromise = mediaRequestService.getAccessibleMedia(characterId, type, isPro);
 
             // Fetch accessible media
             mediaPromise
@@ -319,7 +318,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         console.warn('[useChatManager] sendText failed', error);
         setState(prev => ({ ...prev, isTyping: false }));
         const errorMessage = createLocalMessage(
-          'Sorry, I could not reach Bonie right now. Please try again in a moment.',
+          'Sorry, I could not reach Roxie right now. Please try again in a moment.',
           true
         );
         appendMessage(errorMessage);

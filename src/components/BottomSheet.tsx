@@ -1,8 +1,7 @@
 import React, { useRef, useCallback, useImperativeHandle, forwardRef, useEffect, ReactNode, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, ViewStyle, StyleProp, Platform, Modal, PanResponder, Animated, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ViewStyle, StyleProp, Platform, Modal, PanResponder, Animated, Dimensions, StatusBar } from 'react-native';
 import { TrueSheet } from '@lodev09/react-native-true-sheet';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Button from './Button';
 
 export type BottomSheetRef = {
     present: (index?: number) => void;
@@ -58,8 +57,9 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
     // Android resizable sheet state
     const screenHeight = Dimensions.get('window').height;
     const minSheetHeight = screenHeight * 0.3; // 30% min
-    const maxSheetHeight = screenHeight * 0.95; // 95% max
-    const initialSheetHeight = screenHeight * (typeof detents[0] === 'number' ? detents[0] : 0.6);
+    const statusBarHeight = StatusBar.currentHeight || 0;
+    const maxSheetHeight = screenHeight - statusBarHeight - 16; // leave space for status bar + small gap
+    const initialSheetHeight = maxSheetHeight;
 
     const sheetHeight = useRef(new Animated.Value(initialSheetHeight)).current;
     const lastSheetHeight = useRef(initialSheetHeight);
@@ -68,9 +68,8 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
     // Reset height ONLY when sheet transitions from hidden to visible
     useEffect(() => {
         if (androidVisible && !wasVisible.current) {
-            const targetHeight = screenHeight * (typeof detents[0] === 'number' ? detents[0] : 0.6);
-            sheetHeight.setValue(targetHeight);
-            lastSheetHeight.current = targetHeight;
+            sheetHeight.setValue(maxSheetHeight);
+            lastSheetHeight.current = maxSheetHeight;
         }
         wasVisible.current = androidVisible;
     }, [androidVisible, screenHeight, detents, sheetHeight]);
@@ -215,12 +214,13 @@ export const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(({
                 <View style={styles.headerRight}>
                     {headerRight ?? (
                         showCloseButton && (
-                            <Button
+                            <Pressable
                                 style={[styles.closeButton, { backgroundColor: closeButtonBg }]}
                                 onPress={handleClose}
-                                startIcon={() => <Ionicons name="close" size={20} color={textColor} />}
-                                isIconOnly
-                            />
+                                hitSlop={8}
+                            >
+                                <Ionicons name="close" size={20} color={textColor} />
+                            </Pressable>
                         )
                     )}
                 </View>

@@ -53,11 +53,11 @@ const AVAILABLE_ACTIONS = [
         description: "User specifically asks for nude, suggestive, NSFW, or sexy photos/videos (e.g. 'send nude', 'sexy photo', 'hot video')",
         examples: ["gửi ảnh nude đi", "send nude", "sexy photo", "gửi ảnh nóng", "video khiêu gợi"]
     },
-    {
-        action: "become_nude",
-        description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
-        examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", "show pussy", "show boobs"]
-    },
+    // {
+    //     action: "become_nude",
+    //     description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
+    //     examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", "show pussy", "show boobs"]
+    // },
     {
         action: "change_character",
         description: "User wants to switch to a different character entirely",
@@ -110,7 +110,7 @@ IMPORTANT RULES:
 10. If user asks for "nude photo", "sexy video", "hot picture", use 'send_nude_media', NOT 'send_photo' or 'become_nude'.
 
 Return ONLY a JSON object with this exact format:
-{"action": "action_name", "confidence": 0.0-1.0, "parameters": {"animationName": "Animation Name"}, "reasoning": "brief explanation"}
+{"action": "action_name", "confidence": 0.0-1.0, "parameters": {"animationName": "Animation Name"}}
 
 For play_animation, always include parameters.animationName with one of the available animation names.
 For other actions, parameters can be empty {}.`;

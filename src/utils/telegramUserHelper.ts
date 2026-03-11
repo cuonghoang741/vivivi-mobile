@@ -72,8 +72,6 @@ export async function getTelegramUserInfo(): Promise<TelegramUserInfo> {
 
   const isPro = revenueCatManager.isProUser();
 
-  console.log("isProssxx", isPro)
-
   return {
     userId,
     userName: displayName,

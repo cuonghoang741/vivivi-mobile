@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     // Prevent container from expanding beyond screen
     maxHeight: '100%',
-    paddingHorizontal: 10
+    paddingHorizontal: 10,
   },
   fullScreenContainer: {
     flex: 1,

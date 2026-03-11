@@ -249,16 +249,12 @@ const AppContent = () => {
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
       setIsKeyboardVisible(true);
-      if (Platform.OS === 'ios') {
-        setKeyboardHeight(e.endCoordinates.height);
-      }
+      setKeyboardHeight(e.endCoordinates.height);
     });
 
     const hideSub = Keyboard.addListener(hideEvent, () => {
       setIsKeyboardVisible(false);
-      if (Platform.OS === 'ios') {
-        setKeyboardHeight(0);
-      }
+      setKeyboardHeight(0);
     });
 
     return () => {
@@ -519,8 +515,6 @@ const AppContent = () => {
                   const orderStr = String(order).padStart(3, '0');
                   const nudeUrl = `https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/${orderStr}/${orderStr}_vrm/${orderStr}_nude.vrm`;
                   const nudeModelName = `${orderStr}_nude.vrm`;
-
-                  console.log("nudeUrl", nudeUrl);
 
                   if (webViewRef.current) {
                     const escapedURL = nudeUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');

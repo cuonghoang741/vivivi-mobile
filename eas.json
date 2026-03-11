@@ -16,8 +16,7 @@
         "resourceClass": "m-medium"
       },
       "android": {
-        "buildType": "app-bundle",
-        "gradleCommand": ":app:assembleDebug"
+        "buildType": "apk"
       },
       "channel": "development",
       "autoIncrement": true
@@ -37,6 +36,12 @@
       },
       "channel": "preview",
       "autoIncrement": true
+    },
+    "apk": {
+      "extends": "preview",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
       "env": {

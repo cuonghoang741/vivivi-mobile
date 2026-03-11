@@ -103,6 +103,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     'react-native-appsflyer',
     '@livekit/react-native-expo-plugin',
+    [
+      '@config-plugins/react-native-webrtc',
+      {
+        cameraPermission: 'We need access to your Camera to capture photos and videos for VRM interactions.',
+        microphonePermission: 'We need access to your Microphone for voice conversations with VRM characters.'
+      }
+    ],
     './withCustomPodfile',
     'expo-updates',
     [

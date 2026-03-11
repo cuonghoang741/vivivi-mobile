@@ -324,6 +324,7 @@ const styles = StyleSheet.create({
     maxHeight: 280, // Compact height for overlay
     // Ensure container is visible
     minHeight: 0,
+    zIndex: 200
   },
   fullScreenContainer: {
     width: '100%',
