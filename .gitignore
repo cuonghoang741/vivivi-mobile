@@ -55,3 +55,6 @@ build-*.aabservice-account.json
 scripts/rooms
 scripts/thumb_rooms
 scripts/medias
+
+build-*.aab
+build-*.ipa
