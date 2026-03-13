@@ -218,20 +218,23 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                     style={{ width: '100%', height: '100%' }}
                     contentFit="cover"
                     transition={200}
+                    blurRadius={!isUnlocked ? 10 : 0}
                   />
-                  <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <View style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: 'rgba(0,0,0,0.5)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingLeft: 2 // Optical center
-                    }}>
-                      <Ionicons name="play" size={18} color="#fff" />
+                  {isUnlocked && (
+                    <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                      <View style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: 'rgba(0,0,0,0.5)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingLeft: 2 // Optical center
+                      }}>
+                        <Ionicons name="play" size={18} color="#fff" />
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               ) : (
                 <View style={styles.thumbnail} pointerEvents="none">
@@ -243,19 +246,21 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                     isMuted={true}
                     positionMillis={1000}
                   />
-                  <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <View style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: 'rgba(0,0,0,0.5)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingLeft: 2 // Optical center
-                    }}>
-                      <Ionicons name="play" size={18} color="#fff" />
+                  {isUnlocked && (
+                    <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                      <View style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: 'rgba(0,0,0,0.5)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingLeft: 2 // Optical center
+                      }}>
+                        <Ionicons name="play" size={18} color="#fff" />
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               )
             ) : (
@@ -265,7 +270,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                 style={styles.thumbnail}
                 contentFit="cover"
                 transition={200}
-                blurRadius={!isUnlocked ? 40 : 0}
+                blurRadius={!isUnlocked ? 10 : 0}
               />
             )}
 

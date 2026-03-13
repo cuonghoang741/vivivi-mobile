@@ -193,9 +193,18 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
       // Small delay to ensure message is rendered
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 150);
     }
-  }, [messages.length]);
+  }, [messages]);
+
+  // Auto scroll to bottom when typing indicator appears
+  useEffect(() => {
+    if (isTyping && scrollViewRef.current && isNearBottomRef.current && !isUserScrollingRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
+    }
+  }, [isTyping]);
 
   const handleScroll = (event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -212,6 +221,13 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
   const handleScrollEndDrag = () => {
     isUserScrollingRef.current = false;
     onScrollStateChange?.(false);
+  };
+
+  // Auto-scroll when content size changes (most reliable way to scroll after new content is rendered)
+  const handleContentSizeChange = (_w: number, _h: number) => {
+    if (isNearBottomRef.current && !isUserScrollingRef.current) {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }
   };
 
   return (
@@ -255,6 +271,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
         onScroll={handleScroll}
         onScrollBeginDrag={handleScrollBeginDrag}
         onScrollEndDrag={handleScrollEndDrag}
+        onContentSizeChange={handleContentSizeChange}
         scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
         scrollEnabled={true}

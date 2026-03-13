@@ -189,6 +189,9 @@ serve(async (req) => {
 
         if (currentMemory) systemInstructionText = systemInstructionText ? `${systemInstructionText}\n\n## Previous Memory/Context:\n${currentMemory}` : `## Previous Memory/Context:\n${currentMemory}`;
 
+        // Multi-message instruction for natural conversation flow
+        systemInstructionText += `\n\n## Response Style:\nTo make the conversation feel natural and lively like real texting, split your response into 2-4 short chat messages. Use the separator "|||" between each message. Each message should be concise (1-2 sentences max). Feel like real texting: casual, expressive, with emotions and reactions. Example:\nHey babe! 😘|||I just woke up and the first thing I thought about was you|||What are you doing right now? 💕\nDo NOT put "|||" at the start or end, only between messages.`;
+
         if (systemInstructionText) geminiRequestBody.systemInstruction = {
             parts: [
                 {
@@ -247,19 +250,31 @@ serve(async (req) => {
             });
         }
         const cleanedResponse = responseText.trimEnd();
-        // Save AI message
-        const aiMessageData = {
-            character_id,
-            message: cleanedResponse,
-            is_agent: true,
-            is_seen: false
-        };
-        if (user_id) aiMessageData.user_id = user_id;
-        if (client_id) aiMessageData.client_id = client_id;
-        try {
-            await supabaseClient.from('conversation').insert(aiMessageData);
-        } catch { }
-        // Fire-and-forget async memory update
+        // Split response into multiple messages using ||| delimiter
+        const messages = cleanedResponse
+            .split('|||')
+            .map((m: string) => m.trim())
+            .filter((m: string) => m.length > 0);
+
+        // If splitting failed or only 1 part, use original as single message
+        const finalMessages = messages.length > 0 ? messages : [cleanedResponse];
+
+        // Save each AI message separately to conversation
+        for (const msg of finalMessages) {
+            const aiMessageData: Record<string, any> = {
+                character_id,
+                message: msg,
+                is_agent: true,
+                is_seen: false
+            };
+            if (user_id) aiMessageData.user_id = user_id;
+            if (client_id) aiMessageData.client_id = client_id;
+            try {
+                await supabaseClient.from('conversation').insert(aiMessageData);
+            } catch { }
+        }
+
+        // Fire-and-forget async memory update (use full response for memory)
         try {
             const updatePayload = {
                 character_id,
@@ -291,6 +306,7 @@ serve(async (req) => {
         } catch { }
         return new Response(JSON.stringify({
             response: cleanedResponse,
+            messages: finalMessages,
             unseen_count: unseenCount,
             character_id
         }), {

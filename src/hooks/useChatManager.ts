@@ -245,7 +245,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
         const history = buildHistory(messagesRef.current);
 
         // Run action detection and Gemini chat in PARALLEL for faster response
-        const [detectedAction, responseText] = await Promise.all([
+        const [detectedAction, responseMessages] = await Promise.all([
           actionDetectionService.detectAction(trimmed),
           chatService.sendMessageToGemini({
             text: trimmed,
@@ -270,25 +270,14 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
           actionCallback?.(detectedAction, trimmed);
 
           // Handle Media Requests
-          if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video' || detectedAction.action === 'send_nude_media') {
-            const isNudeRequest = detectedAction.action === 'send_nude_media';
-            let type: 'photo' | 'video' = 'photo';
-
-            if (detectedAction.action === 'send_video') {
-              type = 'video';
-            } else if (isNudeRequest) {
-              // Infer type from text for nude request
-              const lowerText = trimmed.toLowerCase();
-              if (lowerText.includes('video') || lowerText.includes('clip') || lowerText.includes('quay')) {
-                type = 'video';
-              }
-            }
-
+          if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video') {
+            const type: 'photo' | 'video' = detectedAction.action === 'send_video' ? 'video' : 'photo';
             const isPro = options?.isPro ?? false;
+            const keywords = detectedAction.parameters?.keywords;
 
-            // Promise to fetch media - use getAccessibleMedia for all types
+            // Promise to fetch media - use getAccessibleMedia with optional keywords filter
             // (it returns all media including locked ones, UI handles blurring)
-            const mediaPromise = mediaRequestService.getAccessibleMedia(characterId, type, isPro);
+            const mediaPromise = mediaRequestService.getAccessibleMedia(characterId, type, isPro, keywords);
 
             // Fetch accessible media
             mediaPromise
@@ -298,22 +287,44 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
                   setTimeout(() => {
                     addMediaMessage(media);
                   }, 1500);
-                } else if (isNudeRequest && !isPro) {
-                  // If no Pro media found (maybe database empty) OR user is free and we want to upsell?
-                  // Actually getProMedia returns null if none found.
-                  // If we found nothing, maybe send a text saying "I don't have those yet"?
-                  // But if we found it, it's sent.
-                  // Note: getProMedia returns items even if !isPro. The UI handles blurring.
                 }
               })
               .catch(err => console.warn('[useChatManager] Failed to fetch media request:', err));
           }
         }
 
-        // Handle chat response - Edge function persists it, so we only add locally
-        addAgentMessage(responseText, { persist: false });
-        setState(prev => ({ ...prev, isTyping: false }));
-        agentReplyCallback?.(responseText);
+        // Handle multi-message streaming response
+        // Show messages one by one with natural typing delays
+        if (responseMessages.length === 1) {
+          // Single message - show immediately (no persist, edge function already persisted)
+          addAgentMessage(responseMessages[0], { persist: false });
+          setState(prev => ({ ...prev, isTyping: false }));
+          agentReplyCallback?.(responseMessages[0]);
+        } else {
+          // Multiple messages - stream with delay
+          for (let i = 0; i < responseMessages.length; i++) {
+            const msg = responseMessages[i];
+            const isLast = i === responseMessages.length - 1;
+
+            // Show typing indicator for subsequent messages
+            if (i > 0) {
+              setState(prev => ({ ...prev, isTyping: true }));
+              // Natural typing delay based on message length (800ms - 1500ms)
+              const typingDelay = Math.min(800 + msg.length * 15, 1500);
+              await new Promise(resolve => setTimeout(resolve, typingDelay));
+            }
+
+            // Add the message (no persist, edge function already persisted)
+            addAgentMessage(msg, { persist: false });
+
+            // Fire callback for each message (for TTS/lip sync)
+            agentReplyCallback?.(msg);
+
+            if (isLast) {
+              setState(prev => ({ ...prev, isTyping: false }));
+            }
+          }
+        }
       } catch (error) {
         console.warn('[useChatManager] sendText failed', error);
         setState(prev => ({ ...prev, isTyping: false }));

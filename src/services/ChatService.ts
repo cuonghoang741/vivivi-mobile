@@ -77,7 +77,7 @@ class ChatService {
     characterName: string;
     history: ChatMessage[];
     isPro?: boolean;
-  }): Promise<string> {
+  }): Promise<string[]> {
     if (!params.text.trim() || !params.characterId) {
       throw new Error('Missing message or character id');
     }
@@ -111,21 +111,38 @@ class ChatService {
       throw new Error(error.message);
     }
 
-    const responseText = (data as any)?.response;
-    if (typeof responseText !== 'string' || !responseText.trim()) {
+    // Parse multi-message response
+    const responseData = data as any;
+
+    // Prefer the messages array from the edge function
+    let messages: string[] = [];
+    if (Array.isArray(responseData?.messages) && responseData.messages.length > 0) {
+      messages = responseData.messages.filter((m: string) => typeof m === 'string' && m.trim());
+    }
+
+    // Fallback: split the response string by ||| delimiter
+    if (messages.length === 0 && typeof responseData?.response === 'string') {
+      const fullResponse = responseData.response.trim();
+      if (fullResponse) {
+        messages = fullResponse.split('|||').map((m: string) => m.trim()).filter((m: string) => m.length > 0);
+      }
+    }
+
+    if (messages.length === 0) {
       throw new Error('Empty response from Gemini');
     }
 
-    // Send Telegram notification for AI response
+    // Send Telegram notification for AI response (full text)
+    const fullResponseText = messages.join(' ');
     getTelegramUserInfo().then(userInfo => {
       telegramNotificationService.notifyAIResponse(
         userInfo,
         params.characterName,
-        responseText
+        fullResponseText
       );
     }).catch(err => console.warn('[ChatService] Failed to send Telegram notification for AI response:', err));
 
-    return responseText;
+    return messages;
   }
 
   async fetchConversationHistory(

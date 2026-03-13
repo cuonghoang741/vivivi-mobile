@@ -5,16 +5,32 @@ class MediaRequestService {
     private mediaRepository = new MediaRepository();
 
     /**
-     * Get a random accessible media item of the specified type for the character
+     * Get a random accessible media item of the specified type for the character.
+     * Optionally filter by keywords to find specific content.
      */
     async getAccessibleMedia(
         characterId: string,
         type: 'photo' | 'video',
-        isPro: boolean
+        isPro: boolean,
+        keywords?: string
     ): Promise<MediaItem | null> {
         try {
-            // 1. Fetch all available media for the character
-            const allMedia = await this.mediaRepository.fetchAllMedia(characterId);
+            let allMedia: MediaItem[];
+
+            // 1. If keywords provided, search by keywords first
+            if (keywords) {
+                allMedia = await this.mediaRepository.fetchMediaByKeywords(characterId, keywords);
+                console.log(`[MediaRequestService] Found ${allMedia.length} media items matching keyword: "${keywords}"`);
+
+                // If no media found with keyword, fall back to all media
+                if (!allMedia || allMedia.length === 0) {
+                    console.log('[MediaRequestService] No keyword match, falling back to all media');
+                    allMedia = await this.mediaRepository.fetchAllMedia(characterId);
+                }
+            } else {
+                // No keywords, fetch all media
+                allMedia = await this.mediaRepository.fetchAllMedia(characterId);
+            }
 
             if (!allMedia || allMedia.length === 0) {
                 return null;

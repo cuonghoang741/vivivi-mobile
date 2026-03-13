@@ -117,7 +117,7 @@ const renderMediaContent = (message: ChatMessage, variant: 'compact' | 'full', i
         source={{ uri: url }}
         style={styles.mediaFull}
         resizeMode="cover"
-        blurRadius={isLocked ? 40 : 0}
+        blurRadius={isLocked ? 8 : 0}
       />
       {isLocked && (
         <View style={styles.mediaOverlay}>

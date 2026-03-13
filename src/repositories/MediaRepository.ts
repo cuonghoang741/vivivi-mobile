@@ -13,6 +13,8 @@ export type MediaItem = {
   media_type?: string | null;
   content_type?: string | null;
   rarity?: string | null;
+  name?: string | null;
+  keywords?: string | null;
 };
 
 export class MediaRepository extends BaseRepository {
@@ -34,6 +36,8 @@ export class MediaRepository extends BaseRepository {
             'media_type',
             'content_type',
             'rarity',
+            'name',
+            'keywords',
           ].join(',')
         )
         .eq('character_id', characterId)
@@ -45,12 +49,52 @@ export class MediaRepository extends BaseRepository {
         return [];
       }
 
-      return (data as MediaItem[]) ?? [];
+      return (data as unknown as MediaItem[]) ?? [];
     } catch (error) {
       console.error('[MediaRepository] Error fetching media:', error);
       return [];
     }
   }
+
+  /**
+   * Fetch media filtered by keywords (search in the keywords field)
+   */
+  async fetchMediaByKeywords(characterId: string, keyword: string): Promise<MediaItem[]> {
+    try {
+      const { data, error } = await this.client
+        .from('medias')
+        .select(
+          [
+            'id',
+            'url',
+            'thumbnail',
+            'character_id',
+            'created_at',
+            'tier',
+            'available',
+            'price_vcoin',
+            'price_ruby',
+            'media_type',
+            'content_type',
+            'rarity',
+            'name',
+            'keywords',
+          ].join(',')
+        )
+        .eq('character_id', characterId)
+        .eq('available', true)
+        .ilike('keywords', `%${keyword}%`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[MediaRepository] Failed to fetch media by keywords:', error);
+        return [];
+      }
+
+      return (data as unknown as MediaItem[]) ?? [];
+    } catch (error) {
+      console.error('[MediaRepository] Error fetching media by keywords:', error);
+      return [];
+    }
+  }
 }
-
-

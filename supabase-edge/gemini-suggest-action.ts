@@ -26,17 +26,23 @@ const AVAILABLE_ANIMATIONS = [
     { name: "Threatening", keywords: ["threaten", "dọa", "đe dọa", "scary"] },
 ];
 
+// Available media keywords for filtering
+const AVAILABLE_MEDIA_KEYWORDS = [
+    "cook", "beach", "masturbate", "show boobs", "show pussy",
+    "hangout", "take a shower", "nude", "lie"
+];
+
 // Available actions in the app
 const AVAILABLE_ACTIONS = [
     {
         action: "send_photo",
-        description: "User wants the character to send them a photo, picture, image, selfie",
-        examples: ["gửi ảnh đi", "cho anh xem ảnh", "send a photo", "send a picture", "show me a photo", "gửi hình đi", "selfie đi"]
+        description: "User wants the character to send them a photo, picture, image, selfie. Optionally detect a keyword describing the content they want.",
+        examples: ["gửi ảnh đi", "cho anh xem ảnh", "send a photo", "send a picture", "show me a photo", "gửi hình đi", "selfie đi", "gửi ảnh nude đi", "send nude photo", "gửi ảnh nóng", "ảnh tắm đi", "gửi ảnh nấu ăn", "ảnh đi biển đi", "what are u doing"]
     },
     {
         action: "send_video",
-        description: "User wants the character to send them a video",
-        examples: ["gửi video đi", "send a video", "show me a video", "quay video đi", "gửi clip đi"]
+        description: "User wants the character to send them a video. Optionally detect a keyword describing the content they want.",
+        examples: ["gửi video đi", "send a video", "show me a video", "quay video đi", "gửi clip đi", "video khiêu gợi", "video nude", "clip nóng"]
     },
     {
         action: "change_background",
@@ -49,15 +55,10 @@ const AVAILABLE_ACTIONS = [
         examples: ["đổi quần áo đi", "thay đồ khác", "change your outfit", "mặc đồ khác đi"]
     },
     {
-        action: "send_nude_media",
-        description: "User specifically asks for nude, suggestive, NSFW, or sexy photos/videos (e.g. 'send nude', 'sexy photo', 'hot video')",
-        examples: ["gửi ảnh nude đi", "send nude", "sexy photo", "gửi ảnh nóng", "video khiêu gợi"]
+        action: "become_nude",
+        description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
+        examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", 'take off', 'show pussy', "make me suprise"]
     },
-    // {
-    //     action: "become_nude",
-    //     description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
-    //     examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", "show pussy", "show boobs"]
-    // },
     {
         action: "change_character",
         description: "User wants to switch to a different character entirely",
@@ -98,6 +99,9 @@ ${AVAILABLE_ACTIONS.map(a => `- ${a.action}: ${a.description}. Examples: ${a.exa
 Available animations for play_animation:
 ${AVAILABLE_ANIMATIONS.map(a => `- "${a.name}": triggered by keywords like ${a.keywords.join(", ")}`).join("\n")}
 
+Available media keywords for send_photo/send_video:
+${AVAILABLE_MEDIA_KEYWORDS.join(", ")}
+
 IMPORTANT RULES:
 1. Only return an action if user CLEARLY and EXPLICITLY wants to trigger that action
 2. Regular chat/conversation should ALWAYS return "none"
@@ -106,13 +110,15 @@ IMPORTANT RULES:
 5. Only return action when user is giving a COMMAND or EXPLICIT REQUEST
 6. For play_animation, try to match user's request to the most appropriate animation name
 7. If user says something emotional like "hôn anh" (kiss me), "vui lên" (be happy), "giận đi" (be angry), these ARE animation requests
-9. For 'become_nude', words like "cởi", "cởi đồ", "nude", "naked", "lột" relating to the 3D model are indicators.
-10. If user asks for "nude photo", "sexy video", "hot picture", use 'send_nude_media', NOT 'send_photo' or 'become_nude'.
+8. For 'become_nude', words like "cởi", "cởi đồ", "nude", "naked", "lột" relating to the 3D model are indicators.
+9. For 'send_photo' or 'send_video', if the user's request implies specific content (nude, beach, cooking, shower, etc.), include the matching keyword in parameters.keywords. Choose from: ${AVAILABLE_MEDIA_KEYWORDS.join(", ")}.
+10. If user asks for "nude photo", "sexy video", "hot picture", "ảnh nóng", use 'send_photo' or 'send_video' with parameters.keywords set to "nude" or the most relevant keyword.
 
 Return ONLY a JSON object with this exact format:
-{"action": "action_name", "confidence": 0.0-1.0, "parameters": {"animationName": "Animation Name"}}
+{"action": "action_name", "confidence": 0.0-1.0, "parameters": {"animationName": "Animation Name", "keywords": "keyword"}}
 
 For play_animation, always include parameters.animationName with one of the available animation names.
+For send_photo/send_video, optionally include parameters.keywords with one of the available media keywords if the user implies specific content.
 For other actions, parameters can be empty {}.`;
 
 // Retry helper function for Gemini API calls
@@ -210,7 +216,7 @@ serve(async (req: Request) => {
         const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         // Parse the JSON response from Gemini
-        let result = { action: "none", confidence: 1.0, parameters: {}, reasoning: "Failed to parse response" };
+        let result = { action: "none", confidence: 1.0, parameters: {} as Record<string, string>, reasoning: "Failed to parse response" };
 
         try {
             // Extract JSON from the response (handle markdown code blocks)
@@ -233,6 +239,27 @@ serve(async (req: Request) => {
                             a.keywords.some(k => parameters.animationName.toLowerCase().includes(k.toLowerCase()))
                         );
                         parameters.animationName = closest?.name || "Happy"; // Default to Happy
+                    }
+                }
+
+                // Validate keywords if present
+                if ((parsed.action === "send_photo" || parsed.action === "send_video") && parameters.keywords) {
+                    const keyword = parameters.keywords.toLowerCase();
+                    const validKeyword = AVAILABLE_MEDIA_KEYWORDS.find(
+                        k => k.toLowerCase() === keyword
+                    );
+                    if (validKeyword) {
+                        parameters.keywords = validKeyword; // Normalize
+                    } else {
+                        // Try partial match
+                        const partialMatch = AVAILABLE_MEDIA_KEYWORDS.find(
+                            k => keyword.includes(k.toLowerCase()) || k.toLowerCase().includes(keyword)
+                        );
+                        if (partialMatch) {
+                            parameters.keywords = partialMatch;
+                        } else {
+                            delete parameters.keywords; // Remove invalid keyword
+                        }
                     }
                 }
 
