@@ -48,6 +48,8 @@ serve(async (req) => {
                     plan: event.product_id || 'pro', // Fallback to 'pro' if product_id is missing
                     current_period_end: new Date(event.expiration_at_ms).toISOString(),
                     expires_at: new Date(event.expiration_at_ms).toISOString(),
+                    price: event.price || 0,
+                    currency: event.currency || null,
                     updated_at: new Date().toISOString(),
                 };
                 shouldUpdate = true;

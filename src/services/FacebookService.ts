@@ -6,33 +6,49 @@ export const FacebookService = {
      */
     logEvent: async (eventName: string, params: Record<string, any> = {}) => {
         try {
-            // Map generic event names to Facebook specific ones
+            // For purchase complete, we want to use the dedicated logPurchase API
+            // Note: SubscriptionSheet fires BOTH 'subscription_purchase' and 'purchase_complete'
+            // We use 'purchase_complete' to register the real Revenue event, avoiding double counting.
+            if (eventName === 'purchase_complete') {
+                const amount = Number(params?.amount || 0);
+                const currency = String(params?.currency || 'USD');
+
+                if (amount > 0) {
+                    await AppEventsLogger.logPurchase(amount, currency, params);
+                    console.log(`[Facebook] Purchase revenue logged: ${amount} ${currency}`);
+                } else {
+                    await AppEventsLogger.logEvent('fb_mobile_purchase', params);
+                    console.log(`[Facebook] Event logged: fb_mobile_purchase (was ${eventName})`);
+                }
+
+                // Return early so we don't duplicate via logEvent below
+                return;
+            }
+
+            // Map other generic event names to Facebook specific ones
             let mappedEventName = eventName;
 
-            // Standard Facebook Events Mapping
-            // Reference: https://developers.facebook.com/docs/app-events/reference
             switch (eventName) {
                 case 'sign_up':
-                    mappedEventName = 'fb_mobile_complete_registration'; // AppEventsLogger.AppEvents.CompletedRegistration
-                    break;
-                case 'purchase_complete':
-                    // Note: logPurchase should be used for actual purchases, but if this event is called generically:
-                    mappedEventName = 'fb_mobile_purchase'; // AppEventsLogger.AppEvents.Purchased
+                    mappedEventName = 'fb_mobile_complete_registration';
                     break;
                 case 'currency_purchase_start':
                 case 'purchase_start':
-                    mappedEventName = 'fb_mobile_initiated_checkout'; // AppEventsLogger.AppEvents.InitiatedCheckout
+                    mappedEventName = 'fb_mobile_initiated_checkout';
                     break;
                 case 'character_select':
                 case 'costume_change':
                 case 'background_change':
-                    mappedEventName = 'fb_mobile_content_view'; // AppEventsLogger.AppEvents.ViewedContent
+                    mappedEventName = 'fb_mobile_content_view';
                     break;
                 case 'onboarding_complete':
-                    mappedEventName = 'fb_mobile_tutorial_completion'; // AppEventsLogger.AppEvents.CompletedTutorial
+                    mappedEventName = 'fb_mobile_tutorial_completion';
                     break;
-                // 'sign_in' doesn't have a direct standard event in standard list except 'fb_login' usage in some docs, 
-                // but usually considered custom or covered by custom login flows. We'll keep it custom or map to 'fb_mobile_login' if supported by platform.
+                case 'subscription_purchase':
+                    // Kept as 'subscription_purchase' to track the sub action,
+                    // while Revenue generation is handled by 'purchase_complete' above.
+                    mappedEventName = 'subscription_purchase';
+                    break;
             }
 
             await AppEventsLogger.logEvent(mappedEventName, params);

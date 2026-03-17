@@ -9,7 +9,7 @@ const PROJECT_SLUG = 'vivivi';
 // App production config
 const APP_NAME = 'Roxie';
 const BUNDLE_IDENTIFIER = 'com.vivivi';
-const PACKAGE_NAME = 'com.eduto.roxie';
+const PACKAGE_NAME = 'com.roxie.girlfriend';
 const ICON = './assets/icon.png';
 const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
 const SCHEME = 'roxie';
