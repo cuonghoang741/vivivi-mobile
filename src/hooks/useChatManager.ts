@@ -6,7 +6,7 @@ import { analyticsService } from '../services/AnalyticsService';
 import { mediaRequestService } from '../services/MediaRequestService';
 import { ChatMessage, ChatViewState } from '../types/chat';
 import { QuestProgressTracker } from '../utils/QuestProgressTracker';
-import { MediaItem } from '../repositories/MediaRepository';
+import { MediaItem, MediaRepository } from '../repositories/MediaRepository';
 
 const DEFAULT_STATE: ChatViewState = {
   messages: [],
@@ -243,9 +243,13 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
 
       try {
         const history = buildHistory(messagesRef.current);
+        const fullConversationForGift = [
+          ...history,
+          createLocalMessage(trimmed, false)
+        ];
 
-        // Run action detection and Gemini chat in PARALLEL for faster response
-        const [detectedAction, responseMessages] = await Promise.all([
+        // Run action detection, gift suggestion and Gemini chat in PARALLEL for faster response
+        const [detectedAction, responseMessages, shouldSuggestGift] = await Promise.all([
           actionDetectionService.detectAction(trimmed),
           chatService.sendMessageToGemini({
             text: trimmed,
@@ -254,7 +258,67 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
             history,
             isPro: options?.isPro,
           }),
+          actionDetectionService.suggestGift(fullConversationForGift)
         ]);
+
+        if (shouldSuggestGift?.suggestGift) {
+          console.log('🎁 [useChatManager] AI DECIDED TO SUGGEST A GIFT!');
+          console.log('💬 [useChatManager] Gift Suggestion Message:', shouldSuggestGift.message);
+
+          if (shouldSuggestGift.message) {
+            addAgentMessage(shouldSuggestGift.message);
+          }
+
+          console.log('🔍 [useChatManager] Fetching masturbate media directly from MediaRepository...');
+          const repo = new MediaRepository();
+          const assetRepo = new (await import('../repositories/AssetRepository')).default();
+          const ownedIds = await assetRepo.fetchOwnedAssets('media');
+
+          // Helper: pick a random item, prioritizing videos
+          const pickPrioritizingVideo = (mediaList: MediaItem[]): MediaItem => {
+            const videos = mediaList.filter((m: MediaItem) => {
+              const mt = m.media_type?.toLowerCase();
+              const url = m.url?.toLowerCase() || '';
+              return mt === 'video' || mt === 'dance' || url.endsWith('.mp4');
+            });
+            const pool = videos.length > 0 ? videos : mediaList;
+            return pool[Math.floor(Math.random() * pool.length)];
+          };
+
+          repo.fetchMediaByKeywords(characterId, 'masturbate')
+            .then((allMedia: MediaItem[]) => {
+              // Filter out already-owned media
+              const unownedMedia = (allMedia || []).filter((m: MediaItem) => !ownedIds.has(m.id));
+              console.log(`[useChatManager] Found ${allMedia?.length || 0} masturbate items, ${unownedMedia.length} unowned.`);
+
+              if (unownedMedia.length > 0) {
+                const randomMedia = pickPrioritizingVideo(unownedMedia);
+                const giftMedia = { ...randomMedia, keywords: (randomMedia.keywords || '') + ' masturbate' };
+                console.log('📸 [useChatManager] Found & scheduling gift media (video prioritized):', giftMedia.id);
+                setTimeout(() => {
+                  addMediaMessage(giftMedia);
+                }, 2500);
+              } else {
+                console.log('⚠️ [useChatManager] All masturbate media already owned or none found. Falling back to all unowned media...');
+                repo.fetchAllMedia(characterId).then((fallbackMedia: MediaItem[]) => {
+                  const unownedFallback = (fallbackMedia || []).filter((m: MediaItem) => !ownedIds.has(m.id));
+                  if (unownedFallback.length > 0) {
+                    const randomFallback = pickPrioritizingVideo(unownedFallback);
+                    const giftMedia = { ...randomFallback, keywords: (randomFallback.keywords || '') + ' masturbate' };
+                    console.log('📸 [useChatManager] Found & scheduling fallback gift media (video prioritized):', giftMedia.id);
+                    setTimeout(() => {
+                      addMediaMessage(giftMedia);
+                    }, 2500);
+                  } else {
+                    console.log('🎉 [useChatManager] User already owns ALL media! No gift to suggest.');
+                  }
+                });
+              }
+            })
+            .catch((err: any) => console.warn('[useChatManager] Exception while fetching gift media:', err));
+        } else {
+          console.log('🚫 [useChatManager] AI decided NOT to suggest a gift.');
+        }
 
         // Handle action if detected with high confidence
         if (detectedAction.action !== 'none' && detectedAction.confidence >= ACTION_CONFIDENCE_THRESHOLD) {

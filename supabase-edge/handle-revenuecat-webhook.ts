@@ -42,6 +42,13 @@ serve(async (req) => {
             case "RENEWAL":
             case "UNCANCELLATION":
             case "PRODUCT_CHANGE":
+                // Ignore gift or coin purchases (they don't grant Pro status)
+                if (event.product_id && (event.product_id.includes('gift') || event.product_id.includes('coin'))) {
+                    console.log(`Ignoring Pro upgrade for non-subscription product: ${event.product_id}`);
+                    shouldUpdate = false;
+                    break;
+                }
+
                 updateData = {
                     tier: 'pro',
                     status: 'active',
