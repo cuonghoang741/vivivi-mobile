@@ -12,8 +12,8 @@ import { analyticsService } from './AnalyticsService';
 Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
 
 // RevenueCat Public SDK Keys
-const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
-// const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
+// const REVENUECAT_API_KEY_IOS = 'test_wVyIadouWMklglQRNajjGPxGCAc';
+const REVENUECAT_API_KEY_IOS = 'appl_CjxgHOafWEJNsMPLMtQgAULbupx';
 const REVENUECAT_API_KEY_ANDROID = 'goog_yabXKezZYETtfDxoKAjVuXQWtpz'; // TODO: Replace with actual Android key
 
 class RevenueCatManager {
@@ -134,9 +134,16 @@ class RevenueCatManager {
     if (!this.offerings) {
       await this.loadOfferings();
     }
-    return this.offerings?.availablePackages.find(
+    const found = this.offerings?.availablePackages.find(
       (p) => p.identifier === identifier || p.product.identifier === identifier
     );
+    if (!found) {
+      const available = this.offerings?.availablePackages.map(
+        (p) => `${p.identifier} / ${p.product.identifier}`
+      );
+      console.warn(`[RevenueCat] Package not found: "${identifier}". Available:`, available);
+    }
+    return found;
   }
 
   async hasActiveSubscription(): Promise<boolean> {

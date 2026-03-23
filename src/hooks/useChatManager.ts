@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { chatService } from '../services/ChatService';
 import { streakService } from '../services/StreakService';
 import { actionDetectionService, DetectedAction } from '../services/ActionDetectionService';
@@ -156,6 +158,32 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
             QuestProgressTracker.track('send_messages').catch(err =>
               console.warn('[useChatManager] track quest failed', err)
             );
+
+            // Handle App Rating
+            AsyncStorage.getItem('has_rated_app').then(hasRated => {
+              if (hasRated !== 'true') {
+                AsyncStorage.getItem('total_chats_sent').then(chatCountStr => {
+                  const chatCount = (parseInt(chatCountStr || '0', 10) || 0) + 1;
+                  AsyncStorage.setItem('total_chats_sent', chatCount.toString());
+                  if (chatCount === 10) {
+                    Alert.alert(
+                      'Rate Roxie 💖',
+                      'Are you enjoying chatting with Roxie? Please take a moment to rate us. It means a lot!',
+                      [
+                        { text: 'Later', style: 'cancel' },
+                        {
+                          text: 'Rate Now',
+                          onPress: () => {
+                            AsyncStorage.setItem('has_rated_app', 'true');
+                            Linking.openURL('https://apps.apple.com/us/app/roxie-3d-ai-girlfriend/id6755465004?action=write-review');
+                          }
+                        }
+                      ]
+                    );
+                  }
+                });
+              }
+            }).catch(() => { });
           })
           .catch(err => console.warn('[useChatManager] persist user message failed', err));
       }

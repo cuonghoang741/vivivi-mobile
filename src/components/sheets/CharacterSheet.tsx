@@ -29,6 +29,8 @@ import Button from '../Button';
 import { BlurView } from 'expo-blur';
 import { LiquidGlass } from '../LiquidGlass';
 import { LiquidGlassView } from '@callstack/liquid-glass';
+import { CustomCharacterModal } from './CustomCharacterModal';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoPreloader } from '../../hooks/useVideoPreloader';
 
 interface CharacterSheetProps {
@@ -54,6 +56,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [items, setItems] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
   const { width, height } = useWindowDimensions();
   const { selectCharacter } = useSceneActions();
@@ -445,6 +448,35 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       );
     }
 
+    const renderCustomCharacterButton = () => (
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setShowCustomModal(true);
+        }}
+        style={({ pressed }) => [
+          styles.customCharacterButton,
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        ]}
+      >
+        <LinearGradient
+          colors={['rgba(168, 85, 247, 0.25)', 'rgba(236, 72, 153, 0.25)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.customCharacterGradient}
+        >
+          <View style={styles.customCharacterIconCircle}>
+            <Ionicons name="sparkles" size={24} color="#d8b4fe" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.customCharacterTitle}>Create Custom Character</Text>
+            <Text style={styles.customCharacterSubtitle}>Design your dream AI girlfriend</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
+        </LinearGradient>
+      </Pressable>
+    );
+
     return (
       <View style={{ flex: 1, maxHeight: height * 0.9 }}>
         <FlatList
@@ -455,6 +487,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={renderCustomCharacterButton}
         />
       </View>
     );
@@ -479,6 +512,10 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
       }
     >
       {renderContent()}
+      <CustomCharacterModal
+        visible={showCustomModal}
+        onClose={() => setShowCustomModal(false)}
+      />
     </BottomSheet>
   );
 });
@@ -625,5 +662,37 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  customCharacterButton: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  customCharacterGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  customCharacterIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customCharacterTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customCharacterSubtitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

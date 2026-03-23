@@ -11,7 +11,7 @@ const APP_NAME = 'Roxie';
 const BUNDLE_IDENTIFIER = 'com.vivivi';
 const PACKAGE_NAME = 'com.roxie.girlfriend';
 const ICON = './assets/icon.png';
-const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.png';
+const ANDROID_ICON_FOREGROUND = './assets/adaptive-icon.jpg';
 const SCHEME = 'roxie';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -128,6 +128,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         image: './assets/splash-screen.png',
         resizeMode: 'contain',
         backgroundColor: '#FFC0CB',
+        android: {
+          image: './assets/android-splash-screen.png',
+          resizeMode: 'cover',
+          backgroundColor: '#FFC0CB',
+        },
       },
     ],
     [

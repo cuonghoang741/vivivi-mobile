@@ -1,4 +1,5 @@
 import { BaseRepository } from './BaseRepository';
+import { getAuthIdentifier } from '../services/authIdentifier';
 
 export interface CharacterData {
   rounds?: {
@@ -31,6 +32,7 @@ export interface CharacterItem {
   price_ruby?: number;
   default_costume_id?: string;
   background_default_id?: string;
+  owner_by_id?: string | null;
   default_background?: {
     image?: string;
     thumbnail?: string;
@@ -43,14 +45,22 @@ export class CharacterRepository extends BaseRepository {
    * Fetch all available characters
    */
   async fetchAllCharacters(): Promise<CharacterItem[]> {
-    // Use PostgREST client directly (simpler and works with RLS)
-    // The Supabase JS client handles auth headers automatically
+    const { userId } = await getAuthIdentifier();
+
     try {
-      const { data, error } = await this.client
+      let query = this.client
         .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order, default_background:backgrounds!background_default_id(image,thumbnail)')
-        .eq('is_public', true)
-        .order('order', { ascending: true });
+        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)')
+        .eq('is_public', true);
+
+      // Filter by owner_by_id (either null or current user's ID)
+      if (userId) {
+        query = query.or(`owner_by_id.is.null,owner_by_id.eq.${userId}`);
+      } else {
+        query = query.is('owner_by_id', null);
+      }
+
+      const { data, error } = await query.order('order', { ascending: true });
       // .eq('available', true); // Allow unavailable characters to show as Coming Soon
 
       if (error) {
@@ -67,11 +77,16 @@ export class CharacterRepository extends BaseRepository {
           const { executeSupabaseRequest } = await import('../utils/supabaseHelpers');
 
           const queryItems: Record<string, string> = {
-            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order, default_background:backgrounds!background_default_id(image,thumbnail)',
+            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)',
             is_public: 'is.true',
             order: 'order.asc',
-            // available: 'is.true', // Allow unavailable characters
           };
+
+          if (userId) {
+            queryItems.or = `(owner_by_id.is.null,owner_by_id.eq.${userId})`;
+          } else {
+            queryItems.owner_by_id = 'is.null';
+          }
 
           try {
             const restData = await executeSupabaseRequest<CharacterItem[]>(
@@ -92,7 +107,16 @@ export class CharacterRepository extends BaseRepository {
 
       console.log(`✅ [CharacterRepository] Loaded ${data?.length || 0} characters via PostgREST`);
 
-      return (data || []).map((item: any) => ({
+      const characters = data || [];
+
+      // Mặc định sort theo order, nhưng character custom thì đẩy lên đầu
+      characters.sort((a: any, b: any) => {
+        if (a.owner_by_id && !b.owner_by_id) return -1;
+        if (!a.owner_by_id && b.owner_by_id) return 1;
+        return (a.order || 0) - (b.order || 0);
+      });
+
+      return characters.map((item: any) => ({
         ...item,
         default_background: Array.isArray(item.default_background)
           ? item.default_background[0]

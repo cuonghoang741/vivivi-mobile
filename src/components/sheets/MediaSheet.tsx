@@ -30,10 +30,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
 import AssetRepository from '../../repositories/AssetRepository';
+import { CurrencyRepository } from '../../repositories/CurrencyRepository';
 import { type BottomSheetRef } from '../BottomSheet';
 import { DiamondBadge } from '../DiamondBadge';
-import { revenueCatManager } from '../../services/RevenueCatManager';
+import { RubyPurchaseSheet, GIFT_TIERS } from './RubyPurchaseSheet';
 import GiftIcon from '../../assets/icons/gift.svg';
+import RubyIcon from '../../assets/icons/ruby.svg';
 
 type MediaSheetProps = {
   isOpened: boolean;
@@ -81,6 +83,8 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
 
   // Popup state
   const [selectedGiftItem, setSelectedGiftItem] = useState<MediaItem | null>(null);
+  const [showRubySheet, setShowRubySheet] = useState(false);
+  const [rubyBalance, setRubyBalance] = useState(0);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
   const { width } = useWindowDimensions();
@@ -339,34 +343,46 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     [handleSelect, width, isPro, cardBgColor, isDarkBackground, getDisplayUrl, ownedMediaIds]
   );
 
-  const handleGiftPurchase = async () => {
+  const handleGiftPurchase = async (giftCost: number) => {
     if (!selectedGiftItem || isPurchasing) return;
 
     try {
       setIsPurchasing(true);
-      const pkg = await revenueCatManager.getPackageByIdentifier('roxie.gift');
-      if (pkg) {
-        const { productIdentifier } = await revenueCatManager.purchasePackage(pkg);
-        const assetRepository = new AssetRepository();
 
-        // Prevent invalid input syntax for type UUID by omitting transaction_id entirely
-        const success = await assetRepository.createAsset(selectedGiftItem.id, 'media');
-        if (success) {
-          setOwnedMediaIds(prev => new Set([...prev, selectedGiftItem.id]));
-          setSelectedGiftItem(null); // close dialog
-        } else {
-          Alert.alert('Error', 'Purchase successful but failed to save to database. Please contact support.');
-          setOwnedMediaIds(prev => new Set([...prev, selectedGiftItem.id]));
-          setSelectedGiftItem(null); // close dialog
-        }
+      // Fetch current Ruby balance
+      const currencyRepo = new CurrencyRepository();
+      const currency = await currencyRepo.fetchCurrency();
+      const currentRuby = currency.ruby;
+      setRubyBalance(currentRuby);
+
+      if (currentRuby < giftCost) {
+        // Not enough Ruby — show purchase sheet
+        setSelectedGiftItem(null);
+        setIsPurchasing(false);
+        setTimeout(() => setShowRubySheet(true), 300);
+        return;
+      }
+
+      // Deduct Ruby
+      const newRuby = currentRuby - giftCost;
+      await currencyRepo.updateCurrency(undefined, newRuby);
+      setRubyBalance(newRuby);
+
+      // Save asset ownership
+      const assetRepository = new AssetRepository();
+      const success = await assetRepository.createAsset(selectedGiftItem.id, 'media');
+      if (success) {
+        setOwnedMediaIds(prev => new Set([...prev, selectedGiftItem.id]));
+        setSelectedGiftItem(null);
       } else {
-        Alert.alert('Error', 'Gift package not found.');
+        // Refund Ruby on failure
+        await currencyRepo.updateCurrency(undefined, currentRuby);
+        setRubyBalance(currentRuby);
+        Alert.alert('Error', 'Failed to unlock media. Ruby refunded.');
       }
     } catch (error: any) {
-      console.error('Purchase failed:', error);
-      if (error.message !== 'Purchase cancelled') {
-        Alert.alert('Error', 'Purchase failed. Please try again.');
-      }
+      console.error('Gift purchase failed:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setIsPurchasing(false);
     }
@@ -519,27 +535,48 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                 </Text>
 
                 <Text style={[styles.giftPopupDescription, { color: secondaryTextColor }]}>
-                  Send me a sweet gift to unlock this special content. 🤫
+                  Choose a gift to unlock this special content 🤫
                 </Text>
 
-                <Pressable
-                  onPress={handleGiftPurchase}
-                  disabled={isPurchasing}
-                  style={styles.giftPopupButtonContainer}
-                >
-                  <LinearGradient
-                    colors={['#FF4639', '#FF8E86']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.giftPopupGradientBtn}
-                  >
-                    {isPurchasing ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.giftPopupBtnText}>Send Gift ($1.00)</Text>
-                    )}
-                  </LinearGradient>
-                </Pressable>
+                <View style={styles.giftTiersRow}>
+                  {GIFT_TIERS.map(tier => (
+                    <Pressable
+                      key={tier.id}
+                      onPress={() => handleGiftPurchase(tier.cost)}
+                      disabled={isPurchasing}
+                      style={({ pressed }) => [
+                        styles.giftTierCard,
+                        pressed && { transform: [{ scale: 0.95 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={tier.gradientColors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.giftTierGradient}
+                      >
+                        {'popular' in tier && tier.popular && (
+                          <View style={styles.giftTierPopular}>
+                            <Text style={styles.giftTierPopularText}>HOT</Text>
+                          </View>
+                        )}
+                        <Image source={{ uri: tier.image }} style={styles.giftTierImage} />
+                        <Text style={styles.giftTierName}>{tier.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.giftTierCost}>{tier.cost}</Text>
+                          <RubyIcon width={14} height={14} />
+                        </View>
+                      </LinearGradient>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {isPurchasing && (
+                  <View style={styles.giftPurchasingRow}>
+                    <ActivityIndicator color="#a855f7" size="small" />
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>Processing...</Text>
+                  </View>
+                )}
 
                 <Pressable
                   style={styles.giftPopupCancelBtn}
@@ -553,6 +590,16 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
               </View>
             </View>
           </Modal>
+
+          <RubyPurchaseSheet
+            visible={showRubySheet}
+            onClose={() => setShowRubySheet(false)}
+            currentBalance={rubyBalance}
+            onPurchaseComplete={(newBalance) => {
+              setRubyBalance(newBalance);
+              setShowRubySheet(false);
+            }}
+          />
         </View>
       </Modal>
     </>
@@ -810,5 +857,61 @@ const styles = StyleSheet.create({
   giftPopupCancelText: {
     fontSize: 15,
     fontWeight: '600',
-  }
+  },
+  giftTiersRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginBottom: 8,
+  },
+  giftTierCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  giftTierGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    minHeight: 110,
+  },
+  giftTierPopular: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  giftTierPopularText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  giftTierImage: {
+    width: 44,
+    height: 44,
+    marginBottom: 4,
+  },
+  giftTierName: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  giftTierCost: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  giftPurchasingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
 });

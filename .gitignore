@@ -58,3 +58,7 @@ scripts/medias
 
 build-*.aab
 build-*.ipa
+
+scripts/dance-emojis
+
+src/assets/custom-character

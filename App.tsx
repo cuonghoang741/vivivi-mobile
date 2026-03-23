@@ -22,6 +22,8 @@ import { authManager } from './src/services/AuthManager';
 import { ChatBottomOverlay } from './src/components/chat/ChatBottomOverlay';
 import { SettingsModal } from './src/components/settings/SettingsModal';
 import { SubscriptionSheet } from './src/components/sheets/SubscriptionSheet';
+import { RubyPurchaseSheet } from './src/components/sheets/RubyPurchaseSheet';
+import { DanceSheet } from './src/components/sheets/DanceSheet';
 import { StreakRewardPopup } from './src/components/StreakRewardPopup';
 import { useChatManager } from './src/hooks/useChatManager';
 import { useAppVoiceCall } from './src/hooks/useAppVoiceCall';
@@ -136,6 +138,7 @@ const AppContent = () => {
   const { stats: overlayStats, refresh: refreshStats, consumeEnergy, refillEnergy } = useUserStats();
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [showSubscriptionSheet, setShowSubscriptionSheet] = useState(false);
+  const [showRubyPurchaseSheet, setShowRubyPurchaseSheet] = useState(false);
   const { isPro } = useSubscription();
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
@@ -911,33 +914,36 @@ const AppContent = () => {
     analyticsService.logSheetOpen('media');
   }, [activeCharacterId]);
 
+  const [showDanceSheet, setShowDanceSheet] = useState(false);
+
   const handleDance = useCallback(() => {
+    if (isDancing) {
+      // Stop dancing
+      ensureWebBridge();
+      webBridgeRef.current?.stopAction();
+      setIsDancing(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    } else {
+      // Open dance selection sheet
+      setShowDanceSheet(true);
+    }
+  }, [ensureWebBridge, isDancing]);
+
+  const handlePlayDance = useCallback((fileName: string) => {
     ensureWebBridge();
-    if (!webBridgeRef.current) {
-      console.warn('[App] Dance requested before WebView ready');
-      return;
-    }
+    if (!webBridgeRef.current) return;
     try {
-      if (isDancing) {
-        // Stop dancing
-        webBridgeRef.current.stopAction();
-        setIsDancing(false);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-      } else {
-        // Start dancing
-        webBridgeRef.current.triggerDance();
-        setIsDancing(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-        QuestProgressTracker.track('dance_character').catch(error =>
-          console.warn('[App] Failed to track dance quest progress:', error)
-        );
-        // Track dance analytics
-        analyticsService.logDanceTrigger(activeCharacterId || '');
-      }
+      webBridgeRef.current.loadAnimationByName(fileName);
+      setIsDancing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+      QuestProgressTracker.track('dance_character').catch(error =>
+        console.warn('[App] Failed to track dance quest progress:', error)
+      );
+      analyticsService.logDanceTrigger(activeCharacterId || '');
     } catch (error) {
-      console.error('[App] Failed to trigger dance:', error);
+      console.error('[App] Failed to play dance:', error);
     }
-  }, [ensureWebBridge, isDancing, activeCharacterId]);
+  }, [ensureWebBridge, activeCharacterId]);
 
   const characterTitle = useMemo(() => {
     if (currentCharacter?.name?.trim()) {
@@ -2309,6 +2315,26 @@ const AppContent = () => {
             />
           </Animated.View>
         )}
+        <RubyPurchaseSheet
+          visible={showRubyPurchaseSheet}
+          onClose={() => setShowRubyPurchaseSheet(false)}
+          currentBalance={balance.ruby ?? 0}
+          onPurchaseComplete={() => refreshCurrency()}
+        />
+
+        <DanceSheet
+          isOpened={showDanceSheet}
+          onIsOpenedChange={setShowDanceSheet}
+          rubyBalance={balance.ruby ?? 0}
+          onPlayDance={handlePlayDance}
+          onOpenRubySheet={() => {
+            setShowDanceSheet(false);
+            setTimeout(() => setShowRubyPurchaseSheet(true), 300);
+          }}
+          onBalanceChanged={() => refreshCurrency()}
+          isDarkBackground={isDarkBackground}
+        />
+
         <AppSheets
           showQuestSheet={showQuestSheet}
           setShowQuestSheet={setShowQuestSheet}
@@ -2416,6 +2442,8 @@ const AppContent = () => {
             setShowSubscriptionSheet(true);
           }}
           isPro={isPro}
+          rubyBalance={balance.ruby ?? 0}
+          onOpenRubySheet={() => setShowRubyPurchaseSheet(true)}
         />
         {rewardOverlayData && (
           <RewardClaimOverlay

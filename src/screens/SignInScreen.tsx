@@ -19,6 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PersistKeys } from '../config/supabase';
 import { Video, ResizeMode } from 'expo-av';
+import { WebView } from 'react-native-webview';
+import { loadHTMLContent } from '../utils/loadHTML';
 
 // Icons (imported as React components via react-native-svg-transformer)
 import AppleIcon from '../assets/icons/apple.svg';
@@ -53,6 +55,17 @@ export const SignInScreen: React.FC<Props> = ({
   const [showAgePrompt, setShowAgePrompt] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<'apple' | 'google' | null>(null);
 
+  // Preload VRM WebView HTML to warm up browser HTTP cache
+  const [preloadHtml, setPreloadHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadHTMLContent()
+      .then(html => {
+        console.log('[SignIn] Preload HTML loaded for VRM cache warming');
+        setPreloadHtml(html);
+      })
+      .catch(err => console.warn('[SignIn] Preload HTML failed:', err));
+  }, []);
 
 
   useEffect(() => {
@@ -178,6 +191,18 @@ export const SignInScreen: React.FC<Props> = ({
           isMuted={true}
         />
       </View>
+
+      {/* Hidden WebView to preload/cache VRM assets (Three.js, models, animations) */}
+      {preloadHtml && (
+        <WebView
+          source={{ html: preloadHtml, baseUrl: 'file:///' }}
+          style={{ width: 0, height: 0, position: 'absolute', opacity: 0 }}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          originWhitelist={['*']}
+          mixedContentMode="always"
+        />
+      )}
 
       {/* Content overlay - absolute positioned */}
       <View style={styles.contentOverlay} pointerEvents="box-none">

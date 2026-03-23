@@ -15,7 +15,7 @@ interface UserInfo {
   isPro?: boolean;
 }
 
-type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription' | 'ai_response';
+type NotificationType = 'new_user' | 'chat_message' | 'purchase_item' | 'subscription' | 'ai_response' | 'custom_character_request';
 
 interface NotificationPayload extends UserInfo {
   type: NotificationType;
@@ -123,6 +123,8 @@ User Age: ${userInfo.userAge}`;
         return '🛍️ USER PURCHASED ITEM';
       case 'subscription':
         return '💎 USER SUBSCRIBED';
+      case 'custom_character_request':
+        return '🎨 NEW CUSTOM CHARACTER REQUEST';
       default:
         return '🔔 NOTIFICATION';
     }
@@ -239,6 +241,26 @@ User Age: ${userInfo.userAge}`;
         'Plan': planName,
         'Product ID': productId,
       },
+    });
+
+    if (messageId) {
+      await this.pinMessage(messageId);
+    }
+  }
+
+  /**
+   * Notify and pin when a custom character request is made
+   */
+  async notifyCustomCharacterRequest(userInfo: UserInfo, selections: Record<string, string>, imageUrl?: string): Promise<void> {
+    const additionalData: Record<string, any> = { ...selections };
+    if (imageUrl) {
+      additionalData['Image'] = imageUrl;
+    }
+
+    const messageId = await this.sendNotification({
+      ...userInfo,
+      type: 'custom_character_request',
+      additionalData,
     });
 
     if (messageId) {
