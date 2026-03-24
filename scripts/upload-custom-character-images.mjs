@@ -19,6 +19,7 @@ import path from 'path';
 import { readFile, readdir, writeFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import * as dotenv from 'dotenv';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,7 +61,8 @@ const s3Client = new S3Client({
  *      "eth_southeast_asian.png" → "eth southeast asian"
  */
 function fileNameToLabel(filename) {
-    const name = filename.replace(/\.[^.]+$/, ''); // strip extension
+    // Strip extension and any trailing numeric timestamp (e.g. "_1774241662685")
+    const name = filename.replace(/\.[^.]+$/, '').replace(/_\d+$/, '');
     return name.replace(/_/g, ' '); // underscores → spaces
 }
 
@@ -181,7 +183,11 @@ function generateConstantsFile(urlMap) {
  * Main
  */
 async function main() {
-    console.log('🎨 Custom Character Image Uploader (with BG removal)');
+    const args = process.argv.slice(2);
+    const skipBgRemoval = args.includes('rmBg=false');
+
+    console.log('🎨 Custom Character Image Uploader');
+    console.log(`🤖 Background removal: ${skipBgRemoval ? 'SKIPPED' : 'ENABLED'}`);
     console.log('════════════════════════════════════════════════════');
     console.log(`📁 Source: ${ASSETS_DIR}`);
     console.log(`📦 S3 Bucket: ${AWS_BUCKET}`);
@@ -203,7 +209,7 @@ async function main() {
 
     // Read image files
     const files = await readdir(ASSETS_DIR);
-    const imageFiles = files.filter(f => !f.startsWith('.') && f.endsWith('.png'));
+    const imageFiles = files.filter(f => !f.startsWith('.') && /\.(png|jpe?g|webp)$/i.test(f));
 
     console.log(`📊 Found ${imageFiles.length} images\n`);
 
@@ -229,14 +235,21 @@ async function main() {
             const filePath = path.join(ASSETS_DIR, filename);
             const originalBuffer = await readFile(filePath);
 
-            // 1. Remove background
-            const noBgBuffer = await removeImageBackground(originalBuffer);
+            // 1. Remove background (conditionally)
+            let processedBuffer = originalBuffer;
+            if (!skipBgRemoval) {
+                processedBuffer = await removeImageBackground(originalBuffer);
+            } else {
+                console.log('  ⏭️  Skipping background removal');
+            }
 
             // 2. Resize & compress to WebP
-            const compressedBuffer = await resizeAndCompress(noBgBuffer);
+            const compressedBuffer = await resizeAndCompress(processedBuffer);
 
-            // 3. Upload to S3
-            const s3Key = `${S3_FOLDER}/${filename.replace('.png', '.webp')}`;
+            // 3. Upload to S3 (stripping the trailing numeric timestamp from filename)
+            const cleanFilename = filename.replace(/_\d+(?=\.[^.]+$)/, '');
+            const baseName = cleanFilename.replace(/\.[^.]+$/, '');
+            const s3Key = `${S3_FOLDER}/${baseName}_${crypto.randomUUID()}.webp`;
             const url = await uploadToS3(compressedBuffer, s3Key, 'image/webp');
             console.log(`  ☁️  Uploaded: ${url}`);
 

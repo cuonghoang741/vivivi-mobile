@@ -13,6 +13,7 @@ import {
     Dimensions,
     FlatList,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -134,7 +135,6 @@ const STEPS: StepConfig[] = [
             { label: 'Indian', emoji: '🇮🇳' },
             { label: 'Mixed', emoji: '🌈' },
         ],
-        columns: 3,
     },
     {
         key: 'hairColor',
@@ -154,7 +154,6 @@ const STEPS: StepConfig[] = [
             { label: 'Green', emoji: '💚' },
             { label: 'Ombre', emoji: '🌅' },
         ],
-        columns: 2,
     },
     {
         key: 'hairStyle',
@@ -173,7 +172,6 @@ const STEPS: StepConfig[] = [
             { label: 'Braids', emoji: '�' },
             { label: 'Bun', emoji: '🍡' },
         ],
-        columns: 3,
     },
     {
         key: 'eyeColor',
@@ -205,7 +203,6 @@ const STEPS: StepConfig[] = [
             { label: 'Large', emoji: '🍉', popular: true },
             { label: 'Extra Large', emoji: '🔥' },
         ],
-        columns: 3,
     },
     {
         key: 'buttSize',
@@ -219,7 +216,6 @@ const STEPS: StepConfig[] = [
             { label: 'Large', emoji: '🔥', popular: true },
             { label: 'Extra Large', emoji: '💥' },
         ],
-        columns: 2,
     },
     {
         key: 'outfit',
@@ -241,7 +237,6 @@ const STEPS: StepConfig[] = [
             { label: 'Cosplay', emoji: '🦸‍♀️' },
             { label: 'Dress', emoji: '👗' },
         ],
-        columns: 3,
     },
     {
         key: 'personality',
@@ -261,22 +256,21 @@ const STEPS: StepConfig[] = [
             { label: 'Motherly', emoji: '🤱' },
             { label: 'Tomboy', emoji: '⚡' },
         ],
-        columns: 2,
     },
-    {
-        key: 'extraNotes',
-        title: 'Special Requests',
-        subtitle: 'Add extra details (optional)',
-        icon: '📝',
-        type: 'text',
-        placeholder: 'Describe any other details you want...',
-        quickTags: [
-            'Cat Ears', 'Fox Ears', 'Elf Ears', 'Glasses', 'Freckles',
-            'Tattoos', 'Piercing', 'Fangs', 'Horns', 'Wings',
-            'Tail', 'Heterochromia', 'Scars', 'Mole', 'Big Eyes',
-            'Thick Lips', 'Choker', 'Thigh Highs',
-        ],
-    },
+    // {
+    //     key: 'extraNotes',
+    //     title: 'Special Requests',
+    //     subtitle: 'Add extra details (optional)',
+    //     icon: '📝',
+    //     type: 'text',
+    //     placeholder: 'Describe any other details you want...',
+    //     quickTags: [
+    //         'Cat Ears', 'Fox Ears', 'Elf Ears', 'Glasses', 'Freckles',
+    //         'Tattoos', 'Piercing', 'Fangs', 'Horns', 'Wings',
+    //         'Tail', 'Heterochromia', 'Scars', 'Mole', 'Big Eyes',
+    //         'Thick Lips', 'Choker', 'Thigh Highs',
+    //     ],
+    // },
 ];
 
 const TOTAL_STEPS = STEPS.length + 1; // +1 for purchase/submit step
@@ -305,6 +299,8 @@ type Props = {
 type ScreenMode = 'loading' | 'history' | 'creation';
 
 export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
+    const insets = useSafeAreaInsets();
+
     // Screen mode
     const [screenMode, setScreenMode] = useState<ScreenMode>('loading');
     const [requests, setRequests] = useState<CharacterRequest[]>([]);
@@ -410,6 +406,15 @@ export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
     const handleSelect = (stepKey: string, value: string) => {
         Haptics.selectionAsync();
         setSelections(prev => ({ ...prev, [stepKey]: value }));
+
+        // Auto-advance to next step for grid selections
+        const currentStepConfig = STEPS[currentStep];
+        if (currentStepConfig?.type === 'grid' && currentStep < TOTAL_STEPS - 1) {
+            setTimeout(() => {
+                setCurrentStep(prev => prev + 1);
+                animateSlide('forward');
+            }, 400);
+        }
     };
 
     const handleClose = () => {
@@ -558,16 +563,69 @@ export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
 
     // ─── Render: History Screen ─────────────────────────────
 
+    const handleRemoveRequest = (requestId: string) => {
+        Alert.alert(
+            'Remove Request',
+            'Are you sure you want to remove this pending request?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const supabase = getSupabaseClient();
+                            const { error } = await supabase
+                                .from('custom_character_requests')
+                                .delete()
+                                .eq('id', requestId)
+                                .eq('status', 'pending');
+
+                            if (error) {
+                                console.error('[CustomCharacterModal] Delete request failed:', error);
+                                Alert.alert('Error', 'Failed to remove request.');
+                                return;
+                            }
+
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            // Refresh list
+                            const updated = requests.filter(r => r.id !== requestId);
+                            setRequests(updated);
+                            if (updated.length === 0) {
+                                setScreenMode('creation');
+                            }
+                        } catch (e) {
+                            console.error('[CustomCharacterModal] Remove error:', e);
+                            Alert.alert('Error', 'Something went wrong.');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
     const renderRequestCard = ({ item }: { item: CharacterRequest }) => {
         const config = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
         const sel = (item.selections || {}) as Record<string, string>;
+        const isPending = item.status === 'pending';
         return (
             <View style={styles.requestCard}>
                 <View style={styles.requestCardHeader}>
                     <Text style={styles.requestCardDate}>{formatDate(item.created_at)}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
-                        <Ionicons name={config.icon as any} size={13} color={config.color} />
-                        <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
+                            <Ionicons name={config.icon as any} size={13} color={config.color} />
+                            <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+                        </View>
+                        {isPending && (
+                            <Pressable
+                                onPress={() => handleRemoveRequest(item.id)}
+                                style={styles.removeRequestBtn}
+                                hitSlop={8}
+                            >
+                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                            </Pressable>
+                        )}
                     </View>
                 </View>
 
@@ -632,7 +690,8 @@ export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
 
     const renderGridStep = (step: StepConfig) => {
         const cols = step.columns || 3;
-        const cardWidth = (SCREEN_WIDTH - 40 - (cols - 1) * 12) / cols;
+        // Subtract an extra small margin (44 instead of 40) to guarantee they never wrap due to sub-pixel rounding
+        const cardWidth = Math.floor((SCREEN_WIDTH - 44 - (cols - 1) * 12) / cols);
 
         return (
             <View style={styles.optionsGrid}>
@@ -1001,12 +1060,12 @@ export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="pageSheet"
+            presentationStyle="fullScreen"
             onRequestClose={handleClose}
         >
             <View style={styles.container}>
                 {/* Header */}
-                <View style={styles.header}>
+                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                     {showBackButton ? (
                         <Pressable onPress={handleHeaderBack} style={styles.headerButton} hitSlop={12}>
                             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1071,7 +1130,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 16,
         paddingBottom: 12,
     },
     headerButton: {
@@ -1167,6 +1225,14 @@ const styles = StyleSheet.create({
         height: 120,
         borderRadius: 12,
         marginTop: 10,
+    },
+    removeRequestBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     historyFooter: {
         position: 'absolute',

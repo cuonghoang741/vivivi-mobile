@@ -459,8 +459,8 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
             <View style={styles.centerContent}>
               <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
                 {selectedTab === 'video'
-                  ? 'No videos available'
-                  : 'No photos available'}
+                  ? 'Video will be updated soon.'
+                  : 'Photo will be updated soon.'}
               </Text>
             </View>
           ) : (
