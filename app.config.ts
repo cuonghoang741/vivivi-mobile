@@ -59,7 +59,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: ANDROID_ICON_FOREGROUND,
     },
     package: PACKAGE_NAME,
-    versionCode: 1, // Will be auto-incremented by EAS
+    versionCode: 67, // Will be auto-incremented by EAS
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     permissions: [
