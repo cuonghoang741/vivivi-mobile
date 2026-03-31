@@ -297,7 +297,7 @@
             "Standing Greeting.fbx", "Step Hip Hop Dance.fbx", "Talking.fbx", "Taunt.fbx", "Thinking.fbx",
             "Threatening.fbx"
         ];
-        const newFbxFiles = [
+        const proFbxFiles = [
             "Dance - Give Your Soul.fbx",
             "Feminine - Exaggerated 2.fbx",
             "Heart-Flutter Pose.fbx",
@@ -305,7 +305,7 @@
             "Sly - Finger gun gesture.fbx"
         ];
         // Combine all files for the app to see
-        const fbxFiles = [...legacyFbxFiles, ...newFbxFiles];
+        const fbxFiles = [...legacyFbxFiles, ...proFbxFiles];
 
         const VRM_BASE_URL = 'https://pub-6671ed00c8d945b28ff7d8ec392f60b8.r2.dev/CHARACTERS/';
         const FBX_BASE_URL = 'https://n6n.top/Anim/';
@@ -468,7 +468,7 @@
 
                 // Fetch legacy and new animations separately
                 const legacyAnimNames = legacyFbxFiles.filter(n => n !== excludeAnimationName);
-                const newAnimNames = newFbxFiles.filter(n => n !== excludeAnimationName);
+                const newAnimNames = proFbxFiles.filter(n => n !== excludeAnimationName);
 
                 // Kick off all in parallel
                 await Promise.all([
@@ -494,7 +494,7 @@
         }
 
         function getBaseURLForAnimation(name) {
-            if (newFbxFiles.includes(name)) {
+            if (proFbxFiles.includes(name)) {
                 return FBX_BASE_URL_2;
             }
             return FBX_BASE_URL;

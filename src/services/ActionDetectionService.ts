@@ -100,6 +100,34 @@ class ActionDetectionService {
             return { action: 'none', confidence: 1.0 };
         }
     }
+
+    /**
+     * Call gemini-suggest-gift edge function
+     */
+    async suggestGift(conversationHistory: any[]): Promise<{ suggestGift: boolean, message: string, reasoning: string }> {
+        try {
+            if (!conversationHistory || conversationHistory.length === 0) return { suggestGift: false, message: "", reasoning: "" };
+
+            const { data, error } = await this.client.functions.invoke('gemini-suggest-gift', {
+                body: { conversation: conversationHistory },
+            });
+
+            if (error) {
+                console.warn('[ActionDetectionService] edge function error:', error);
+                return { suggestGift: false, message: "", reasoning: "" };
+            }
+
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            return {
+                suggestGift: !!parsed?.suggestGift,
+                message: parsed?.message || "",
+                reasoning: parsed?.reasoning || ""
+            };
+        } catch (error) {
+            console.warn('[ActionDetectionService] Failed to suggest gift:', error);
+            return { suggestGift: false, message: "", reasoning: "" };
+        }
+    }
 }
 
 export const actionDetectionService = new ActionDetectionService();

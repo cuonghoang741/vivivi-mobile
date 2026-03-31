@@ -134,9 +134,16 @@ class RevenueCatManager {
     if (!this.offerings) {
       await this.loadOfferings();
     }
-    return this.offerings?.availablePackages.find(
+    const found = this.offerings?.availablePackages.find(
       (p) => p.identifier === identifier || p.product.identifier === identifier
     );
+    if (!found) {
+      const available = this.offerings?.availablePackages.map(
+        (p) => `${p.identifier} / ${p.product.identifier}`
+      );
+      console.warn(`[RevenueCat] Package not found: "${identifier}". Available:`, available);
+    }
+    return found;
   }
 
   async hasActiveSubscription(): Promise<boolean> {

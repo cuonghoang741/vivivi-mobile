@@ -81,7 +81,7 @@ export const SubscriptionSheet: React.FC<SubscriptionSheetProps> = ({
     const [backgroundVideo, setBackgroundVideo] = useState<string | number | null>(null);
     const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
-    console.log('packages', packages);
+    // console.log('packages', packages);
 
     // Find yearly and monthly packages
     const yearlyPackage = packages.find(p =>

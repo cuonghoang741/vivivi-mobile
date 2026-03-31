@@ -61,3 +61,6 @@ build-*.ipa
 
 src/assets/custom-character-originals/*
 src/assets/custom-character/*
+scripts/dance-emojis
+
+src/assets/custom-character*

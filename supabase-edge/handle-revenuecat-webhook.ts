@@ -42,6 +42,54 @@ serve(async (req) => {
             case "RENEWAL":
             case "UNCANCELLATION":
             case "PRODUCT_CHANGE":
+                // ─── Handle Ruby / consumable purchases (not subscriptions) ───
+                const RUBY_PRODUCT_MAP: Record<string, number> = {
+                    'silver.package.fun.vivivi': 100,
+                    'gold.package.fun.vivivi': 500,
+                    'pink.package.fun.vivivi': 1200,
+                };
+
+                const rubyAmount = RUBY_PRODUCT_MAP[event.product_id];
+                const isNonSubscription = event.product_id && (
+                    rubyAmount !== undefined ||
+                    event.product_id.includes('gift') ||
+                    event.product_id.includes('coin') ||
+                    event.product_id.includes('custom')
+                );
+
+                if (isNonSubscription) {
+                    console.log(`Non-subscription purchase detected: ${event.product_id}`);
+
+                    // Credit Ruby if it's a Ruby package
+                    if (rubyAmount && userId) {
+                        // Fetch current balance
+                        const { data: currencyData } = await supabase
+                            .from('user_currency')
+                            .select('ruby')
+                            .eq('user_id', userId)
+                            .limit(1);
+
+                        const currentRuby = currencyData?.[0]?.ruby || 0;
+                        const newRuby = currentRuby + rubyAmount;
+
+                        const { error: rubyError } = await supabase
+                            .from('user_currency')
+                            .upsert({
+                                user_id: userId,
+                                ruby: newRuby,
+                            }, { onConflict: 'user_id' });
+
+                        if (rubyError) {
+                            console.error(`Failed to credit ${rubyAmount} Ruby to ${userId}:`, rubyError);
+                        } else {
+                            console.log(`✅ Credited ${rubyAmount} Ruby to ${userId}. New balance: ${newRuby}`);
+                        }
+                    }
+
+                    shouldUpdate = false;
+                    break;
+                }
+
                 updateData = {
                     tier: 'pro',
                     status: 'active',

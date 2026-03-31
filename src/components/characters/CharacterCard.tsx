@@ -12,10 +12,18 @@ type CharacterCardProps = {
 
 const ProBadge = ({ tier }: { tier?: string }) => {
   if (!tier || tier === 'free') return null;
-  
+
   return (
     <View style={styles.proBadge}>
       <Text style={styles.proBadgeText}>{tier.toUpperCase()}</Text>
+    </View>
+  );
+};
+
+const CustomBadge = () => {
+  return (
+    <View style={[styles.proBadge, styles.customBadge]}>
+      <Text style={styles.proBadgeText}>CUSTOM</Text>
     </View>
   );
 };
@@ -60,16 +68,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ item, isOwned, sty
         ) : (
           <View style={styles.placeholder} />
         )}
-        
+
         {/* Dark overlay for unowned */}
         {!isOwned && <View style={styles.darkenOverlay} />}
-        
+
         {/* Gradient overlay */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.85)']}
           style={styles.gradient}
         />
-        
+
         {/* Top-left badges */}
         <View style={styles.topLeftBadges}>
           {!isOwned && (
@@ -81,17 +89,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({ item, isOwned, sty
             <PriceBadgesView vcoin={item.price_vcoin} ruby={item.price_ruby} />
           )}
         </View>
-        
+
         {/* Lock icon center */}
         {!isOwned && <LockIcon />}
-        
+
         {/* Bottom content */}
         <View style={styles.bottomContent}>
           <View style={styles.nameRow}>
             <Text style={styles.name} numberOfLines={2}>
               {item.name}
             </Text>
-            <ProBadge tier={item.tier} />
+            {item.owner_by_id ? (
+              <CustomBadge />
+            ) : (
+              <ProBadge tier={item.tier} />
+            )}
           </View>
           {item.description ? (
             <Text style={styles.description} numberOfLines={3}>
@@ -207,6 +219,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 9,
     fontWeight: 'bold',
+  },
+  customBadge: {
+    backgroundColor: 'rgba(236,72,153,0.9)', // Pink color for custom
   },
   lockIconContainer: {
     position: 'absolute',

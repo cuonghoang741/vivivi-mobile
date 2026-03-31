@@ -14,6 +14,7 @@ import {
   View,
   useWindowDimensions,
   LayoutAnimation,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -25,6 +26,7 @@ import Button from '../Button';
 import { getSupabaseClient } from '../../services/supabase';
 import { getAuthIdentifier } from '../../services/authIdentifier';
 import { BottomSheet, BottomSheetRef } from '../BottomSheet';
+import RubyIcon from '../../assets/icons/ruby.svg';
 
 type Props = {
   visible: boolean;
@@ -33,6 +35,8 @@ type Props = {
   displayName?: string | null;
   onOpenSubscription?: () => void;
   isPro?: boolean;
+  rubyBalance?: number;
+  onOpenRubySheet?: () => void;
 };
 
 type ToggleKey =
@@ -258,7 +262,16 @@ const SettingsRow: React.FC<{
 
 // --- Main Component ---
 
-export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displayName, onOpenSubscription, isPro = false }) => {
+export const SettingsModal: React.FC<Props> = ({
+  visible,
+  onClose,
+  email,
+  displayName,
+  onOpenSubscription,
+  isPro = false,
+  rubyBalance,
+  onOpenRubySheet
+}) => {
   const { height } = useWindowDimensions();
   const bottomSheetRef = useRef<BottomSheetRef>(null);
   const [toggles, setToggles] = useState<Record<ToggleKey, boolean>>(TOGGLE_DEFAULTS);
@@ -453,6 +466,23 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
 
             <SettingsGroup title="Your Account">
               <SettingsRow
+                icon="diamond-outline"
+                label="Ruby Balance"
+                rightElement={
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <RubyIcon width={16} height={16} />
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{rubyBalance ?? 0}</Text>
+                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.3)" />
+                  </View>
+                }
+                onPress={() => {
+                  if (onOpenRubySheet) {
+                    onClose();
+                    setTimeout(() => onOpenRubySheet(), 300);
+                  }
+                }}
+              />
+              <SettingsRow
                 icon="card-outline"
                 label="My Subscription"
                 onPress={() => {
@@ -516,6 +546,11 @@ export const SettingsModal: React.FC<Props> = ({ visible, onClose, email, displa
                 icon="shield-checkmark-outline"
                 label="Privacy Policy"
                 onPress={() => WebBrowser.openBrowserAsync('https://roxie-terms-privacy-hub.lovable.app/privacy')}
+              />
+              <SettingsRow
+                icon="star-outline"
+                label="Rate Us"
+                onPress={() => Linking.openURL('https://apps.apple.com/us/app/roxie-3d-ai-girlfriend/id6755465004?action=write-review')}
               />
               <SettingsRow
                 icon="bug-outline"

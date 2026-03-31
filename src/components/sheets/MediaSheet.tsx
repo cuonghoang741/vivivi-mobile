@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -23,12 +24,18 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { Video, ResizeMode } from 'expo-av';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import ImageViewing from 'react-native-image-viewing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MediaRepository, type MediaItem } from '../../repositories/MediaRepository';
+import AssetRepository from '../../repositories/AssetRepository';
+import { CurrencyRepository } from '../../repositories/CurrencyRepository';
 import { type BottomSheetRef } from '../BottomSheet';
 import { DiamondBadge } from '../DiamondBadge';
+import { RubyPurchaseSheet, GIFT_TIERS } from './RubyPurchaseSheet';
+import GiftIcon from '../../assets/icons/gift.svg';
+import RubyIcon from '../../assets/icons/ruby.svg';
 
 type MediaSheetProps = {
   isOpened: boolean;
@@ -63,6 +70,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   isPro = false,
 }, ref) => {
   const [items, setItems] = useState<MediaItem[]>([]);
+  const [ownedMediaIds, setOwnedMediaIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<TabKey>('video');
@@ -72,6 +80,12 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
   const [cameraRollImages, setCameraRollImages] = useState<{ uri: string }[]>([]);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Popup state
+  const [selectedGiftItem, setSelectedGiftItem] = useState<MediaItem | null>(null);
+  const [showRubySheet, setShowRubySheet] = useState(false);
+  const [rubyBalance, setRubyBalance] = useState(0);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -105,6 +119,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     setErrorMessage(null);
 
     try {
+<<<<<<< HEAD
       const media = await mediaRepositoryRef.current!.fetchAllMedia(characterId);
       // Debug: log items that might have unexpected available status
       const unavailable = media.filter(m => m.available !== true);
@@ -115,6 +130,16 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
       const filtered = media.filter(m => m.available !== false);
       console.log(`[MediaSheet] Loaded ${media.length} items, showing ${filtered.length} after available filter`);
       setItems(filtered);
+=======
+      const assetRepository = new AssetRepository();
+      const [media, ownedIds] = await Promise.all([
+        mediaRepositoryRef.current!.fetchAllMedia(characterId),
+        assetRepository.fetchOwnedAssets('media'),
+      ]);
+      const ownedSet = ownedIds instanceof Set ? ownedIds : new Set(ownedIds as Iterable<string>);
+      setOwnedMediaIds(new Set(ownedSet));
+      setItems(media);
+>>>>>>> 21ad5132883fa74490789e274f12dc40006680ff
     } catch (error: any) {
       console.error('[MediaSheet] Failed to load media:', error);
       setErrorMessage(error?.message ?? 'Unable to load media');
@@ -174,9 +199,22 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     (item: MediaItem) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
+      const isMasturbate = item.keywords?.toLowerCase().includes('masturbate');
+      const isOwned = ownedMediaIds.has(item.id);
+
+      if (isMasturbate && !isOwned) {
+        setSelectedGiftItem(item);
+        return;
+      }
+
       const isTierFree = item.tier?.toLowerCase() === 'free';
       const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-      const isFreeItem = isTierFree || (hasNoPrice && item.tier !== 'pro');
+
+      let isFreeItem = isTierFree || (hasNoPrice && item.tier !== 'pro');
+      if (isMasturbate) {
+        // Since we got here, isOwned is true, treat it as unlocked directly.
+        isFreeItem = true;
+      }
 
       if (isPro || isFreeItem) {
         if (isVideoItem(item)) {
@@ -199,15 +237,24 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
         }, 300);
       }
     },
-    [isPro, onOpenSubscription, onIsOpenedChange, items]
+    [isPro, onOpenSubscription, onIsOpenedChange, items, ownedMediaIds]
   );
 
   const renderItem = useCallback(
     ({ item }: { item: MediaItem }) => {
       const isTierFree = item.tier?.toLowerCase() === 'free';
       const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-      // If user is Pro, everything is unlocked. If not pro, check if item is free.
-      const isUnlocked = isPro || isTierFree || (hasNoPrice && item.tier !== 'pro');
+      const isMasturbate = item.keywords?.toLowerCase().includes('masturbate');
+      const isOwned = ownedMediaIds.has(item.id);
+
+      // If user is Pro, everything is unlocked EXCEPT masturbate which relies on isOwned. 
+      // If not pro, check if item is free.
+      let isUnlocked = false;
+      if (isMasturbate) {
+        isUnlocked = isOwned;
+      } else {
+        isUnlocked = isPro || isTierFree || (hasNoPrice && item.tier !== 'pro');
+      }
 
       const cardWidth = (width - 40 - 12) / 2;
 
@@ -289,7 +336,16 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                 tint={isDarkBackground ? 'dark' : 'light'}
               >
                 <View style={styles.lockOverlay}>
-                  <DiamondBadge size="md" />
+                  <View style={{ alignItems: 'center', gap: 6 }}>
+                    {isMasturbate ? (
+                      <GiftIcon width={36} height={36} />
+                    ) : (
+                      <DiamondBadge size="md" />
+                    )}
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', opacity: 0.9 }}>
+                      {isMasturbate ? "Unlock with Gift" : "Unlock with Pro"}
+                    </Text>
+                  </View>
                 </View>
               </BlurView>
             )}
@@ -297,8 +353,53 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
         </Pressable>
       );
     },
-    [handleSelect, width, isPro, cardBgColor, isDarkBackground, getDisplayUrl]
+    [handleSelect, width, isPro, cardBgColor, isDarkBackground, getDisplayUrl, ownedMediaIds]
   );
+
+  const handleGiftPurchase = async (giftCost: number) => {
+    if (!selectedGiftItem || isPurchasing) return;
+
+    try {
+      setIsPurchasing(true);
+
+      // Fetch current Ruby balance
+      const currencyRepo = new CurrencyRepository();
+      const currency = await currencyRepo.fetchCurrency();
+      const currentRuby = currency.ruby;
+      setRubyBalance(currentRuby);
+
+      if (currentRuby < giftCost) {
+        // Not enough Ruby — show purchase sheet
+        setSelectedGiftItem(null);
+        setIsPurchasing(false);
+        setTimeout(() => setShowRubySheet(true), 300);
+        return;
+      }
+
+      // Deduct Ruby
+      const newRuby = currentRuby - giftCost;
+      await currencyRepo.updateCurrency(undefined, newRuby);
+      setRubyBalance(newRuby);
+
+      // Save asset ownership
+      const assetRepository = new AssetRepository();
+      const success = await assetRepository.createAsset(selectedGiftItem.id, 'media');
+      if (success) {
+        setOwnedMediaIds(prev => new Set([...prev, selectedGiftItem.id]));
+        setSelectedGiftItem(null);
+      } else {
+        // Refund Ruby on failure
+        await currencyRepo.updateCurrency(undefined, currentRuby);
+        setRubyBalance(currentRuby);
+        Alert.alert('Error', 'Failed to unlock media. Ruby refunded.');
+      }
+    } catch (error: any) {
+      console.error('Gift purchase failed:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
 
   return (
     <>
@@ -371,8 +472,8 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
             <View style={styles.centerContent}>
               <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
                 {selectedTab === 'video'
-                  ? 'No videos available'
-                  : 'No photos available'}
+                  ? 'Video will be updated soon.'
+                  : 'Photo will be updated soon.'}
               </Text>
             </View>
           ) : (
@@ -414,6 +515,103 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
                 </Text>
               </View>
             )}
+          />
+
+          {/* Custom Unlock Popup */}
+          <Modal
+            visible={!!selectedGiftItem}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => !isPurchasing && setSelectedGiftItem(null)}
+          >
+            <View style={styles.giftPopupOverlay}>
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                intensity={80}
+                tint="dark"
+              />
+              <View style={[styles.giftPopupCard, {
+                backgroundColor: isDarkBackground ? '#18181b' : '#ffffff',
+                borderColor: isDarkBackground ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+              }]}>
+                <View style={styles.giftPopupIconWrapper}>
+                  <LinearGradient
+                    colors={['rgba(255, 70, 57, 0.1)', 'rgba(255, 142, 134, 0.1)']}
+                    style={styles.giftPopupIconBg}
+                  >
+                    <GiftIcon width={48} height={48} />
+                  </LinearGradient>
+                </View>
+
+                <Text style={[styles.giftPopupTitle, { color: textColor }]}>
+                  Unlock Exclusive Media
+                </Text>
+
+                <Text style={[styles.giftPopupDescription, { color: secondaryTextColor }]}>
+                  Choose a gift to unlock this special content 🤫
+                </Text>
+
+                <View style={styles.giftTiersRow}>
+                  {GIFT_TIERS.map(tier => (
+                    <Pressable
+                      key={tier.id}
+                      onPress={() => handleGiftPurchase(tier.cost)}
+                      disabled={isPurchasing}
+                      style={({ pressed }) => [
+                        styles.giftTierCard,
+                        pressed && { transform: [{ scale: 0.95 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={tier.gradientColors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.giftTierGradient}
+                      >
+                        {'popular' in tier && tier.popular && (
+                          <View style={styles.giftTierPopular}>
+                            <Text style={styles.giftTierPopularText}>HOT</Text>
+                          </View>
+                        )}
+                        <Image source={{ uri: tier.image }} style={styles.giftTierImage} />
+                        <Text style={styles.giftTierName}>{tier.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.giftTierCost}>{tier.cost}</Text>
+                          <RubyIcon width={14} height={14} />
+                        </View>
+                      </LinearGradient>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {isPurchasing && (
+                  <View style={styles.giftPurchasingRow}>
+                    <ActivityIndicator color="#a855f7" size="small" />
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>Processing...</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  style={styles.giftPopupCancelBtn}
+                  onPress={() => !isPurchasing && setSelectedGiftItem(null)}
+                  disabled={isPurchasing}
+                >
+                  <Text style={[styles.giftPopupCancelText, { color: secondaryTextColor }]}>
+                    Maybe Later
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+
+          <RubyPurchaseSheet
+            visible={showRubySheet}
+            onClose={() => setShowRubySheet(false)}
+            currentBalance={rubyBalance}
+            onPurchaseComplete={(newBalance) => {
+              setRubyBalance(newBalance);
+              setShowRubySheet(false);
+            }}
           />
         </View>
       </Modal>
@@ -593,5 +791,140 @@ const styles = StyleSheet.create({
   imageViewerFooterText: {
     color: '#fff',
     fontSize: 16
-  }
+  },
+  giftPopupOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  giftPopupCard: {
+    width: '80%',
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)'
+  },
+  giftPopupIconWrapper: {
+    marginBottom: 16,
+    shadowColor: '#FF4639',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  giftPopupIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 70, 57, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 142, 134, 0.2)'
+  },
+  giftPopupTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  giftPopupDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+    paddingHorizontal: 8,
+  },
+  giftPopupButtonContainer: {
+    width: '100%',
+    shadowColor: '#FF4639',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  giftPopupGradientBtn: {
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  giftPopupBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  giftPopupCancelBtn: {
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  giftPopupCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  giftTiersRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginBottom: 8,
+  },
+  giftTierCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  giftTierGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    minHeight: 110,
+  },
+  giftTierPopular: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  giftTierPopularText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  giftTierImage: {
+    width: 44,
+    height: 44,
+    marginBottom: 4,
+  },
+  giftTierName: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  giftTierCost: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  giftPurchasingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
 });
