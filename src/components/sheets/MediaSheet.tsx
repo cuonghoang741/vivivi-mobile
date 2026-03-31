@@ -106,7 +106,15 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
 
     try {
       const media = await mediaRepositoryRef.current!.fetchAllMedia(characterId);
-      setItems(media);
+      // Debug: log items that might have unexpected available status
+      const unavailable = media.filter(m => m.available !== true);
+      if (unavailable.length > 0) {
+        console.warn('[MediaSheet] Items passed server filter with available !== true:', unavailable.map(m => ({ id: m.id, name: m.name, available: m.available })));
+      }
+      // Client-side safety filter: only show items with available === true
+      const filtered = media.filter(m => m.available !== false);
+      console.log(`[MediaSheet] Loaded ${media.length} items, showing ${filtered.length} after available filter`);
+      setItems(filtered);
     } catch (error: any) {
       console.error('[MediaSheet] Failed to load media:', error);
       setErrorMessage(error?.message ?? 'Unable to load media');

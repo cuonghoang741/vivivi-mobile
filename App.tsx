@@ -248,11 +248,13 @@ const AppContent = () => {
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
+      console.log('[App] Keyboard SHOW event fired, height:', e.endCoordinates.height);
       setIsKeyboardVisible(true);
       setKeyboardHeight(e.endCoordinates.height);
     });
 
     const hideSub = Keyboard.addListener(hideEvent, () => {
+      console.log('[App] Keyboard HIDE event fired');
       setIsKeyboardVisible(false);
       setKeyboardHeight(0);
     });
@@ -2175,9 +2177,13 @@ const AppContent = () => {
               // backgroundColor: 'rgba(255,0,0,0.1)', // Uncomment to debug tap area
             }}
             onPress={() => {
-              console.log('[App] Center tap - entering VRM mode');
-              Keyboard.dismiss();
-              setIsVrmMode(true);
+              if (isKeyboardVisible) {
+                console.log('[App] Center tap - dismissing keyboard');
+                Keyboard.dismiss();
+              } else {
+                console.log('[App] Center tap - entering VRM mode');
+                setIsVrmMode(true);
+              }
             }}
           />
         )}
@@ -2281,9 +2287,9 @@ const AppContent = () => {
             onToggleFullscreen={setIsChatFullScreen}
           />
         </Animated.View>
-        {/* Hide CharacterQuickSwitcher when in call mode or fullscreen chat */}
-        {console.log('[DEBUG QuickSwitcher] allCharacters:', allCharacters.length, 'isCameraMode:', isCameraMode, 'voiceConnected:', voiceState.isConnected, 'chatFullScreen:', isChatFullScreen, 'isVrmMode:', isVrmMode, 'currentIndex:', currentCharacterIndex)}
-        {!(isCameraMode || voiceState.isConnected || isChatFullScreen) && (
+        {/* Hide CharacterQuickSwitcher when in call mode, fullscreen chat, or keyboard visible */}
+        {console.log('[DEBUG QuickSwitcher] allCharacters:', allCharacters.length, 'isCameraMode:', isCameraMode, 'voiceConnected:', voiceState.isConnected, 'chatFullScreen:', isChatFullScreen, 'isVrmMode:', isVrmMode, 'currentIndex:', currentCharacterIndex, 'isKeyboardVisible:', isKeyboardVisible)}
+        {!(isCameraMode || voiceState.isConnected || isChatFullScreen || isKeyboardVisible) && (
           <Animated.View
             style={{
               ...StyleSheet.absoluteFillObject,
