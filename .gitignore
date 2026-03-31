@@ -58,3 +58,6 @@ scripts/medias
 
 build-*.aab
 build-*.ipa
+
+src/assets/custom-character-originals/*
+src/assets/custom-character/*
