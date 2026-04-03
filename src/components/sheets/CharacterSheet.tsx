@@ -487,7 +487,7 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={renderCustomCharacterButton}
+        // ListHeaderComponent={renderCustomCharacterButton}
         />
       </View>
     );

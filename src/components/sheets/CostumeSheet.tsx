@@ -152,17 +152,21 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
 
     // If PRO or already owned, can select directly
     if (isPro || isOwned) {
-      // If PRO but not owned, auto-add to owned assets
-      if (isPro && !isOwned) {
-        try {
-          const assetRepository = new AssetRepository();
-          await assetRepository.createAsset(item.id, 'character_costume');
-          setOwnedCostumeIds(prev => new Set([...prev, item.id]));
-        } catch (error) {
-          console.error('Failed to add costume to owned:', error);
-        }
-      }
+      // Trigger visually immediately
       void selectCostume(item);
+      
+      // If PRO but not owned, auto-add to owned assets in background
+      if (isPro && !isOwned) {
+        setTimeout(async () => {
+          try {
+            const assetRepository = new AssetRepository();
+            await assetRepository.createAsset(item.id, 'character_costume');
+            setOwnedCostumeIds(prev => new Set([...prev, item.id]));
+          } catch (error) {
+            console.error('Failed to add costume to owned:', error);
+          }
+        }, 0);
+      }
     } else {
       // Not PRO and not owned - open subscription
       sheetRef.current?.dismiss();

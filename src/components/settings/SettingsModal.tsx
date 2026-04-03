@@ -37,6 +37,7 @@ type Props = {
   isPro?: boolean;
   rubyBalance?: number;
   onOpenRubySheet?: () => void;
+  initialScreen?: SettingsScreen;
 };
 
 type ToggleKey =
@@ -270,7 +271,8 @@ export const SettingsModal: React.FC<Props> = ({
   onOpenSubscription,
   isPro = false,
   rubyBalance,
-  onOpenRubySheet
+  onOpenRubySheet,
+  initialScreen
 }) => {
   const { height } = useWindowDimensions();
   const bottomSheetRef = useRef<BottomSheetRef>(null);
@@ -369,6 +371,10 @@ export const SettingsModal: React.FC<Props> = ({
     if (visible) {
       loadToggles();
       loadSubscriptionTier();
+      // If initialScreen is provided, navigate to it
+      if (initialScreen) {
+        setScreenStack([{ key: 'root' }, initialScreen]);
+      }
     } else {
       // Sync props when hidden just in case
       setSubscriptionTier(isPro ? 'pro' : 'free');
@@ -376,7 +382,7 @@ export const SettingsModal: React.FC<Props> = ({
       const t = setTimeout(() => setScreenStack([{ key: 'root' }]), 500);
       return () => clearTimeout(t);
     }
-  }, [visible, loadToggles, loadSubscriptionTier, isPro]);
+  }, [visible, loadToggles, loadSubscriptionTier, isPro, initialScreen]);
 
   const handleToggle = useCallback(async (key: ToggleKey, value: boolean) => {
     setToggles(prev => ({ ...prev, [key]: value }));
@@ -465,7 +471,7 @@ export const SettingsModal: React.FC<Props> = ({
             </View>
 
             <SettingsGroup title="Your Account">
-              <SettingsRow
+              {/* <SettingsRow
                 icon="diamond-outline"
                 label="Ruby Balance"
                 rightElement={
@@ -481,7 +487,7 @@ export const SettingsModal: React.FC<Props> = ({
                     setTimeout(() => onOpenRubySheet(), 300);
                   }
                 }}
-              />
+              /> */}
               <SettingsRow
                 icon="card-outline"
                 label="My Subscription"

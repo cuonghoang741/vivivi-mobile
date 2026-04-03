@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, Platform, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, Platform, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { loadHTMLContent } from '../utils/loadHTML';
 import { FileDiscovery } from '../utils/fileDiscovery';
@@ -8,6 +8,7 @@ import { Persistence } from '../utils/persistence';
 interface VRMWebViewProps {
   onModelReady?: () => void;
   onMessage?: (message: string) => void;
+  onReportError?: (errorDetail: string) => void;
   enableDebug?: boolean;
 }
 
@@ -33,6 +34,7 @@ interface DebugInfo {
 export const VRMWebView = React.forwardRef<WebView, VRMWebViewProps>(({
   onModelReady,
   onMessage,
+  onReportError,
   enableDebug = false,
 }, ref) => {
   const webViewRef = useRef<WebView>(null);
@@ -137,6 +139,20 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
     const message = event.nativeEvent.data;
     console.log('📨 [VRMWebView] Received message:', message);
 
+    if (typeof message === 'string' && message.startsWith('ERROR:')) {
+      const errorDetail = message.substring(6);
+      Alert.alert('Lỗi HTML/JS Nội bộ', errorDetail, [
+        { text: 'OK', style: 'cancel' },
+        { 
+          text: 'Report', 
+          onPress: () => onReportError?.(errorDetail)
+        }
+      ]);
+      setDebugInfo(prev => ({ ...prev, error: errorDetail }));
+      if (onMessage) onMessage(message);
+      return;
+    }
+
     setDebugInfo(prev => ({
       ...prev,
       lastMessage: message,
@@ -224,7 +240,7 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
         // Load HTML file (similar to Swift's loadFileURL)
         source={{
           html: htmlContent || '',
-          baseUrl: 'file:///' // Similar to Swift's allowingReadAccessTo: bundleURL
+          baseUrl: 'https://localhost/' // Fixed CORS issue for iOS 18.6 and below
         }}
         style={styles.webview}
         // Inject scripts at document start (similar to Swift's WKUserScript with injectionTime: .atDocumentStart)
@@ -232,6 +248,8 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
         // Configuration matching Swift's WKWebViewConfiguration
         javaScriptEnabled={true} // Similar to preferences.allowsContentJavaScript = true
         domStorageEnabled={true}
+        allowFileAccessFromFileURLs={true}
+        allowUniversalAccessFromFileURLs={true}
         allowsInlineMediaPlayback={true} // Swift: configuration.allowsInlineMediaPlayback = true
         mediaPlaybackRequiresUserAction={false} // Swift: configuration.mediaTypesRequiringUserActionForPlayback = []
         // Message handler (similar to Swift's WKScriptMessageHandler with name "loading")
@@ -241,6 +259,13 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
           const errorMsg = `WebView error: ${nativeEvent.code || 'unknown'} - ${nativeEvent.description || String(nativeEvent) || 'Unknown error'}`;
           console.error('❌ [VRMWebView]', errorMsg, nativeEvent);
           setDebugInfo(prev => ({ ...prev, error: errorMsg }));
+          Alert.alert('VRMWebView Error', errorMsg, [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: 'Report', 
+              onPress: () => onReportError?.(errorMsg)
+            }
+          ]);
         }}
         // Navigation delegate equivalent
         onLoadStart={() => {
@@ -257,12 +282,27 @@ console.log('🎯 Injected files:', window.discoveredFiles);`;
         onHttpError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.error('❌ [VRMWebView] HTTP error:', nativeEvent);
-          setDebugInfo(prev => ({ ...prev, error: `HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}` }));
+          const errorMsg = `HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}`;
+          setDebugInfo(prev => ({ ...prev, error: errorMsg }));
+          Alert.alert('VRMWebView HTTP Error', errorMsg, [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: 'Report', 
+              onPress: () => onReportError?.(errorMsg)
+            }
+          ]);
         }}
         onRenderProcessGone={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.error('❌ [VRMWebView] Render process gone:', nativeEvent);
           setDebugInfo(prev => ({ ...prev, error: 'Render process crashed' }));
+          Alert.alert('VRMWebView Render Error', 'Render process crashed.', [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: 'Report', 
+              onPress: () => onReportError?.('Render process crashed.')
+            }
+          ]);
         }}
         originWhitelist={['*']}
         mixedContentMode="always"

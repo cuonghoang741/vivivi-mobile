@@ -119,18 +119,6 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     setErrorMessage(null);
 
     try {
-<<<<<<< HEAD
-      const media = await mediaRepositoryRef.current!.fetchAllMedia(characterId);
-      // Debug: log items that might have unexpected available status
-      const unavailable = media.filter(m => m.available !== true);
-      if (unavailable.length > 0) {
-        console.warn('[MediaSheet] Items passed server filter with available !== true:', unavailable.map(m => ({ id: m.id, name: m.name, available: m.available })));
-      }
-      // Client-side safety filter: only show items with available === true
-      const filtered = media.filter(m => m.available !== false);
-      console.log(`[MediaSheet] Loaded ${media.length} items, showing ${filtered.length} after available filter`);
-      setItems(filtered);
-=======
       const assetRepository = new AssetRepository();
       const [media, ownedIds] = await Promise.all([
         mediaRepositoryRef.current!.fetchAllMedia(characterId),
@@ -138,8 +126,10 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
       ]);
       const ownedSet = ownedIds instanceof Set ? ownedIds : new Set(ownedIds as Iterable<string>);
       setOwnedMediaIds(new Set(ownedSet));
-      setItems(media);
->>>>>>> 21ad5132883fa74490789e274f12dc40006680ff
+      // Client-side safety filter: only show items with available !== false
+      const filtered = media.filter(m => m.available !== false);
+      console.log(`[MediaSheet] Loaded ${media.length} items, showing ${filtered.length} after available filter`);
+      setItems(filtered);
     } catch (error: any) {
       console.error('[MediaSheet] Failed to load media:', error);
       setErrorMessage(error?.message ?? 'Unable to load media');
@@ -199,7 +189,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     (item: MediaItem) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
-      const isMasturbate = item.keywords?.toLowerCase().includes('masturbate');
+      const isMasturbate = item.keywords?.toLowerCase().includes('masturbatexxx');
       const isOwned = ownedMediaIds.has(item.id);
 
       if (isMasturbate && !isOwned) {
@@ -244,7 +234,7 @@ export const MediaSheet = forwardRef<MediaSheetRef, MediaSheetProps>(({
     ({ item }: { item: MediaItem }) => {
       const isTierFree = item.tier?.toLowerCase() === 'free';
       const hasNoPrice = (item.price_vcoin ?? 0) === 0 && (item.price_ruby ?? 0) === 0;
-      const isMasturbate = item.keywords?.toLowerCase().includes('masturbate');
+      const isMasturbate = item.keywords?.toLowerCase().includes('masturbatexxx');
       const isOwned = ownedMediaIds.has(item.id);
 
       // If user is Pro, everything is unlocked EXCEPT masturbate which relies on isOwned. 

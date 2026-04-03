@@ -165,7 +165,9 @@ export const Button: React.FC<ButtonProps> = ({
       <HapticPressable
         style={({ pressed }) => [
           buttonStyle,
-          { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+          { backgroundColor: isDarkBackground ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)' },
+          { borderColor: !isDarkBackground ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)' },
+          { borderWidth: 1 },
           pressed && !disabled && !loading && styles.pressed,
           style,
         ]}

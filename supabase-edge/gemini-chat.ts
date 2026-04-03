@@ -183,8 +183,10 @@ serve(async (req) => {
         let systemInstructionText = '';
         if (characterInstruction) systemInstructionText = characterInstruction;
 
-        // Append User Status
-        const userStatusInfo = `\n\n[User Status: ${isPro ? 'Pro' : 'Free'}]`;
+        // Append User Status with explicit behavior rules
+        const userStatusInfo = isPro
+            ? `\n\n[User Status: Pro]\nIMPORTANT: This user is already a Pro subscriber. NEVER suggest upgrading, NEVER mention premium features, subscription, or Pro benefits. They already have full access to everything. Treat them as a valued premium member.`
+            : `\n\n[User Status: Free]\nThis user is on the free plan. You may occasionally and naturally tease premium content or hint at exclusive features, but don't be pushy about it unless they ask for more information about benefits or features that are too sensitive..`;
         systemInstructionText += userStatusInfo;
 
         if (currentMemory) systemInstructionText = systemInstructionText ? `${systemInstructionText}\n\n## Previous Memory/Context:\n${currentMemory}` : `## Previous Memory/Context:\n${currentMemory}`;

@@ -18,7 +18,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { revenueCatManager } from '../../services/RevenueCatManager';
 import { telegramNotificationService } from '../../services/TelegramNotificationService';
@@ -435,16 +434,16 @@ export const CustomCharacterModal: React.FC<Props> = ({ visible, onClose }) => {
     };
 
     const handlePickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsMultipleSelection: false,
-            allowsEditing: true,
-            quality: 0.4,
-        });
-        if (!result.canceled && result.assets?.[0]) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setReferenceImage(result.assets[0].uri);
-        }
+        // const result = await ImagePicker.launchImageLibraryAsync({
+        //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        //     allowsMultipleSelection: false,
+        //     allowsEditing: true,
+        //     quality: 0.4,
+        // });
+        // if (!result.canceled && result.assets?.[0]) {
+        //     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        //     setReferenceImage(result.assets[0].uri);
+        // }
     };
 
     const uploadImageToColorMeVn = async (): Promise<string | null> => {

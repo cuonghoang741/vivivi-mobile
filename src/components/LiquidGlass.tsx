@@ -31,7 +31,10 @@ export const LiquidGlass: React.FC<Props> = ({
   isDarkBackground,
   ...rest
 }) => {
-  const baseStyle = [glassButtonStyle, style];
+  const baseStyle = [glassButtonStyle, {
+    backgroundColor: isDarkBackground ? "rgba(0, 0, 0, 0.2)" : "rgba(255, 255, 255, 0.2)",
+    borderColor: !isDarkBackground ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
+  }, style];
 
   // Determine tint color based on isDarkBackground if not explicitly provided
   const effectiveTintColor = tintColor ?? (isDarkBackground ? "#000000a7" : "#ffffff50");

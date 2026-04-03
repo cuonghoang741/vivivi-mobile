@@ -18,6 +18,7 @@ export type ActionType =
     | 'start_voice_call'
     | 'start_video_call'
     | 'open_subscription'
+    | 'button_upgrade'
     | 'become_nude' // Added nude action
     | 'none';
 
@@ -37,7 +38,7 @@ class ActionDetectionService {
     /**
      * Detect if the user's message implies any action by calling Gemini AI
      */
-    async detectAction(userMessage: string): Promise<DetectedAction> {
+    async detectAction(userMessage: string, isPro?: boolean): Promise<DetectedAction> {
         try {
             const trimmed = userMessage.trim();
             if (!trimmed || trimmed.length < 2) {
@@ -48,6 +49,7 @@ class ActionDetectionService {
             const { data, error } = await this.client.functions.invoke('gemini-suggest-action', {
                 body: {
                     message: trimmed,
+                    is_pro: isPro ?? false,
                 },
             });
 
@@ -80,7 +82,7 @@ class ActionDetectionService {
                 'send_photo', 'send_video',
                 'change_background', 'change_costume', 'change_character',
                 'play_animation', 'start_voice_call', 'start_video_call',
-                'open_subscription', 'become_nude', // Added nude actions
+                'open_subscription', 'button_upgrade', 'become_nude', // Added nude actions
                 'none'
             ];
 

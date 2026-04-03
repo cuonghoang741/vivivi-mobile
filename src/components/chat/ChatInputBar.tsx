@@ -246,7 +246,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
-    ...glassButtonStyle,
     paddingLeft: 16,
     paddingRight: 4,
     minHeight: 44,

@@ -113,6 +113,7 @@ const AppContent = () => {
     unclaimedQuestCount: 0,
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialScreen, setSettingsInitialScreen] = useState<{ key: 'feedback'; kind: 'problem' } | undefined>(undefined);
   const [showImageOnboarding, setShowImageOnboarding] = useState(false);
   const [showNewUserGift, setShowNewUserGift] = useState(false);
 
@@ -966,61 +967,9 @@ const AppContent = () => {
           true;
         `);
 
-        const assetRepo = new AssetRepository();
-        let ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
-        let isOwned = ownedCharacterIds.has(item.id);
-        const wasOwned = isOwned;
-
-        if (!isOwned) {
-          const priceVcoin = item.price_vcoin ?? 0;
-          const priceRuby = item.price_ruby ?? 0;
-          const isFree = priceVcoin === 0 && priceRuby === 0;
-
-          if (isFree) {
-            const success = await assetRepo.createAsset(item.id, 'character');
-            if (!success) {
-              Alert.alert('Unable to add character', 'Please try again later.');
-              return;
-            }
-          } else {
-            const choice = await confirmCharacterPurchase(item);
-            if (!choice) {
-              return;
-            }
-            const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
-            const finalPriceRuby = choice.useRuby ? priceRuby : 0;
-            try {
-              await performPurchase({
-                itemId: item.id,
-                itemType: 'character',
-                priceVcoin: finalPriceVcoin,
-                priceRuby: finalPriceRuby,
-              });
-            } catch (error) {
-              handlePurchaseError(error);
-              return;
-            }
-            clearConfirmPurchaseRequest();
-          }
-
-          ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
-          isOwned = ownedCharacterIds.has(item.id);
-
-          const totalOwnedCharacters = ownedCharacterIds.size;
-          const unlockedNow = !wasOwned && isOwned;
-
-          if (unlockedNow) {
-            await QuestProgressTracker.track('unlock_character');
-            await QuestProgressTracker.track('obtain_characters');
-            analyticsService.logCharacterUnlock(item.id, isFree ? 'free' : 'purchase');
-          }
-        }
-
-        if (!isOwned) {
-          Alert.alert('Unable to purchase character', 'Please try again later.');
-          return;
-        }
-
+        // ==========================================
+        // 1. UPDATE UI INSTANTLY
+        // ==========================================
         if (item.agent_elevenlabs_id) {
           agentIdCacheRef.current.set(item.id, item.agent_elevenlabs_id);
         }
@@ -1033,133 +982,170 @@ const AppContent = () => {
           relationshipProgress: 0,
         });
 
-        const userPrefsService = new UserPreferencesService();
-        await userPrefsService.saveCurrentCharacterId(item.id);
-
-        // Load cached preferences for this character
-        const cachedCostume = await Persistence.getCharacterCostumeSelection(item.id);
-        const cachedBackground = await Persistence.getCharacterBackgroundSelection(item.id);
-
-        // Apply cached or fallback costume and update currentCostume state
-        let appliedCostumeId: string | null = null;
-        if (cachedCostume?.costumeId && cachedCostume.modelURL) {
-          // Use cached costume
-          await UserCharacterPreferenceService.applyCostumeById(
-            cachedCostume.costumeId,
-            webViewRef,
-            item.id
-          );
-          appliedCostumeId = cachedCostume.costumeId;
-          console.log('[App] Applied cached costume:', cachedCostume.modelName);
-        } else if (item.default_costume_id) {
-          // Use default costume
-          appliedCostumeId = item.default_costume_id;
-        } else if (item.base_model_url) {
-          // No cached costume, use fallback
-          await UserCharacterPreferenceService.loadFallbackModel(
-            item.name,
-            item.base_model_url,
-            webViewRef,
-            item.id
-          );
-        }
-
-        // Update currentCostume in VRMContext for SubscriptionSheet video
-        if (appliedCostumeId) {
+        // ==========================================
+        // 2. LOAD CACHE & MODEL + CHECK DB (ASYNC)
+        // ==========================================
+        setTimeout(async () => {
           try {
-            const costumeRepo = new CostumeRepository();
-            const costumeDetails = await costumeRepo.fetchCostumeById(appliedCostumeId);
-            if (costumeDetails) {
-              setCurrentCostume(costumeDetails);
-              console.log('[App] Updated currentCostume:', costumeDetails.costume_name);
-            }
-          } catch (e) {
-            console.warn('[App] Failed to fetch costume details:', e);
-          }
-        } else {
-          setCurrentCostume(null);
-        }
+            // Load cached preferences for this character (fast local storage)
+            const cachedCostume = await Persistence.getCharacterCostumeSelection(item.id);
+            const cachedBackground = await Persistence.getCharacterBackgroundSelection(item.id);
 
-        // Apply cached or default background
-        if (cachedBackground?.backgroundId && cachedBackground.backgroundURL) {
-          // Use cached background - apply immediately
-          const ownedBgs = await assetRepo.fetchOwnedAssets('background');
-          if (ownedBgs.has(cachedBackground.backgroundId)) {
-            await UserCharacterPreferenceService.applyBackgroundById(
-              cachedBackground.backgroundId,
-              webViewRef,
-              ownedBgs
-            );
-            setCurrentBackgroundId(cachedBackground.backgroundId);
-            console.log('[App] Applied cached background:', cachedBackground.backgroundName);
-          }
-        } else if (item.background_default_id) {
-          // No cached background, handle default
-          try {
-            let ownedBgs = await assetRepo.fetchOwnedAssets('background');
-            if (!ownedBgs.has(item.background_default_id)) {
-              await assetRepo.createAsset(item.background_default_id, 'background');
-              ownedBgs.add(item.background_default_id);
-            }
-
-            // Apply default background
-            await UserCharacterPreferenceService.applyBackgroundById(
-              item.background_default_id,
-              webViewRef,
-              ownedBgs
-            );
-            setCurrentBackgroundId(item.background_default_id);
-
-            // Save as preference and cache
-            await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
-              current_background_id: item.background_default_id,
-            });
-            const bgRepo = new BackgroundRepository();
-            const bg = await bgRepo.fetchBackground(item.background_default_id);
-            if (bg) {
-              await Persistence.setCharacterBackgroundSelection(item.id, {
-                backgroundId: item.background_default_id,
-                backgroundURL: bg.image || '',
-                backgroundName: bg.name || '',
-              });
-            }
-          } catch (e) {
-            console.warn('Error handling default background:', e);
-          }
-        }
-
-        // Handle default costume ownership (but don't override cached selection)
-        if (item.default_costume_id && !cachedCostume?.costumeId) {
-          try {
-            let ownedCostumes = await assetRepo.fetchOwnedAssets('character_costume');
-            if (!ownedCostumes.has(item.default_costume_id)) {
-              await assetRepo.createAsset(item.default_costume_id, 'character_costume');
-              console.log('[App] Granted ownership of default costume during switch:', item.default_costume_id);
-
-              // Set as preference and apply
-              await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
-                current_costume_id: item.default_costume_id
-              });
+            let appliedCostumeId: string | null = null;
+            if (cachedCostume?.costumeId && cachedCostume.modelURL) {
               await UserCharacterPreferenceService.applyCostumeById(
-                item.default_costume_id,
+                cachedCostume.costumeId,
+                webViewRef,
+                item.id
+              );
+              appliedCostumeId = cachedCostume.costumeId;
+            } else if (item.default_costume_id) {
+              appliedCostumeId = item.default_costume_id;
+            } else if (item.base_model_url) {
+              await UserCharacterPreferenceService.loadFallbackModel(
+                item.name,
+                item.base_model_url,
                 webViewRef,
                 item.id
               );
             }
+
+            if (appliedCostumeId) {
+              const costumeRepo = new CostumeRepository();
+              costumeRepo.fetchCostumeById(appliedCostumeId).then(costumeDetails => {
+                if (costumeDetails) setCurrentCostume(costumeDetails);
+              }).catch(e => console.warn('[App] Failed to fetch currentCostume details:', e));
+            } else {
+              setCurrentCostume(null);
+            }
+
+            const assetRepo = new AssetRepository();
+            let ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
+            let isOwned = ownedCharacterIds.has(item.id);
+            const wasOwned = isOwned;
+
+            if (!isOwned) {
+              const priceVcoin = item.price_vcoin ?? 0;
+              const priceRuby = item.price_ruby ?? 0;
+              const isFree = priceVcoin === 0 && priceRuby === 0;
+
+              if (isFree) {
+                const success = await assetRepo.createAsset(item.id, 'character');
+                if (!success) {
+                  Alert.alert('Unable to add character', 'Please try again later.');
+                  return;
+                }
+              } else {
+                const choice = await confirmCharacterPurchase(item);
+                if (!choice) return;
+                
+                const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
+                const finalPriceRuby = choice.useRuby ? priceRuby : 0;
+                try {
+                  await performPurchase({
+                    itemId: item.id,
+                    itemType: 'character',
+                    priceVcoin: finalPriceVcoin,
+                    priceRuby: finalPriceRuby,
+                  });
+                } catch (error) {
+                  handlePurchaseError(error);
+                  return;
+                }
+                clearConfirmPurchaseRequest();
+              }
+
+              ownedCharacterIds = await assetRepo.fetchOwnedAssets('character');
+              isOwned = ownedCharacterIds.has(item.id);
+
+              if (!wasOwned && isOwned) {
+                await QuestProgressTracker.track('unlock_character');
+                await QuestProgressTracker.track('obtain_characters');
+                analyticsService.logCharacterUnlock(item.id, isFree ? 'free' : 'purchase');
+              }
+            }
+
+            if (!isOwned) {
+              Alert.alert('Unable to purchase character', 'Please try again later.');
+              return;
+            }
+
+            const userPrefsService = new UserPreferencesService();
+            await userPrefsService.saveCurrentCharacterId(item.id);
+
+            // Apply cached or default background
+            if (cachedBackground?.backgroundId && cachedBackground.backgroundURL) {
+              const ownedBgs = await assetRepo.fetchOwnedAssets('background');
+              if (ownedBgs.has(cachedBackground.backgroundId)) {
+                await UserCharacterPreferenceService.applyBackgroundById(
+                  cachedBackground.backgroundId,
+                  webViewRef,
+                  ownedBgs
+                );
+                setCurrentBackgroundId(cachedBackground.backgroundId);
+              }
+            } else if (item.background_default_id) {
+              try {
+                let ownedBgs = await assetRepo.fetchOwnedAssets('background');
+                if (!ownedBgs.has(item.background_default_id)) {
+                  await assetRepo.createAsset(item.background_default_id, 'background');
+                  ownedBgs.add(item.background_default_id);
+                }
+
+                await UserCharacterPreferenceService.applyBackgroundById(
+                  item.background_default_id,
+                  webViewRef,
+                  ownedBgs
+                );
+                setCurrentBackgroundId(item.background_default_id);
+
+                await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+                  current_background_id: item.background_default_id,
+                });
+                const bgRepo = new BackgroundRepository();
+                const bg = await bgRepo.fetchBackground(item.background_default_id);
+                if (bg) {
+                  await Persistence.setCharacterBackgroundSelection(item.id, {
+                    backgroundId: item.background_default_id,
+                    backgroundURL: bg.image || '',
+                    backgroundName: bg.name || '',
+                  });
+                }
+              } catch (e) {
+                console.warn('Error handling default background:', e);
+              }
+            }
+
+            // Handle default costume ownership
+            if (item.default_costume_id && !cachedCostume?.costumeId) {
+              try {
+                let ownedCostumes = await assetRepo.fetchOwnedAssets('character_costume');
+                if (!ownedCostumes.has(item.default_costume_id)) {
+                  await assetRepo.createAsset(item.default_costume_id, 'character_costume');
+                  await UserCharacterPreferenceService.saveUserCharacterPreference(item.id, {
+                    current_costume_id: item.default_costume_id
+                  });
+                  await UserCharacterPreferenceService.applyCostumeById(
+                    item.default_costume_id,
+                    webViewRef,
+                    item.id
+                  );
+                }
+              } catch (e) {
+                console.warn('Error handling default costume:', e);
+              }
+            }
+
+            await refreshInitialData(true);
+            if (refreshStreak) {
+              await refreshStreak(item.id, false);
+            }
           } catch (e) {
-            console.warn('Error handling default costume:', e);
+            console.error('❌ Error in background character selection logic:', e);
           }
-        }
-
-        await refreshInitialData(true);
-
-        // Refresh streak for the new character (like swift-version)
-        if (refreshStreak) {
-          await refreshStreak(item.id, false);
-        }
+        }, 0);
 
         setShowCharacterSheet(false);
-        // Track character selection
         analyticsService.logCharacterSelect(item.id, item.name);
       } catch (error) {
         console.error('❌ Error selecting character:', error);
@@ -1301,90 +1287,99 @@ const AppContent = () => {
 
   const handleBackgroundSelect = useCallback(
     async (item: BackgroundItem) => {
+      if (!currentCharacter) return;
+
       try {
-        const assetRepo = new AssetRepository();
-        let ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
-        setOwnedBackgroundIds(ownedBackgroundIds);
-        const alreadyOwned = ownedBackgroundIds.has(item.id);
+        // ==========================================
+        // 1. UPDATE UI INSTANTLY
+        // ==========================================
+        setCurrentBackgroundId(item.id);
+        setShowBackgroundSheet(false);
 
-        const applyBackground = async (ownedSet: Set<string>) => {
-          if (!currentCharacter) {
-            return;
-          }
-          await UserCharacterPreferenceService.applyBackgroundById(
-            item.id,
-            webViewRef,
-            ownedSet
-          );
-          await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
-            current_background_id: item.id,
-          });
-          setCurrentBackgroundId(item.id); // Update current background ID
-          setShowBackgroundSheet(false);
-          await Persistence.setCharacterBackgroundSelection(currentCharacter.id, {
-            backgroundId: item.id,
-            backgroundURL: item.image || '',
-            backgroundName: item.name || '',
-          });
-        };
-
-        if (alreadyOwned) {
-          await applyBackground(ownedBackgroundIds);
-          clearConfirmPurchaseRequest();
-          analyticsService.logBackgroundChange(item.id);
-          return;
-        }
-
-        const priceVcoin = item.price_vcoin ?? 0;
-        const priceRuby = item.price_ruby ?? 0;
-        const isFree = priceVcoin === 0 && priceRuby === 0;
-
-        if (isFree) {
-          const success = await assetRepo.createAsset(item.id, 'background');
-          if (!success) {
-            Alert.alert('Unable to add background', 'Please try again later.');
-            return;
-          }
-        } else {
-          const choice = await confirmBackgroundPurchase(item);
-          console.log('🎯 [BackgroundSelect] Purchase choice:', choice);
-          if (!choice) {
-            console.log('⚠️ [BackgroundSelect] No purchase choice, returning');
-            return;
-          }
-
-          const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
-          const finalPriceRuby = choice.useRuby ? priceRuby : 0;
-
-          console.log('💳 [BackgroundSelect] Final prices:', { finalPriceVcoin, finalPriceRuby });
-
+        // ==========================================
+        // 2. LOAD VISUAL & CHECK DB (ASYNC)
+        // ==========================================
+        setTimeout(async () => {
           try {
-            await performPurchase({
-              itemId: item.id,
-              itemType: 'background',
-              priceVcoin: finalPriceVcoin,
-              priceRuby: finalPriceRuby,
-            });
-          } catch (error) {
-            handlePurchaseError(error);
+            // Optimistically apply the background immediately
+            await UserCharacterPreferenceService.applyBackgroundById(
+              item.id,
+              webViewRef,
+              new Set([item.id])
+            );
+
+            const assetRepo = new AssetRepository();
+            let ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+            setOwnedBackgroundIds(ownedBackgroundIds);
+            const alreadyOwned = ownedBackgroundIds.has(item.id);
+
+            const savePref = async (ownedSet: Set<string>) => {
+              await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+                current_background_id: item.id,
+              });
+              await Persistence.setCharacterBackgroundSelection(currentCharacter.id, {
+                backgroundId: item.id,
+                backgroundURL: item.image || '',
+                backgroundName: item.name || '',
+              });
+            };
+
+            if (alreadyOwned) {
+              await savePref(ownedBackgroundIds);
+              clearConfirmPurchaseRequest();
+              analyticsService.logBackgroundChange(item.id);
+              return;
+            }
+
+            const priceVcoin = item.price_vcoin ?? 0;
+            const priceRuby = item.price_ruby ?? 0;
+            const isFree = priceVcoin === 0 && priceRuby === 0;
+
+            if (isFree) {
+              const success = await assetRepo.createAsset(item.id, 'background');
+              if (!success) {
+                Alert.alert('Unable to add background', 'Please try again later.');
+                return;
+              }
+            } else {
+              const choice = await confirmBackgroundPurchase(item);
+              if (!choice) return;
+
+              const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
+              const finalPriceRuby = choice.useRuby ? priceRuby : 0;
+
+              try {
+                await performPurchase({
+                  itemId: item.id,
+                  itemType: 'background',
+                  priceVcoin: finalPriceVcoin,
+                  priceRuby: finalPriceRuby,
+                });
+              } catch (error) {
+                handlePurchaseError(error);
+                clearConfirmPurchaseRequest();
+                return;
+              }
+            }
+
+            ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
+            setOwnedBackgroundIds(ownedBackgroundIds);
+            const nowOwned = ownedBackgroundIds.has(item.id);
+
+            await savePref(ownedBackgroundIds);
+
+            if (!alreadyOwned && nowOwned) {
+              await QuestProgressTracker.track('unlock_background');
+              await QuestProgressTracker.track('obtain_backgrounds');
+              analyticsService.logBackgroundUnlock(item.id, isFree ? 'free' : 'purchase');
+            }
+            analyticsService.logBackgroundChange(item.id);
+
             clearConfirmPurchaseRequest();
-            return;
+          } catch (error) {
+            console.error('❌ Error in background select async logic:', error);
           }
-        }
-
-        ownedBackgroundIds = await assetRepo.fetchOwnedAssets('background');
-        setOwnedBackgroundIds(ownedBackgroundIds);
-        const nowOwned = ownedBackgroundIds.has(item.id);
-        await applyBackground(ownedBackgroundIds);
-
-        if (!alreadyOwned && nowOwned) {
-          await QuestProgressTracker.track('unlock_background');
-          await QuestProgressTracker.track('obtain_backgrounds');
-          analyticsService.logBackgroundUnlock(item.id, isFree ? 'free' : 'purchase');
-        }
-        analyticsService.logBackgroundChange(item.id);
-
-        clearConfirmPurchaseRequest();
+        }, 0);
       } catch (error) {
         console.error('❌ Error selecting background:', error);
         Alert.alert('Error', 'Failed to select background');
@@ -1409,75 +1404,84 @@ const AppContent = () => {
       }
 
       try {
-        const assetRepo = new AssetRepository();
-        let ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
-        const alreadyOwned = ownedCostumeIds.has(item.id);
+        // ==========================================
+        // 1. UPDATE UI INSTANTLY
+        // ==========================================
+        setCurrentCostume(item);
+        setShowCostumeSheet(false);
 
-        const applyCostume = async () => {
-          await UserCharacterPreferenceService.applyCostumeById(
-            item.id,
-            webViewRef,
-            currentCharacter.id
-          );
-          await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
-            current_costume_id: item.id,
-          });
-          setCurrentCostume(item);
-          setShowCostumeSheet(false);
-        };
-
-        if (alreadyOwned) {
-          await applyCostume();
-          clearConfirmPurchaseRequest();
-          return;
-        }
-
-        const priceVcoin = item.price_vcoin ?? 0;
-        const priceRuby = item.price_ruby ?? 0;
-        const isFree = priceVcoin === 0 && priceRuby === 0;
-
-        if (isFree) {
-          const success = await assetRepo.createAsset(item.id, 'character_costume');
-          if (!success) {
-            Alert.alert('Unable to add costume', 'Please try again in a moment.');
-            return;
-          }
-          ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
-        } else {
-          const choice = await confirmCostumePurchase(item);
-          console.log('🎯 [CostumeSelect] Purchase choice:', choice);
-          if (!choice) {
-            console.log('⚠️ [CostumeSelect] No purchase choice, returning');
-            return;
-          }
-
-          const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
-          const finalPriceRuby = choice.useRuby ? priceRuby : 0;
-
-          console.log('💳 [CostumeSelect] Final prices:', { finalPriceVcoin, finalPriceRuby });
-
+        // ==========================================
+        // 2. LOAD 3D MODEL & CHECK DB (ASYNC)
+        // ==========================================
+        setTimeout(async () => {
           try {
-            await performPurchase({
-              itemId: item.id,
-              itemType: 'character_costume',
-              priceVcoin: finalPriceVcoin,
-              priceRuby: finalPriceRuby,
-            });
-            ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
-          } catch (error) {
-            console.error('❌ [CostumeSelect] Purchase error:', error);
-            handlePurchaseError(error);
+            await UserCharacterPreferenceService.applyCostumeById(
+              item.id,
+              webViewRef,
+              currentCharacter.id
+            );
+
+            const assetRepo = new AssetRepository();
+            let ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+            const alreadyOwned = ownedCostumeIds.has(item.id);
+
+            const savePref = async () => {
+              await UserCharacterPreferenceService.saveUserCharacterPreference(currentCharacter.id, {
+                current_costume_id: item.id,
+              });
+            };
+
+            if (alreadyOwned) {
+              await savePref();
+              clearConfirmPurchaseRequest();
+              return;
+            }
+
+            const priceVcoin = item.price_vcoin ?? 0;
+            const priceRuby = item.price_ruby ?? 0;
+            const isFree = priceVcoin === 0 && priceRuby === 0;
+
+            if (isFree) {
+              const success = await assetRepo.createAsset(item.id, 'character_costume');
+              if (!success) {
+                Alert.alert('Unable to add costume', 'Please try again in a moment.');
+                return;
+              }
+              ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+            } else {
+              const choice = await confirmCostumePurchase(item);
+              if (!choice) return;
+
+              const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
+              const finalPriceRuby = choice.useRuby ? priceRuby : 0;
+
+              try {
+                await performPurchase({
+                  itemId: item.id,
+                  itemType: 'character_costume',
+                  priceVcoin: finalPriceVcoin,
+                  priceRuby: finalPriceRuby,
+                });
+                ownedCostumeIds = await assetRepo.fetchOwnedAssets('character_costume');
+              } catch (error) {
+                console.error('❌ [CostumeSelect] Purchase error:', error);
+                handlePurchaseError(error);
+                clearConfirmPurchaseRequest();
+                return;
+              }
+            }
+
+            if (!alreadyOwned && ownedCostumeIds.has(item.id)) {
+              await QuestProgressTracker.track('unlock_costume');
+            }
+
+            await savePref();
             clearConfirmPurchaseRequest();
-            return;
+          } catch (e) {
+            console.error('❌ Error handling async costume logic:', e);
           }
-        }
+        }, 0);
 
-        if (!alreadyOwned && ownedCostumeIds.has(item.id)) {
-          await QuestProgressTracker.track('unlock_costume');
-        }
-
-        await applyCostume();
-        clearConfirmPurchaseRequest();
       } catch (error) {
         console.error('❌ Error selecting costume:', error);
         Alert.alert('Error', 'Failed to select costume');
@@ -2436,7 +2440,10 @@ const AppContent = () => {
         <ToastStackView />
         <SettingsModal
           visible={showSettings}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            setSettingsInitialScreen(undefined);
+          }}
           email={session?.user?.email ?? null}
           displayName={
             (session?.user?.user_metadata as Record<string, any> | undefined)?.display_name ??
@@ -2450,6 +2457,7 @@ const AppContent = () => {
           isPro={isPro}
           rubyBalance={balance.ruby ?? 0}
           onOpenRubySheet={() => setShowRubyPurchaseSheet(true)}
+          initialScreen={settingsInitialScreen}
         />
         {rewardOverlayData && (
           <RewardClaimOverlay
@@ -2635,6 +2643,11 @@ const AppContent = () => {
                 ref={webViewRef}
                 onModelReady={handleModelReady}
                 onMessage={handleMessage}
+                onReportError={(errorDetail) => {
+                  console.log('[App] Report error from VRMWebView:', errorDetail);
+                  setSettingsInitialScreen({ key: 'feedback', kind: 'problem' });
+                  setShowSettings(true);
+                }}
                 enableDebug={false}
               />
             </Pressable>

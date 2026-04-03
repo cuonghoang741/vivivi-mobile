@@ -253,10 +253,36 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             return;
         }
 
-        const listener = (info: CustomerInfo) => {
+        const listener = async (info: CustomerInfo) => {
             console.log('[SubscriptionProvider] Customer info updated');
             const activeEntitlements = Object.keys(info.entitlements.active);
-            const isPro = activeEntitlements.length > 0;
+            let isPro = activeEntitlements.length > 0;
+
+            // VALIDATION: Verify with Supabase DB if user is logged in
+            // This prevents "ghost" Pro status from sandbox/family sharing/previous accounts
+            const userId = authManager.user?.id;
+            if (userId && isPro) {
+                try {
+                    const { data: dbSub, error } = await getSupabaseClient()
+                        .from('subscriptions')
+                        .select('status, expires_at')
+                        .eq('user_id', userId)
+                        .in('status', ['active', 'trialing'])
+                        .gt('expires_at', new Date().toISOString())
+                        .maybeSingle();
+
+                    if (error) {
+                        console.warn('[SubscriptionProvider] Listener DB check failed, falling back to RevenueCat:', error);
+                    } else if (!dbSub) {
+                        console.log('[SubscriptionProvider] Listener: No active subscription in DB. Overriding Pro to false.');
+                        isPro = false;
+                    } else {
+                        console.log('[SubscriptionProvider] Listener: DB confirmed active subscription.');
+                    }
+                } catch (dbError) {
+                    console.warn('[SubscriptionProvider] Listener DB validation error:', dbError);
+                }
+            }
 
             setState(prev => ({
                 ...prev,

@@ -278,7 +278,7 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
 
         // Run action detection, gift suggestion and Gemini chat in PARALLEL for faster response
         const [detectedAction, responseMessages, shouldSuggestGift] = await Promise.all([
-          actionDetectionService.detectAction(trimmed),
+          actionDetectionService.detectAction(trimmed, options?.isPro),
           chatService.sendMessageToGemini({
             text: trimmed,
             characterId,
@@ -382,6 +382,21 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
                 }
               })
               .catch(err => console.warn('[useChatManager] Failed to fetch media request:', err));
+          }
+
+          // Handle Upgrade Button suggestion
+          if (detectedAction.action === 'button_upgrade') {
+            console.log('[useChatManager] 💎 Inserting upgrade button into chat');
+            // Insert upgrade button after a delay so it appears after agent reply
+            setTimeout(() => {
+              const upgradeMessage: ChatMessage = {
+                id: `${Date.now()}-upgrade-${Math.random().toString(36).slice(2, 8)}`,
+                kind: { type: 'upgrade_button' },
+                isAgent: true,
+                createdAt: new Date().toISOString(),
+              };
+              appendMessage(upgradeMessage);
+            }, 2000);
           }
         }
 

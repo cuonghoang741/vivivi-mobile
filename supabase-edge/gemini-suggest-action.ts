@@ -79,10 +79,15 @@ const AVAILABLE_ACTIONS = [
         description: "User wants to start a video call with camera",
         examples: ["video call", "gọi video đi", "muốn nhìn thấy mặt em", "I miss you"]
     },
+    // {
+    //     action: "open_subscription",
+    //     description: "User mentions premium features, subscription, upgrade, pro, or wants to unlock something",
+    //     examples: ["nâng cấp pro", "upgrade", "mua gói premium", "unlock features"]
+    // },
     {
-        action: "open_subscription",
-        description: "User mentions premium features, subscription, upgrade, pro, or wants to unlock something",
-        examples: ["nâng cấp pro", "upgrade", "mua gói premium", "unlock features"]
+        action: "button_upgrade",
+        description: "The AI character wants to suggest the user to upgrade to Pro. Use this when the character's response naturally leads to mentioning premium features, exclusive content, or when the character teases about locked features. Do NOT use if user explicitly asks to upgrade (use open_subscription instead).",
+        examples: ["i want to upgrade pro", "how to upgrade pro", "Where can i find the button pro", "I want to upgrade", "I want to buy pro", "I want to buy premium", "I want to buy subscription", "I want to buy pro", "I cannot find the diamond", 'I can\'t see the diamond', 'Where is the button']
     },
     {
         action: "none",
@@ -176,7 +181,8 @@ serve(async (req: Request) => {
             throw new Error("GEMINI_API_KEY not configured");
         }
 
-        const { message } = await req.json();
+        const { message, is_pro } = await req.json();
+        const isPro = is_pro === true;
 
         if (!message || typeof message !== "string") {
             return new Response(
@@ -195,7 +201,7 @@ serve(async (req: Request) => {
                     contents: [
                         {
                             role: "user",
-                            parts: [{ text: `${SYSTEM_PROMPT}\n\nUser message to analyze: "${message}"` }]
+                            parts: [{ text: `${SYSTEM_PROMPT}\n\n${isPro ? 'IMPORTANT: This user is already a Pro subscriber. NEVER return "button_upgrade" or "open_subscription" actions. Return "none" instead.' : ''}\n\nUser message to analyze: "${message}"` }]
                         }
                     ],
                     generationConfig: {
@@ -274,6 +280,13 @@ serve(async (req: Request) => {
             }
         } catch (parseError) {
             console.warn("Failed to parse Gemini response:", responseText);
+        }
+
+        // Hard guard: NEVER suggest upgrade actions for Pro users
+        if (isPro && (result.action === 'button_upgrade' || result.action === 'open_subscription')) {
+            console.log(`[gemini-suggest-action] Pro user - overriding ${result.action} to none`);
+            result.action = 'none';
+            result.reasoning = 'User is Pro, upgrade action suppressed';
         }
 
         console.log(`[gemini-suggest-action] Message: "${message.substring(0, 50)}..." => ${result.action} (${result.confidence})`, result.parameters);

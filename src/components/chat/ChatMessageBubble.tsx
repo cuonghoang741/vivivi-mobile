@@ -11,7 +11,9 @@ import { CurrencyRepository } from '../../repositories/CurrencyRepository';
 import { RubyPurchaseSheet, GIFT_TIERS } from '../sheets/RubyPurchaseSheet';
 import GiftIcon from '../../assets/icons/gift.svg';
 import RubyIcon from '../../assets/icons/ruby.svg';
+import DiamondIcon from '../../assets/icons/diamond.svg';
 import type { ChatMessage } from '../../types/chat';
+import { LiquidGlass } from '../LiquidGlass';
 
 type Props = {
   message: ChatMessage;
@@ -28,11 +30,12 @@ export const ChatMessageBubble: React.FC<Props> = ({
 }) => {
   const isText = message.kind.type === 'text' || message.kind.type === 'system';
   const isMedia = message.kind.type === 'media';
+  const isUpgradeButton = message.kind.type === 'upgrade_button';
 
   const containerStyles = [
-    !isMedia && styles.bubble,
-    !isMedia && (message.isAgent ? styles.agentBubble : styles.userBubble),
-    !isMedia && variant === 'compact' && styles.compactBubble,
+    !isMedia && !isUpgradeButton && styles.bubble,
+    !isMedia && !isUpgradeButton && (message.isAgent ? styles.agentBubble : styles.userBubble),
+    !isMedia && !isUpgradeButton && variant === 'compact' && styles.compactBubble,
     isMedia && styles.mediaContainer,
   ];
 
@@ -46,7 +49,7 @@ export const ChatMessageBubble: React.FC<Props> = ({
 
   // Determine if media is locked
   const mediaItem = message.kind.type === 'media' ? message.kind.mediaItem : null;
-  const isMasturbate = mediaItem?.keywords?.toLowerCase().includes('masturbate');
+  const isMasturbate = mediaItem?.keywords?.toLowerCase().includes('masturbatexxx');
 
   useEffect(() => {
     if (isMedia && isMasturbate && mediaItem) {
@@ -132,6 +135,20 @@ export const ChatMessageBubble: React.FC<Props> = ({
       >
         {isText ? renderTextContent(message, variant) : null}
         {isMedia ? renderMediaContent(message, variant, isLocked, isMasturbate) : null}
+        {isUpgradeButton && !isPro ? (
+          <Pressable
+            onPress={() => sceneActions.openSubscription()}
+            style={({ pressed }) => [
+              styles.upgradeButtonWrapper,
+              pressed && { transform: [{ scale: 0.96 }], opacity: 0.9 },
+            ]}
+          >
+            <LiquidGlass style={styles.upgradeButtonGradient} tintColor={'#111111ff'}>
+              <DiamondIcon width={16} height={16} />
+              <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
+            </LiquidGlass>
+          </Pressable>
+        ) : null}
       </Pressable>
 
       <Modal
@@ -554,6 +571,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
+  },
+  upgradeButtonWrapper: {
+    borderRadius: 999,
+    overflow: 'hidden',
+    shadowColor: '#FF3E8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  upgradeButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    gap: 8,
+    borderRadius: 999,
+  },
+  upgradeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
 });
 

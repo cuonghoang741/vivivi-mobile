@@ -1,7 +1,8 @@
 export type ChatMessageKind =
   | { type: 'text'; text: string }
   | { type: 'media'; mediaItem: any } // Using any to avoid circular dependency
-  | { type: 'system'; text: string };
+  | { type: 'system'; text: string }
+  | { type: 'upgrade_button' };
 
 export type ChatMessage = {
   id: string;
