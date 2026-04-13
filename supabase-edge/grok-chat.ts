@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent";
+
+const GROK_API_KEY = Deno.env.get("GROK_API_KEY") || "";
+const GROK_API_URL = "https://api.x.ai/v1/responses";
+const GROK_MODEL = "grok-4-1-fast-non-reasoning";
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-id',
@@ -15,7 +18,7 @@ const TELEGRAM_MESSAGE_THREAD_ID = '686';
 
 async function sendTelegramError(error: string, context: string) {
     try {
-        const message = `<b>🚨 GEMINI API ERROR</b>\n\nContext: ${context}\nError: ${error}`;
+        const message = `<b>🚨 GROK API ERROR</b>\n\nContext: ${context}\nError: ${error}`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -31,11 +34,11 @@ async function sendTelegramError(error: string, context: string) {
     }
 }
 
-// Retry helper function for Gemini API calls
+// Retry helper function for Grok API calls
 async function fetchWithRetry(
     url: string,
     options: RequestInit,
-    maxRetries: number = 1, // Reduced to 1 retry (2 attempts total)
+    maxRetries: number = 1,
     initialDelayMs: number = 1000,
     contextInfo: string = ''
 ): Promise<Response> {
@@ -45,36 +48,28 @@ async function fetchWithRetry(
         try {
             const response = await fetch(url, options);
 
-            // If response is ok or it's a client error (4xx), don't retry, return immediately
             if (response.ok || (response.status >= 400 && response.status < 500)) {
                 return response;
             }
 
-            // Server error (5xx) - retry
             const errorText = await response.text();
-            lastError = new Error(`Gemini API error: ${response.status} - ${errorText}`);
-            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries + 1} failed with status ${response.status}`);
+            lastError = new Error(`Grok API error: ${response.status} - ${errorText}`);
+            console.log(`[grok-chat] Attempt ${attempt}/${maxRetries + 1} failed with status ${response.status}`);
         } catch (error) {
-            // Network error - retry
             lastError = error instanceof Error ? error : new Error(String(error));
-            console.log(`[gemini-chat] Attempt ${attempt}/${maxRetries + 1} failed with error: ${lastError.message}`);
+            console.log(`[grok-chat] Attempt ${attempt}/${maxRetries + 1} failed with error: ${lastError.message}`);
         }
 
-        // Wait before retrying (exponential backoff)
         if (attempt <= maxRetries) {
             const delay = initialDelayMs * Math.pow(2, attempt - 1);
-            console.log(`[gemini-chat] Retrying in ${delay}ms...`);
+            console.log(`[grok-chat] Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 
-    // If we reach here, all attempts failed
     const finalErrorMessage = lastError ? lastError.message : 'Unknown error after retries';
-    console.error(`[gemini-chat] All retry attempts failed: ${finalErrorMessage}`);
-
-    // Send Telegram Notification
+    console.error(`[grok-chat] All retry attempts failed: ${finalErrorMessage}`);
     await sendTelegramError(finalErrorMessage, contextInfo);
-
     throw lastError || new Error('All retry attempts failed');
 }
 
@@ -100,7 +95,7 @@ serve(async (req) => {
             }
         });
         const body = await req.json();
-        requestBody = body; // Store for context
+        requestBody = body;
         const { message, character_id, user_id, client_id, conversation_history } = body;
 
         if (!message || !character_id) {
@@ -114,12 +109,14 @@ serve(async (req) => {
                 }
             });
         }
+
         // Character instruction
         let characterInstruction = null;
         try {
             const { data: characterData } = await supabaseClient.from('characters').select('instruction').eq('id', character_id).single();
             if (characterData?.instruction) characterInstruction = characterData.instruction;
         } catch { }
+
         // Memory
         let currentMemory = null;
         try {
@@ -129,64 +126,17 @@ serve(async (req) => {
             const { data: uc } = await memoryQuery.maybeSingle();
             if (uc) currentMemory = uc.memory || null;
         } catch { }
-        const contents: any[] = [];
-        if (Array.isArray(conversation_history) && conversation_history.length > 0) {
-            let lastRole = null;
-            for (const msg of conversation_history) {
-                const text = msg?.parts?.[0]?.text || '';
-                if (!text) continue;
 
-                const role = msg.role === 'model' ? 'model' : 'user';
+        // Formatting input for x.ai REST endpoint (since it expects a single string input)
+        let formattedInput = "";
 
-                if (role === lastRole && contents.length > 0) {
-                    // Combine with previous parts
-                    contents[contents.length - 1].parts[0].text += `\n${text}`;
-                } else {
-                    contents.push({
-                        role,
-                        parts: [
-                            {
-                                text
-                            }
-                        ]
-                    });
-                    lastRole = role;
-                }
-            }
-        }
+        // 1. System Instruction
+        let systemInstructionText = characterInstruction || '';
 
-        // Add the current user message, merging if the last message in history was also user
-        if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-            contents[contents.length - 1].parts[0].text += `\n${message}`;
-        } else {
-            contents.push({
-                role: 'user',
-                parts: [
-                    {
-                        text: message
-                    }
-                ]
-            });
-        }
-
-        // Gemini strictly requires the conversation to start with a user message
-        while (contents.length > 0 && contents[0].role !== 'user') {
-            contents.shift();
-        }
-        const geminiRequestBody: any = {
-            contents,
-            safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-            ],
-        };
-        // Check for Pro subscription
+        // Append User Status
         let isPro = false;
         const bodyIsPro = body.is_pro;
         if (typeof bodyIsPro === 'boolean') {
-            // Trust the client to save a DB query
             isPro = bodyIsPro;
         } else if (user_id) {
             try {
@@ -202,67 +152,80 @@ serve(async (req) => {
             } catch { }
         }
 
-        let systemInstructionText = '';
-        if (characterInstruction) systemInstructionText = characterInstruction;
-
-        // Append User Status
-        const userStatusInfo = `\n\n[User Status: ${isPro ? 'Pro' : 'Free'}]`;
+        const userStatusInfo = isPro
+            ? `\n\n[User Status: Pro]\nIMPORTANT: This user is already a Pro subscriber. NEVER suggest upgrading, NEVER mention premium features, subscription, or Pro benefits. They already have full access to everything. Treat them as a valued premium member.`
+            : `\n\n[User Status: Free]\nThis user is on the free plan. You may occasionally and naturally tease premium content or hint at exclusive features, but don't be pushy about it unless they ask for more information about benefits or features that are too sensitive..`;
         systemInstructionText += userStatusInfo;
 
-        if (currentMemory) systemInstructionText = systemInstructionText ? `${systemInstructionText}\n\n## Previous Memory/Context:\n${currentMemory}` : `## Previous Memory/Context:\n${currentMemory}`;
+        if (currentMemory) {
+            systemInstructionText += `\n\n## Previous Memory/Context:\n${currentMemory}`;
+        }
 
-        // Multi-message instruction for natural conversation flow
         systemInstructionText += `\n\n## Response Style:\nTo make the conversation feel natural and lively like real texting, split your response into 2-4 short chat messages. Use the separator "|||" between each message. Each message should be concise (1-2 sentences max). Feel like real texting: casual, expressive, with emotions and reactions. Example:\nHey babe! 😘|||I just woke up and the first thing I thought about was you|||What are you doing right now? 💕\nDo NOT put "|||" at the start or end, only between messages.`;
 
-        if (systemInstructionText) geminiRequestBody.systemInstruction = {
-            parts: [
-                {
-                    text: systemInstructionText
+        // 2. Build the full prompt string
+        formattedInput = `[INSTRUCTION]\n${systemInstructionText}\n\n[CONVERSATION HISTORY]\n`;
+
+        if (Array.isArray(conversation_history)) {
+            for (const msg of conversation_history) {
+                const role = msg.role === 'model' ? 'Assistant' : 'User';
+                const text = msg?.parts?.[0]?.text || msg.content || '';
+                if (text) {
+                    formattedInput += `${role}: ${text}\n`;
                 }
-            ]
+            }
+        }
+
+        formattedInput += `User: ${message}\nAssistant:`;
+
+        const grokRequestBody = {
+            model: GROK_MODEL,
+            input: formattedInput
         };
 
-        // Context info for error reporting
         const contextInfo = `User: ${user_id || client_id || 'Unknown'}\nCharacter: ${character_id}`;
 
-        const geminiResponse = await fetchWithRetry(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        const grokResponse = await fetchWithRetry(GROK_API_URL, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${GROK_API_KEY}`
             },
-            body: JSON.stringify(geminiRequestBody)
+            body: JSON.stringify(grokRequestBody)
         }, 1, 1000, contextInfo);
 
-        if (!geminiResponse.ok) {
-            const errorText = await geminiResponse.text();
-
-            // Send Telegram Notification for API level errors (after retries returned non-ok)
-            await sendTelegramError(`${geminiResponse.status} - ${errorText}`, contextInfo);
+        if (!grokResponse.ok) {
+            const errorText = await grokResponse.text();
+            await sendTelegramError(`${grokResponse.status} - ${errorText}`, contextInfo);
 
             return new Response(JSON.stringify({
-                error: `Gemini API error: ${geminiResponse.status}`,
+                error: `Grok API error: ${grokResponse.status}`,
                 details: errorText
             }), {
-                status: geminiResponse.status,
+                status: grokResponse.status,
                 headers: {
                     ...corsHeaders,
                     'Content-Type': 'application/json'
                 }
             });
         }
-        const geminiData = await geminiResponse.json();
+
+        const grokData = await grokResponse.json();
         let responseText = '';
         try {
-            const candidate = geminiData.candidates?.[0];
-            if (candidate?.content?.parts?.[0]?.text) responseText = candidate.content.parts[0].text;
-            else throw new Error('Unexpected Gemini response structure');
+            // Path based on the example provided by the user
+            const outputText = grokData.output?.[0]?.content?.[0]?.text;
+            if (outputText) {
+                responseText = outputText;
+            } else {
+                throw new Error('Unexpected Grok response structure');
+            }
         } catch (error: any) {
-            // Send Telegram Notification for parsing errors
-            await sendTelegramError(`Parsing Error: ${error?.message || String(error)}\nData: ${JSON.stringify(geminiData)}`, contextInfo);
+            await sendTelegramError(`Parsing Error: ${error?.message || String(error)}\nData: ${JSON.stringify(grokData)}`, contextInfo);
 
             return new Response(JSON.stringify({
-                error: 'Failed to parse Gemini response',
-                details: JSON.stringify(geminiData)
+                error: 'Failed to parse Grok response',
+                details: JSON.stringify(grokData)
             }), {
                 status: 500,
                 headers: {
@@ -271,14 +234,13 @@ serve(async (req) => {
                 }
             });
         }
-        const cleanedResponse = responseText.trimEnd();
-        // Split response into multiple messages using ||| delimiter
+
+        const cleanedResponse = responseText.trim();
         const messages = cleanedResponse
             .split('|||')
             .map((m: string) => m.trim())
             .filter((m: string) => m.length > 0);
 
-        // If splitting failed or only 1 part, use original as single message
         const finalMessages = messages.length > 0 ? messages : [cleanedResponse];
 
         // Save each AI message separately to conversation
@@ -296,7 +258,7 @@ serve(async (req) => {
             } catch { }
         }
 
-        // Fire-and-forget async memory update (use full response for memory)
+        // Fire-and-forget async memory update
         try {
             const updatePayload = {
                 character_id,
@@ -314,6 +276,7 @@ serve(async (req) => {
                 body: JSON.stringify(updatePayload)
             }).catch(() => { });
         } catch { }
+
         // unseen count
         let unseenCount = 0;
         try {
@@ -326,6 +289,7 @@ serve(async (req) => {
             const { count } = await query;
             if (typeof count === 'number') unseenCount = count;
         } catch { }
+
         return new Response(JSON.stringify({
             response: cleanedResponse,
             messages: finalMessages,
@@ -338,8 +302,8 @@ serve(async (req) => {
             },
             status: 200
         });
+
     } catch (error: any) {
-        // Top level catch - unexpected errors
         try {
             const contextInfo = `Request Body: ${JSON.stringify(requestBody).substring(0, 200)}...`;
             await sendTelegramError(error?.message || String(error), contextInfo);

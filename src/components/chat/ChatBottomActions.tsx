@@ -28,7 +28,7 @@ export const ChatBottomActions: React.FC<Props> = ({
   return (
     <View style={styles.container}>
       <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} isDarkBackground={isDarkBackground} />
-      <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} isDarkBackground={isDarkBackground} />
+      {/* <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} isDarkBackground={isDarkBackground} /> */}
       <ActionButton
         icon={isDancing ? "close" : "musical-notes-outline"}
         label={isDancing ? "Dance" : "Dance"}

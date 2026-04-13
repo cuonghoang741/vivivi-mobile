@@ -9,7 +9,8 @@
       "distribution": "internal",
       "env": {
         "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
-        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5",
+        "EAS_BUILD_DISABLE_EXPO_DOCTOR_STEP": "1"
       },
       "ios": {
         "simulator": true,
@@ -25,7 +26,8 @@
       "distribution": "internal",
       "env": {
         "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
-        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5",
+        "EAS_BUILD_DISABLE_EXPO_DOCTOR_STEP": "1"
       },
       "ios": {
         "simulator": false,
@@ -46,7 +48,8 @@
     "production": {
       "env": {
         "FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT": "120",
-        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5"
+        "FASTLANE_XCODEBUILD_SETTINGS_RETRIES": "5",
+        "EAS_BUILD_DISABLE_EXPO_DOCTOR_STEP": "1"
       },
       "ios": {
         "simulator": false,
