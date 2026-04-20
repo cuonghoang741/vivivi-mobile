@@ -31,6 +31,46 @@ async function sendTelegramError(error: string, context: string) {
     }
 }
 
+async function callGrokFallback(req: Request, body: any) {
+    try {
+        console.log("[gemini-chat] Attempting to fallback to Grok...");
+        const grokUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/grok-chat`;
+        
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+        
+        const auth = req.headers.get('Authorization');
+        if (auth) headers.set('Authorization', auth);
+        
+        const apiKey = req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || '';
+        headers.set('apikey', apiKey);
+        
+        const clientId = req.headers.get('X-Client-Id') || req.headers.get('x-client-id');
+        if (clientId) headers.set('X-Client-Id', clientId);
+
+        const response = await fetch(grokUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+
+        console.log(`[gemini-chat] Grok fallback status: ${response.status}`);
+        return response;
+    } catch (error: any) {
+        console.error(`[gemini-chat] Grok fallback failed: ${error.message}`);
+        return new Response(JSON.stringify({
+            error: "Both Gemini and Grok fallback failed",
+            details: error.message
+        }), {
+            status: 500,
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json'
+            }
+        });
+    }
+}
+
 // Retry helper function for Gemini API calls
 async function fetchWithRetry(
     url: string,
@@ -225,30 +265,28 @@ serve(async (req) => {
         // Context info for error reporting
         const contextInfo = `User: ${user_id || client_id || 'Unknown'}\nCharacter: ${character_id}`;
 
-        const geminiResponse = await fetchWithRetry(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(geminiRequestBody)
-        }, 1, 1000, contextInfo);
+        let geminiResponse;
+        try {
+            geminiResponse = await fetchWithRetry(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(geminiRequestBody)
+            }, 1, 1000, contextInfo);
+        } catch (error: any) {
+            console.error(`[gemini-chat] Gemini fetch exception: ${error.message}. Falling back to Grok...`);
+            return await callGrokFallback(req, requestBody);
+        }
 
         if (!geminiResponse.ok) {
             const errorText = await geminiResponse.text();
 
             // Send Telegram Notification for API level errors (after retries returned non-ok)
-            await sendTelegramError(`${geminiResponse.status} - ${errorText}`, contextInfo);
+            await sendTelegramError(`${geminiResponse.status} - ${errorText} (Falling back to Grok)`, contextInfo);
 
-            return new Response(JSON.stringify({
-                error: `Gemini API error: ${geminiResponse.status}`,
-                details: errorText
-            }), {
-                status: geminiResponse.status,
-                headers: {
-                    ...corsHeaders,
-                    'Content-Type': 'application/json'
-                }
-            });
+            console.error(`[gemini-chat] Gemini API error: ${geminiResponse.status}. Falling back to Grok...`);
+            return await callGrokFallback(req, requestBody);
         }
         const geminiData = await geminiResponse.json();
         let responseText = '';
@@ -258,18 +296,10 @@ serve(async (req) => {
             else throw new Error('Unexpected Gemini response structure');
         } catch (error: any) {
             // Send Telegram Notification for parsing errors
-            await sendTelegramError(`Parsing Error: ${error?.message || String(error)}\nData: ${JSON.stringify(geminiData)}`, contextInfo);
+            await sendTelegramError(`Parsing Error: ${error?.message || String(error)} (Falling back to Grok)\nData: ${JSON.stringify(geminiData)}`, contextInfo);
 
-            return new Response(JSON.stringify({
-                error: 'Failed to parse Gemini response',
-                details: JSON.stringify(geminiData)
-            }), {
-                status: 500,
-                headers: {
-                    ...corsHeaders,
-                    'Content-Type': 'application/json'
-                }
-            });
+            console.error(`[gemini-chat] Gemini parse error. Falling back to Grok...`);
+            return await callGrokFallback(req, requestBody);
         }
         const cleanedResponse = responseText.trimEnd();
         // Split response into multiple messages using ||| delimiter

@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GROK_API_KEY = Deno.env.get("GROK_API_KEY") || "";
+const GROK_API_URL = "https://api.x.ai/v1/responses";
+const GROK_MODEL = "grok-4-1-fast-non-reasoning";
 
 const SYSTEM_PROMPT = `You are an AI assistant analyzing a conversation between a virtual companion and a user.
 Your task is to determine if the virtual companion should request a "gift" (a premium photo/video) from the user at this exact moment in the conversation.
@@ -33,6 +36,39 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 5,
     throw lastError || new Error('All retry attempts failed');
 }
 
+async function callGrokSuggestGift(formattedConversation: string) {
+    if (!GROK_API_KEY) {
+        throw new Error("GROK_API_KEY not configured for fallback");
+    }
+
+    const formattedInput = `[INSTRUCTION]\n${SYSTEM_PROMPT}\n\nConversation (last 10 messages):\n${formattedConversation}\nAssistant (return JSON only):`;
+
+    console.log(`[gemini-suggest-gift] Attempting Grok fallback...`);
+    
+    const response = await fetch(GROK_API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${GROK_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: GROK_MODEL,
+            input: formattedInput
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Grok API error: ${response.status} - ${errorText}`);
+    }
+
+    const grokData = await response.json();
+    const responseText = grokData.output?.[0]?.content?.[0]?.text || "";
+    
+    console.log(`[gemini-suggest-gift] Grok fallback succeeded`);
+    return responseText;
+}
+
 serve(async (req: Request) => {
     const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
@@ -57,24 +93,36 @@ serve(async (req: Request) => {
             `[${msg.isAgent ? 'Companion' : 'User'}]: ${msg.kind?.text || ''}`
         ).join("\n");
 
-        const geminiResponse = await fetchWithRetry(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{
-                        role: "user",
-                        parts: [{ text: `${SYSTEM_PROMPT}\n\nConversation (last 10 messages):\n${formattedConversation}` }]
-                    }],
-                    generationConfig: { temperature: 0.2, maxOutputTokens: 150 }
-                })
-            }
-        );
+        let responseText = "";
+        try {
+            const geminiResponse = await fetchWithRetry(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: `${SYSTEM_PROMPT}\n\nConversation (last 10 messages):\n${formattedConversation}` }]
+                        }],
+                        generationConfig: { temperature: 0.2, maxOutputTokens: 150 }
+                    })
+                },
+                1 // Reduced to 1 retry for faster fallback
+            );
 
-        if (!geminiResponse.ok) throw new Error(`Gemini API error: ${geminiResponse.status}`);
-        const geminiData = await geminiResponse.json();
-        const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (!geminiResponse.ok) {
+                const errorText = await geminiResponse.text();
+                console.error(`[gemini-suggest-gift] Gemini error ${geminiResponse.status}: ${errorText}. Falling back to Grok...`);
+                responseText = await callGrokSuggestGift(formattedConversation);
+            } else {
+                const geminiData = await geminiResponse.json();
+                responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            }
+        } catch (error: any) {
+            console.error(`[gemini-suggest-gift] Gemini exception: ${error.message}. Falling back to Grok...`);
+            responseText = await callGrokSuggestGift(formattedConversation);
+        }
 
         let result = { suggestGift: false, message: "" };
         try {

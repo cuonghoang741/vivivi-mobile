@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GROK_API_KEY = Deno.env.get("GROK_API_KEY") || "";
+const GROK_API_URL = "https://api.x.ai/v1/responses";
+const GROK_MODEL = "grok-4-1-fast-non-reasoning";
 
 // Available animations in the app (from fbxFiles)
 const AVAILABLE_ANIMATIONS = [
@@ -54,11 +57,11 @@ const AVAILABLE_ACTIONS = [
         description: "User wants to change the character's outfit, clothes, or costume",
         examples: ["đổi quần áo đi", "thay đồ khác", "change your outfit", "mặc đồ khác đi"]
     },
-    {
-        action: "become_nude",
-        description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
-        examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", 'take off', 'show pussy', "make me suprise"]
-    },
+    // {
+    //     action: "become_nude",
+    //     description: "User EXPLICITLY wants to see the character nude, undressed, or naked in the 3D scene (NOT a photo)",
+    //     examples: ["cởi đồ", "nude", "lột đồ", "naked", "undress", "cho xem hàng", "show nude", "show sensitive body areas", 'take off', 'show pussy', "make me suprise"]
+    // },
     {
         action: "change_character",
         description: "User wants to switch to a different character entirely",
@@ -87,7 +90,7 @@ const AVAILABLE_ACTIONS = [
     {
         action: "button_upgrade",
         description: "The AI character wants to suggest the user to upgrade to Pro. Use this when the character's response naturally leads to mentioning premium features, exclusive content, or when the character teases about locked features. Do NOT use if user explicitly asks to upgrade (use open_subscription instead).",
-        examples: ["i want to upgrade pro", "how to upgrade pro", "Where can i find the button pro", "I want to upgrade", "I want to buy pro", "I want to buy premium", "I want to buy subscription", "I want to buy pro", "I cannot find the diamond", 'I can\'t see the diamond', 'Where is the button']
+        examples: ["i want to upgrade pro", "Where can i find the button pro", "I want to upgrade", "I want to buy pro", "I want to buy premium", "I want to buy subscription", "I want to buy pro", "I cannot find the diamond", 'I can\'t see the diamond', 'Where is the button']
     },
     {
         action: "none",
@@ -165,6 +168,39 @@ async function fetchWithRetry(
     throw lastError || new Error('All retry attempts failed');
 }
 
+async function callGrokActionDetection(message: string, isPro: boolean) {
+    if (!GROK_API_KEY) {
+        throw new Error("GROK_API_KEY not configured for fallback");
+    }
+
+    const formattedInput = `[INSTRUCTION]\n${SYSTEM_PROMPT}\n\n${isPro ? 'IMPORTANT: This user is already a Pro subscriber. NEVER return "button_upgrade" or "open_subscription" actions. Return "none" instead.' : ''}\n\nUser message to analyze: "${message}"\nAssistant (return JSON only):`;
+
+    console.log(`[gemini-suggest-action] Attempting Grok fallback for: "${message.substring(0, 30)}..."`);
+    
+    const response = await fetch(GROK_API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${GROK_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: GROK_MODEL,
+            input: formattedInput
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Grok API error: ${response.status} - ${errorText}`);
+    }
+
+    const grokData = await response.json();
+    const responseText = grokData.output?.[0]?.content?.[0]?.text || "";
+    
+    console.log(`[gemini-suggest-action] Grok fallback succeeded`);
+    return responseText;
+}
+
 serve(async (req: Request) => {
     // CORS headers
     const corsHeaders = {
@@ -192,34 +228,41 @@ serve(async (req: Request) => {
         }
 
         // Call Gemini API with retry
-        const geminiResponse = await fetchWithRetry(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            role: "user",
-                            parts: [{ text: `${SYSTEM_PROMPT}\n\n${isPro ? 'IMPORTANT: This user is already a Pro subscriber. NEVER return "button_upgrade" or "open_subscription" actions. Return "none" instead.' : ''}\n\nUser message to analyze: "${message}"` }]
+        let responseText = "";
+        try {
+            const geminiResponse = await fetchWithRetry(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [{ text: `${SYSTEM_PROMPT}\n\n${isPro ? 'IMPORTANT: This user is already a Pro subscriber. NEVER return "button_upgrade" or "open_subscription" actions. Return "none" instead.' : ''}\n\nUser message to analyze: "${message}"` }]
+                            }
+                        ],
+                        generationConfig: {
+                            temperature: 0.1, // Low temperature for consistent classification
+                            maxOutputTokens: 300,
                         }
-                    ],
-                    generationConfig: {
-                        temperature: 0.1, // Low temperature for consistent classification
-                        maxOutputTokens: 300,
-                    }
-                })
+                    })
+                },
+                1 // Reduced to 1 retry (2 attempts total) for faster fallback
+            );
+
+            if (!geminiResponse.ok) {
+                const errorText = await geminiResponse.text();
+                console.error(`[gemini-suggest-action] Gemini API error: ${geminiResponse.status} - ${errorText}. Falling back to Grok...`);
+                responseText = await callGrokActionDetection(message, isPro);
+            } else {
+                const geminiData = await geminiResponse.json();
+                responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
             }
-        );
-
-        if (!geminiResponse.ok) {
-            const errorText = await geminiResponse.text();
-            console.error("Gemini API error:", errorText);
-            throw new Error(`Gemini API error: ${geminiResponse.status}`);
+        } catch (error: any) {
+            console.error(`[gemini-suggest-action] Gemini fetch failed: ${error.message}. Falling back to Grok...`);
+            responseText = await callGrokActionDetection(message, isPro);
         }
-
-        const geminiData = await geminiResponse.json();
-        const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
         // Parse the JSON response from Gemini
         let result = { action: "none", confidence: 1.0, parameters: {} as Record<string, string>, reasoning: "Failed to parse response" };

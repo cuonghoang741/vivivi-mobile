@@ -46,8 +46,8 @@ const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void;
   isDarkBackground,
 }) => (
   <LiquidGlass style={styles.button} onPress={onPress} isDarkBackground={isDarkBackground}>
-    <Ionicons name={icon as any} size={14} color={isDarkBackground ? "#fff" : "#000"} />
-    <Text style={[styles.buttonLabel, { color: isDarkBackground ? "#fff" : "#000" }]}>{label}</Text>
+    <Ionicons name={icon as any} size={14} color="#fff" />
+    <Text style={styles.buttonLabel}>{label}</Text>
   </LiquidGlass>
 );
 

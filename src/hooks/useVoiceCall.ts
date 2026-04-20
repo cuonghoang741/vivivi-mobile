@@ -121,21 +121,6 @@ export const useVoiceCall = (options: UseVoiceCallOptions) => {
           } else {
             await QuestProgressTracker.track(questType);
           }
-
-          // Award relationship (update interaction timestamp)
-          if (characterId) {
-            try {
-              await relationshipLevelService.updateRelationshipInteraction(characterId);
-            } catch (error) {
-              console.error('[useVoiceCall] Failed to update relationship:', error);
-            }
-          }
-
-          // Award XP (5 per minute)
-          const xpAmount = callMinutes * 5;
-          if (xpAmount > 0) {
-            await userStatsService.addXP(xpAmount, 'voice_call');
-          }
         }
 
         // Finalize call row (no longer tracking vcoin, just duration)

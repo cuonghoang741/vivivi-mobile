@@ -249,7 +249,7 @@ export const ChatMessagesOverlay: React.FC<Props> = ({
             variant="liquid"
             size="lg"
             isIconOnly
-            startIcon={() => <IconX color={"black"} />}
+            startIcon={() => <IconX color={"#fff"} />}
             onPress={() => onToggleFullscreen?.(false)}
             isDarkBackground={false}
           />
