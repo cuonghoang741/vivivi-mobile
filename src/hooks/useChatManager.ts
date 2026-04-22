@@ -363,25 +363,29 @@ export const useChatManager = (characterId?: string, options?: UseChatOptions) =
 
           // Handle Media Requests
           if (detectedAction.action === 'send_photo' || detectedAction.action === 'send_video') {
+            console.log(`[useChatManager] 📸 AI requested media: ${detectedAction.action}, keywords: ${detectedAction.parameters?.keywords}`);
             const type: 'photo' | 'video' = detectedAction.action === 'send_video' ? 'video' : 'photo';
             const isPro = options?.isPro ?? false;
             const keywords = detectedAction.parameters?.keywords;
 
             // Promise to fetch media - use getAccessibleMedia with optional keywords filter
             // (it returns all media including locked ones, UI handles blurring)
-            const mediaPromise = mediaRequestService.getAccessibleMedia(characterId, type, isPro, keywords);
+            const mediaPromise = mediaRequestService.getAccessibleMedia(characterId, type, keywords);
 
             // Fetch accessible media
             mediaPromise
               .then(media => {
                 if (media) {
+                  console.log(`[useChatManager] ✅ Found media to send: ${media.id}`);
                   // Add media message after a short natural delay
                   setTimeout(() => {
                     addMediaMessage(media);
                   }, 1500);
+                } else {
+                  console.warn('[useChatManager] ❌ MediaRequested but no media found for:', { type, isPro, keywords });
                 }
               })
-              .catch(err => console.warn('[useChatManager] Failed to fetch media request:', err));
+              .catch(err => console.warn('[useChatManager] ❌ Failed to fetch media request:', err));
           }
 
           // Handle Upgrade Button suggestion

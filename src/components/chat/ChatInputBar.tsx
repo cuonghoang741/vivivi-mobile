@@ -50,8 +50,8 @@ export const ChatInputBar: React.FC<Props> = ({
 }) => {
   const showSend = useMemo(() => value.trim().length > 0, [value]);
   const isCallActive = isVoiceCallActive || isVideoCallActive;
-  const textColor = '#fff';
-  const placeholderColor = 'rgba(255,255,255,0.6)';
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  const placeholderColor = isDarkBackground ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)';
 
   const inputRef = useRef<TextInput>(null);
 
@@ -259,7 +259,6 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: '#fff',
     fontSize: 16,
     marginRight: 8,
     paddingVertical: 4,

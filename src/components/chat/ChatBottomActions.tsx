@@ -28,7 +28,7 @@ export const ChatBottomActions: React.FC<Props> = ({
   return (
     <View style={styles.container}>
       <ActionButton icon="camera-outline" label="Capture" onPress={onCapture} isDarkBackground={isDarkBackground} />
-      {/* <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} isDarkBackground={isDarkBackground} /> */}
+      <ActionButton icon="heart-outline" label="Send photo" onPress={onSendPhoto} isDarkBackground={isDarkBackground} />
       <ActionButton
         icon={isDancing ? "close" : "musical-notes-outline"}
         label={isDancing ? "Dance" : "Dance"}
@@ -44,12 +44,15 @@ const ActionButton: React.FC<{ icon: string; label: string; onPress: () => void;
   label,
   onPress,
   isDarkBackground,
-}) => (
-  <LiquidGlass style={styles.button} onPress={onPress} isDarkBackground={isDarkBackground}>
-    <Ionicons name={icon as any} size={14} color="#fff" />
-    <Text style={styles.buttonLabel}>{label}</Text>
-  </LiquidGlass>
-);
+}) => {
+  const textColor = isDarkBackground ? '#fff' : '#000';
+  return (
+    <LiquidGlass style={styles.button} onPress={onPress} isDarkBackground={isDarkBackground}>
+      <Ionicons name={icon as any} size={14} color={textColor} />
+      <Text style={[styles.buttonLabel, { color: textColor }]}>{label}</Text>
+    </LiquidGlass>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -71,7 +74,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   buttonLabel: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '600',
   },

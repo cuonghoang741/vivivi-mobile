@@ -1,5 +1,9 @@
 import { registerRootComponent } from 'expo';
 import { registerGlobals } from '@livekit/react-native';
+import { LogBox } from 'react-native';
+
+// Ignore all log notifications in the UI
+LogBox.ignoreAllLogs();
 
 import App from './App';
 

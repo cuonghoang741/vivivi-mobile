@@ -91,10 +91,20 @@ class ActionDetectionService {
                 ? Math.max(0, Math.min(1, parsed.confidence))
                 : 0.5;
 
+            let parameters = parsed.parameters || {};
+            if (typeof parameters === 'string') {
+                try {
+                    parameters = JSON.parse(parameters);
+                } catch (e) {
+                    console.warn('[ActionDetectionService] Failed to parse stringified parameters:', e);
+                    parameters = {};
+                }
+            }
+
             return {
                 action,
                 confidence,
-                parameters: parsed.parameters || {},
+                parameters,
                 reasoning: parsed.reasoning || '',
             };
         } catch (error) {

@@ -11,7 +11,6 @@ class MediaRequestService {
     async getAccessibleMedia(
         characterId: string,
         type: 'photo' | 'video',
-        isPro: boolean,
         keywords?: string
     ): Promise<MediaItem | null> {
         try {
@@ -32,12 +31,14 @@ class MediaRequestService {
                 allMedia = await this.mediaRepository.fetchAllMedia(characterId);
             }
 
+            console.log(allMedia)
+
             if (!allMedia || allMedia.length === 0) {
                 return null;
             }
 
             // 2. Filter by type
-            const typeFiltered = allMedia.filter(item => {
+            let typeFiltered = allMedia.filter(item => {
                 // Determine type based on item properties if explicit type is passed
                 const isVideo = item.content_type?.startsWith('video') || item.url.endsWith('.mp4') || item.url.endsWith('.mov');
 
@@ -46,7 +47,8 @@ class MediaRequestService {
             });
 
             if (typeFiltered.length === 0) {
-                return null;
+                typeFiltered = allMedia;
+                // return null;
             }
 
             // 3. Filter by accessibility logic removed to allow locked preview
@@ -54,15 +56,18 @@ class MediaRequestService {
             // The UI will handle locking/blurring if user is not Pro.
 
             const accessibleMedia = typeFiltered;
+            console.log(`[MediaRequestService] Filtered by type "${type}": ${accessibleMedia.length} items`);
 
             if (accessibleMedia.length === 0) {
-                console.log('[MediaRequestService] No media found');
+                console.log('[MediaRequestService] No media found after type filtering');
                 return null;
             }
 
             // 4. Pick a random item
             const randomIndex = Math.floor(Math.random() * accessibleMedia.length);
-            return accessibleMedia[randomIndex];
+            const selected = accessibleMedia[randomIndex];
+            console.log(`[MediaRequestService] Selected media: ${selected.id} (URL: ${selected.url})`);
+            return selected;
 
         } catch (error) {
             console.warn('[MediaRequestService] Error fetching media:', error);
