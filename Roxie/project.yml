@@ -63,6 +63,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vivivi
+        DEVELOPMENT_TEAM: "6BZ59393SB"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Roxie/Roxie.entitlements
         GENERATE_INFOPLIST_FILE: NO
         DEVELOPMENT_ASSET_PATHS: "\"Roxie/Preview Content\""
         TARGETED_DEVICE_FAMILY: "1,2"
