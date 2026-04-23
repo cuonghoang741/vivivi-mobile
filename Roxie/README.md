@@ -62,9 +62,7 @@ On iOS 26 they use the real `.glassEffect`; on iOS 16–25 they fall back to `.u
 
 ## Signing
 
-`DEVELOPMENT_TEAM = 10621978177` in `project.yml`.
-
-> ⚠️ Apple signing Team IDs are 10 characters (letters + digits). `10621978177` is 11 digits and looks like an App Store Connect provider/account ID, not a Team ID. Replace with the 10-char Team ID from [Membership](https://developer.apple.com/account#membership-details) before archiving.
+`DEVELOPMENT_TEAM = 6BZ59393SB` in `project.yml`.
 
 ## Migration phases
 
