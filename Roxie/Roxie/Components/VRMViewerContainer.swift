@@ -8,11 +8,32 @@ struct VRMViewerContainer: View {
             Color.roxiePink.ignoresSafeArea()
             VRMWebView(
                 bridge: vm.bridge,
-                onModelReady: { vm.modelBecameReady() },
-                onError: { vm.report(error: $0) }
+                onInitialReady: { vm.handleInitialReady() },
+                onModelLoaded: { vm.handleModelLoaded() },
+                onError: { vm.handleError($0) }
             )
-            if !vm.isReady {
-                ProgressView().tint(.white)
+            overlay
+        }
+        .task { await vm.onAppear() }
+        .onDisappear { vm.onDisappear() }
+    }
+
+    @ViewBuilder
+    private var overlay: some View {
+        switch vm.state {
+        case .loading, .initialReady:
+            ProgressView().tint(.white)
+        case .modelLoaded:
+            EmptyView()
+        case .failed(let message):
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.white)
+                Text(message)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 40)
             }
         }
     }
