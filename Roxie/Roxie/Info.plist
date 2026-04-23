@@ -45,6 +45,10 @@
 	<string>We need access to your Photo Library to save and load media files.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This identifier may be used to personalize your experience.</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

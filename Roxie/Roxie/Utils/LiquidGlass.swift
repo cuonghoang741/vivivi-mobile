@@ -23,12 +23,19 @@ extension View {
 
     @ViewBuilder
     func liquidGlassInteractive(
+        tint: Color? = nil,
         in shape: some Shape = Capsule()
     ) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: shape)
+            if let tint {
+                self.glassEffect(.regular.tint(tint).interactive(), in: shape)
+            } else {
+                self.glassEffect(.regular.interactive(), in: shape)
+            }
         } else {
-            self.background(.ultraThinMaterial, in: shape)
+            self
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.fill((tint ?? .clear).opacity(0.6)))
         }
     }
 }

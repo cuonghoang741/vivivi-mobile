@@ -12,20 +12,8 @@ final class AppViewModel: ObservableObject {
     @Published var phase: Phase = .launching
     @Published var currentUser: User?
 
-    let auth: AuthServicing
-    let analytics: AnalyticsServicing
-
-    init(
-        auth: AuthServicing = AuthService(),
-        analytics: AnalyticsServicing = AnalyticsService()
-    ) {
-        self.auth = auth
-        self.analytics = analytics
-    }
-
     func bootstrap() async {
-        analytics.track(event: "app_launch")
-        if let user = await auth.restoreSession() {
+        if let user = await AuthManager.shared.restoreSession() {
             currentUser = user
             phase = user.hasCompletedOnboarding ? .ready : .onboarding
         } else {
@@ -40,11 +28,12 @@ final class AppViewModel: ObservableObject {
 
     func finishedOnboarding() {
         currentUser?.hasCompletedOnboarding = true
+        UserPreferencesService.shared.hasCompletedOnboardingV2 = true
         phase = .ready
     }
 
     func signOut() async {
-        await auth.signOut()
+        await AuthManager.shared.signOut()
         currentUser = nil
         phase = .signedOut
     }

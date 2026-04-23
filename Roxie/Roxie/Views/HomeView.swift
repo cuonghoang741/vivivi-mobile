@@ -32,15 +32,6 @@ struct HomeView: View {
             .liquidGlassInteractive(in: Circle())
 
             Spacer()
-
-            HStack(spacing: 6) {
-                Image(systemName: "diamond.fill").foregroundStyle(.pink)
-                Text("\(app.currentUser?.rubies ?? 0)")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .liquidGlass(in: Capsule())
         }
         .padding(.horizontal)
         .padding(.top, 8)

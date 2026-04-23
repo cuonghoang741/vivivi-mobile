@@ -1,5 +1,4 @@
 import SwiftUI
-import AuthenticationServices
 
 struct SignInView: View {
     @EnvironmentObject private var app: AppViewModel
@@ -14,7 +13,7 @@ struct SignInView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 Spacer()
                 Text("Welcome to Roxie")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -23,20 +22,24 @@ struct SignInView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
 
-                SignInWithAppleButton(
-                    .signIn,
-                    onRequest: vm.configure,
-                    onCompletion: { result in
-                        Task {
-                            if let user = await vm.handle(result: result) {
-                                app.signedIn(user)
-                            }
+                Button {
+                    Task {
+                        if let user = await vm.signInWithApple() {
+                            app.signedIn(user)
                         }
                     }
-                )
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "apple.logo")
+                            .font(.subheadline)
+                        Text("Sign in with Apple")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.horizontal, 24)
+                }
+                .liquidGlassInteractive(tint: .black, in: Capsule())
                 .padding(.horizontal, 24)
 
                 Button {

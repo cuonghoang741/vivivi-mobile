@@ -8,6 +8,19 @@ options:
   generateEmptyDirectories: true
   xcodeVersion: "26.0"
 
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Secrets.xcconfig
+  Release: Secrets.xcconfig
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -16,6 +29,8 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     MARKETING_VERSION: "1.2.0"
     CURRENT_PROJECT_VERSION: "1"
+    SUPABASE_URL: "$(SUPABASE_URL)"
+    SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
 
 targets:
   Roxie:
@@ -31,12 +46,17 @@ targets:
     resources:
       - path: Roxie/Resources/HTML
         type: folder
+    dependencies:
+      - package: Supabase
+        product: Supabase
     info:
       path: Roxie/Info.plist
       properties:
         CFBundleDisplayName: Roxie
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        SUPABASE_URL: "$(SUPABASE_URL)"
+        SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
         UILaunchScreen:
           UIColorName: ""
           UIImageName: ""
