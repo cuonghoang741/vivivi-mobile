@@ -1,8 +1,6 @@
 import { ChatMessage } from '../types/chat';
 import { MediaItem } from '../repositories/MediaRepository';
 import { getSupabaseClient, getAuthenticatedUserId } from './supabase';
-import { telegramNotificationService } from './TelegramNotificationService';
-import { getTelegramUserInfo } from '../utils/telegramUserHelper';
 import { analyticsService } from './AnalyticsService';
 
 type ConversationRow = {
@@ -85,15 +83,6 @@ class ChatService {
     const userId = await getAuthenticatedUserId();
     const conversation_history = buildHistoryPayload(params.history);
 
-    // Send Telegram notification for user chat message (fire-and-forget)
-    getTelegramUserInfo().then(userInfo => {
-      telegramNotificationService.notifyChatMessage(
-        userInfo,
-        params.characterName,
-        params.text
-      );
-    }).catch(err => console.warn('[ChatService] Failed to send Telegram notification:', err));
-
     // Track send message analytics
     analyticsService.logSendMessage(params.characterId, params.text.length);
 
@@ -131,16 +120,6 @@ class ChatService {
     if (messages.length === 0) {
       throw new Error('Empty response from Gemini');
     }
-
-    // Send Telegram notification for AI response (full text)
-    const fullResponseText = messages.join(' ');
-    getTelegramUserInfo().then(userInfo => {
-      telegramNotificationService.notifyAIResponse(
-        userInfo,
-        params.characterName,
-        fullResponseText
-      );
-    }).catch(err => console.warn('[ChatService] Failed to send Telegram notification for AI response:', err));
 
     return messages;
   }
