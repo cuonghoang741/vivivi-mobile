@@ -39,6 +39,8 @@ interface CharacterSheetProps {
   onOpenSubscription?: () => void;
   isDarkBackground?: boolean;
   isPro?: boolean;
+  preloadedCharacters?: CharacterItem[];
+  preloadedOwnedCharacterIds?: Set<string>;
 }
 
 export type CharacterSheetRef = BottomSheetRef;
@@ -49,6 +51,8 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   onOpenSubscription,
   isDarkBackground = true,
   isPro = false,
+  preloadedCharacters,
+  preloadedOwnedCharacterIds,
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -154,14 +158,34 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
   }, [isLoading, isPro]);
 
   useEffect(() => {
+    // If we have preloaded data, sync it to local state immediately
+    if (preloadedCharacters && preloadedCharacters.length > 0) {
+      // Sort preloaded characters based on ownership
+      const sorted = [...preloadedCharacters].sort((char1, char2) => {
+        const isOwned1 = preloadedOwnedCharacterIds?.has(char1.id);
+        const isOwned2 = preloadedOwnedCharacterIds?.has(char2.id);
+        if (isOwned1 !== isOwned2) return isOwned1 ? -1 : 1;
+        return 0;
+      });
+      setItems(sorted);
+    }
+  }, [preloadedCharacters, preloadedOwnedCharacterIds]);
+
+  useEffect(() => {
+    if (preloadedOwnedCharacterIds) {
+      setOwnedCharacterIds(preloadedOwnedCharacterIds);
+    }
+  }, [preloadedOwnedCharacterIds]);
+
+  useEffect(() => {
     if (isOpened) {
-      if (items.length === 0) {
+      if (items.length === 0 && !preloadedCharacters) {
         load();
-      } else {
+      } else if (!preloadedOwnedCharacterIds) {
         fetchOwnedCharacterIds();
       }
     }
-  }, [isOpened, items.length, fetchOwnedCharacterIds, load]);
+  }, [isOpened, items.length, fetchOwnedCharacterIds, load, preloadedCharacters, preloadedOwnedCharacterIds]);
 
   useEffect(() => {
     if (isLoading) {

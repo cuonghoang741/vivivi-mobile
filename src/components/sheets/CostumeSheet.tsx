@@ -37,6 +37,8 @@ interface CostumeSheetProps {
   onOpenStreak?: () => void;
   isDarkBackground?: boolean;
   isPro?: boolean;
+  preloadedCostumes?: CostumeItem[];
+  preloadedOwnedCostumeIds?: Set<string>;
 }
 
 export type CostumeSheetRef = BottomSheetRef;
@@ -50,6 +52,8 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
   onOpenStreak,
   isDarkBackground = true,
   isPro = false,
+  preloadedCostumes,
+  preloadedOwnedCostumeIds,
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,6 +82,32 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
   }, [characterId]);
 
   const load = useCallback(async () => {
+    // If we have preloaded data, just set it and return
+    if (preloadedCostumes && preloadedOwnedCostumeIds) {
+      setOwnedCostumeIds(new Set(preloadedOwnedCostumeIds));
+      
+      const filtered = preloadedCostumes.filter(costume =>
+        costume.available !== false || (costume.metadata && costume.metadata.isLocked !== undefined)
+      );
+
+      const sorted = filtered.sort((a, b) => {
+        const ownedA = preloadedOwnedCostumeIds.has(a.id);
+        const ownedB = preloadedOwnedCostumeIds.has(b.id);
+        const lockedA = a.metadata?.isLocked === true;
+        const lockedB = b.metadata?.isLocked === true;
+        
+        if (lockedA !== lockedB) return lockedA ? 1 : -1;
+        if (ownedA !== ownedB) return ownedA ? -1 : 1;
+        if (a.streak_days && !b.streak_days) return -1;
+        if (!a.streak_days && b.streak_days) return 1;
+        if (a.streak_days && b.streak_days) return (a.streak_days ?? 0) - (b.streak_days ?? 0);
+        return 0;
+      });
+
+      setItems(sorted);
+      return;
+    }
+
     if (isLoading) return;
     setIsLoading(true);
     setErrorMessage(null);
@@ -121,7 +151,7 @@ export const CostumeSheet = forwardRef<CostumeSheetRef, CostumeSheetProps>(({
     } finally {
       setIsLoading(false);
     }
-  }, [effectiveCharacterId]);
+  }, [effectiveCharacterId, preloadedCostumes, preloadedOwnedCostumeIds]);
 
   useEffect(() => {
     if (isOpened) {

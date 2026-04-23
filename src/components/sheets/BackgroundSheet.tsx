@@ -30,6 +30,8 @@ interface BackgroundSheetProps {
   isDarkBackground?: boolean;
   isPro?: boolean;
   currentBackgroundId?: string | null;
+  preloadedBackgrounds?: BackgroundItem[];
+  preloadedOwnedBackgroundIds?: Set<string>;
 }
 
 export type BackgroundSheetRef = BottomSheetRef;
@@ -41,6 +43,8 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
   isDarkBackground = true,
   isPro = false,
   currentBackgroundId,
+  preloadedBackgrounds,
+  preloadedOwnedBackgroundIds,
 }, ref) => {
   const sheetRef = useRef<BottomSheetRef>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,14 +112,37 @@ export const BackgroundSheet = forwardRef<BackgroundSheetRef, BackgroundSheetPro
   }, []);
 
   useEffect(() => {
+    // If we have preloaded data, sync it to local state immediately
+    if (preloadedBackgrounds && preloadedBackgrounds.length > 0) {
+      const availableBackgrounds = preloadedBackgrounds.filter((b) => b.available);
+      
+      // Sort: Owned first, then others
+      const sorted = availableBackgrounds.sort((a, b) => {
+        const isOwned1 = preloadedOwnedBackgroundIds?.has(a.id);
+        const isOwned2 = preloadedOwnedBackgroundIds?.has(b.id);
+        if (isOwned1 !== isOwned2) return isOwned1 ? -1 : 1;
+        return 0;
+      });
+
+      setItems(sorted);
+    }
+  }, [preloadedBackgrounds, preloadedOwnedBackgroundIds]);
+
+  useEffect(() => {
+    if (preloadedOwnedBackgroundIds) {
+      setOwnedBackgroundIds(preloadedOwnedBackgroundIds);
+    }
+  }, [preloadedOwnedBackgroundIds]);
+
+  useEffect(() => {
     if (isOpened) {
-      if (items.length === 0) {
+      if (items.length === 0 && !preloadedBackgrounds) {
         load();
-      } else {
+      } else if (!preloadedOwnedBackgroundIds) {
         fetchOwnedBackgrounds();
       }
     }
-  }, [isOpened, items.length, load, fetchOwnedBackgrounds]);
+  }, [isOpened, items.length, load, fetchOwnedBackgrounds, preloadedBackgrounds, preloadedOwnedBackgroundIds]);
 
   // Prefetch images for caching
   useEffect(() => {

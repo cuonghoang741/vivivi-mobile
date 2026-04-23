@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, StatusBar, Platform, Alert, Keyboard, Text, TouchableOpacity, Pressable, Linking, PanResponder, Animated, Image } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { NavigationContainer, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -142,9 +142,12 @@ const AppContent = () => {
   const [showRubyPurchaseSheet, setShowRubyPurchaseSheet] = useState(false);
   const { isPro } = useSubscription();
   const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
+  const [systemCharacters, setSystemCharacters] = useState<CharacterItem[]>([]);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<Set<string>>(new Set());
   const [allBackgrounds, setAllBackgrounds] = useState<BackgroundItem[]>([]);
   const [ownedBackgroundIds, setOwnedBackgroundIds] = useState<Set<string>>(new Set());
+  const [allCostumes, setAllCostumes] = useState<CostumeItem[]>([]);
+  const [ownedCostumeIds, setOwnedCostumeIds] = useState<Set<string>>(new Set());
   const [currentBackgroundId, setCurrentBackgroundId] = useState<string | null>(null);
   const [isChatScrolling, setIsChatScrolling] = useState(false);
   const [isChatFullScreen, setIsChatFullScreen] = useState(false);
@@ -252,13 +255,11 @@ const AppContent = () => {
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      console.log('[App] Keyboard SHOW event fired, height:', e.endCoordinates.height);
       setIsKeyboardVisible(true);
       setKeyboardHeight(e.endCoordinates.height);
     });
 
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      console.log('[App] Keyboard HIDE event fired');
       setIsKeyboardVisible(false);
       setKeyboardHeight(0);
     });
@@ -320,13 +321,14 @@ const AppContent = () => {
 
         console.log('[DEBUG loadCharacters] total characters:', characters.length, 'owned count:', owned.size, 'owned ids:', [...owned]);
 
-        // Filter to only owned characters
-        const ownedCharacters = characters.filter(c => owned.has(c.id));
-        console.log('[DEBUG loadCharacters] ownedCharacters:', ownedCharacters.length, ownedCharacters.map(c => c.id));
-        setAllCharacters(ownedCharacters);
+        setSystemCharacters(characters);
         setOwnedCharacterIds(owned);
+
+        // Filter to only owned characters for compatibility with existing code
+        const ownedCharacters = characters.filter(c => owned.has(c.id));
+        setAllCharacters(ownedCharacters);
       } catch (error) {
-        console.warn('[App] Failed to load characters for quick switcher:', error);
+        console.warn('[App] Failed to load characters:', error);
       }
     };
 
@@ -1038,7 +1040,7 @@ const AppContent = () => {
               } else {
                 const choice = await confirmCharacterPurchase(item);
                 if (!choice) return;
-                
+
                 const finalPriceVcoin = choice.useVcoin ? priceVcoin : 0;
                 const finalPriceRuby = choice.useRuby ? priceRuby : 0;
                 try {
@@ -1201,6 +1203,28 @@ const AppContent = () => {
       loadBackgrounds();
     }
   }, [hasRestoredSession]);
+
+  // Load costumes on mount and when character changes
+  useEffect(() => {
+    if (!hasRestoredSession || !activeCharacterId) return;
+
+    const loadCostumes = async () => {
+      try {
+        const costumeRepo = new CostumeRepository();
+        const assetRepo = new AssetRepository();
+        const [costumes, ownedIds] = await Promise.all([
+          costumeRepo.fetchCostumes(activeCharacterId, true),
+          assetRepo.fetchOwnedAssets('character_costume'),
+        ]);
+        setAllCostumes(costumes);
+        setOwnedCostumeIds(ownedIds instanceof Set ? ownedIds : new Set(ownedIds as Iterable<string>));
+        console.log(`✅ Preloaded ${costumes.length} costumes for character ${activeCharacterId}`);
+      } catch (error) {
+        console.warn('[App] Failed to preload costumes:', error);
+      }
+    };
+    loadCostumes();
+  }, [hasRestoredSession, activeCharacterId]);
 
   // Advance background by offset (for swipe navigation) - like swift-version
   const advanceBackground = useCallback(
@@ -1797,12 +1821,15 @@ const AppContent = () => {
     }));
   }, [loginRewardState.canClaimToday]);
 
+  const currentBgItem = useMemo(() => {
+    if (!currentBackgroundId) return null;
+    return allBackgrounds.find(bg => bg.id === currentBackgroundId);
+  }, [currentBackgroundId, allBackgrounds]);
+
   // Compute isDarkBackground based on current background
   const isDarkBackground = useMemo(() => {
-    if (!currentBackgroundId) return true; // Default to dark
-    const currentBg = allBackgrounds.find(bg => bg.id === currentBackgroundId);
-    return currentBg?.is_dark ?? true; // Default to dark if not set
-  }, [currentBackgroundId, allBackgrounds]);
+    return currentBgItem?.is_dark ?? true; // Default to dark if not set
+  }, [currentBgItem]);
 
   const handleModelReady = useCallback(async () => {
     console.log('🎉 [App] VRM Model is ready!');
@@ -2388,6 +2415,12 @@ const AppContent = () => {
           isDarkBackground={isDarkBackground}
           isPro={isPro}
           currentBackgroundId={currentBackgroundId}
+          preloadedCharacters={systemCharacters}
+          preloadedOwnedCharacterIds={ownedCharacterIds}
+          preloadedBackgrounds={allBackgrounds}
+          preloadedOwnedBackgroundIds={ownedBackgroundIds}
+          preloadedCostumes={allCostumes}
+          preloadedOwnedCostumeIds={ownedCostumeIds}
         />
         <StreakSheet
           ref={streakSheetRef}
@@ -2438,27 +2471,6 @@ const AppContent = () => {
         />
 
         <ToastStackView />
-        <SettingsModal
-          visible={showSettings}
-          onClose={() => {
-            setShowSettings(false);
-            setSettingsInitialScreen(undefined);
-          }}
-          email={session?.user?.email ?? null}
-          displayName={
-            (session?.user?.user_metadata as Record<string, any> | undefined)?.display_name ??
-            session?.user?.email ??
-            null
-          }
-          onOpenSubscription={() => {
-            console.log('[App] Opening subscription sheet from settings');
-            setShowSubscriptionSheet(true);
-          }}
-          isPro={isPro}
-          rubyBalance={balance.ruby ?? 0}
-          onOpenRubySheet={() => setShowRubyPurchaseSheet(true)}
-          initialScreen={settingsInitialScreen}
-        />
         {rewardOverlayData && (
           <RewardClaimOverlay
             isPresented={showRewardOverlay}
@@ -2626,13 +2638,23 @@ const AppContent = () => {
     );
   };
 
+
   const content = renderContent();
   return (
     <SceneActionsProvider value={sceneActions}>
-      <View style={{ flex: 1, backgroundColor: 'pink' }}>
-        {/* Persistently Mounted VRMWebView */}
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        {/* Persistently Mounted background image and VRMWebView */}
         {!(Platform.OS === 'ios' && showSwiftUIDemo) && (
           <View style={StyleSheet.absoluteFill}>
+            {/* Background Image Layer */}
+            {currentBgItem?.image && (
+              <Image
+                source={{ uri: currentBgItem.image }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+            )}
+
             <Pressable
               style={styles.webViewWrapper}
               ref={snapshotViewRef as any}
@@ -2663,6 +2685,27 @@ const AppContent = () => {
 
         {/* Application Content Overlays */}
         {content}
+        <SettingsModal
+          visible={showSettings}
+          onClose={() => {
+            setShowSettings(false);
+            setSettingsInitialScreen(undefined);
+          }}
+          email={session?.user?.email ?? null}
+          displayName={
+            (session?.user?.user_metadata as Record<string, any> | undefined)?.display_name ??
+            session?.user?.email ??
+            null
+          }
+          onOpenSubscription={() => {
+            console.log('[App] Opening subscription sheet from settings');
+            setShowSubscriptionSheet(true);
+          }}
+          isPro={isPro}
+          rubyBalance={balance.ruby ?? 0}
+          onOpenRubySheet={() => setShowRubyPurchaseSheet(true)}
+          initialScreen={settingsInitialScreen}
+        />
       </View>
     </SceneActionsProvider>
   );

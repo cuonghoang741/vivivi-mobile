@@ -8,6 +8,9 @@ import { EnergySheet } from './sheets/EnergySheet';
 import { LevelSheet } from './sheets/LevelSheet';
 import { CharacterDetailSheet } from './sheets/CharacterDetailSheet';
 import type { useQuests } from '../hooks/useQuests';
+import type { CharacterItem } from '../repositories/CharacterRepository';
+import type { BackgroundItem } from '../repositories/BackgroundRepository';
+import type { CostumeItem } from '../repositories/CostumeRepository';
 
 type AppSheetsProps = {
   // Quest Sheet
@@ -20,10 +23,14 @@ type AppSheetsProps = {
   // Background Sheet
   showBackgroundSheet: boolean;
   setShowBackgroundSheet: (show: boolean) => void;
+  preloadedBackgrounds?: BackgroundItem[];
+  preloadedOwnedBackgroundIds?: Set<string>;
 
   // Character Sheet
   showCharacterSheet: boolean;
   setShowCharacterSheet: (show: boolean) => void;
+  preloadedCharacters?: CharacterItem[];
+  preloadedOwnedCharacterIds?: Set<string>;
 
   // Costume Sheet
   showCostumeSheet: boolean;
@@ -31,6 +38,8 @@ type AppSheetsProps = {
   activeCharacterId?: string;
   streakDays?: number;
   onOpenStreak?: () => void;
+  preloadedCostumes?: CostumeItem[];
+  preloadedOwnedCostumeIds?: Set<string>;
 
   // Media Sheet
   showMediaSheet: boolean;
@@ -102,6 +111,12 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
   isDarkBackground = true,
   isPro = false,
   currentBackgroundId,
+  preloadedCharacters,
+  preloadedOwnedCharacterIds,
+  preloadedBackgrounds,
+  preloadedOwnedBackgroundIds,
+  preloadedCostumes,
+  preloadedOwnedCostumeIds,
 }) => {
   return (
     <>
@@ -112,6 +127,8 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         isDarkBackground={isDarkBackground}
         isPro={isPro}
         currentBackgroundId={currentBackgroundId}
+        preloadedBackgrounds={preloadedBackgrounds}
+        preloadedOwnedBackgroundIds={preloadedOwnedBackgroundIds}
       />
       <CharacterSheet
         isOpened={showCharacterSheet}
@@ -119,6 +136,8 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         onOpenSubscription={onOpenSubscription}
         isDarkBackground={true}
         isPro={isPro}
+        preloadedCharacters={preloadedCharacters}
+        preloadedOwnedCharacterIds={preloadedOwnedCharacterIds}
       />
       <CostumeSheet
         isOpened={showCostumeSheet}
@@ -129,6 +148,8 @@ export const AppSheets: React.FC<AppSheetsProps> = ({
         onOpenStreak={onOpenStreak}
         isDarkBackground={isDarkBackground}
         isPro={isPro}
+        preloadedCostumes={preloadedCostumes}
+        preloadedOwnedCostumeIds={preloadedOwnedCostumeIds}
       />
       <MediaSheet
         isOpened={showMediaSheet}

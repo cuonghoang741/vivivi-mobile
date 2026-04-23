@@ -10,9 +10,10 @@ import { getLocales } from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureClientId, clearClientId } from "../utils/clientId";
 import { getSupabaseAuthHeaders } from "../utils/supabaseHelpers";
-import { analyticsService } from "./AnalyticsService";
+import { analyticsService, AnalyticsEvents } from "./AnalyticsService";
 import { revenueCatManager } from "./RevenueCatManager";
 import { telegramNotificationService } from "./TelegramNotificationService";
+import { oneSignalService } from "./OneSignalService";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -306,6 +307,8 @@ export class AuthManager {
         "spicy_content_notifications",
         "notification_counters",
         "user_call_quota",
+        "custom_character_requests",
+        "user_background",
       ];
       const tablesWithoutClientId = new Set(["api_characters", "subscriptions", "user_call_quota"]);
 
@@ -345,6 +348,13 @@ export class AuthManager {
       }
 
       await this.clearLocalStateAfterDeletion();
+
+      // Reset OneSignal
+      await oneSignalService.removeExternalUserId();
+
+      // Reset Analytics
+      await analyticsService.setUserId(null);
+      await analyticsService.logDeleteAccount();
 
       // Reset RevenueCat before callback to ensure no lingering pro state
       await revenueCatManager.logout();
@@ -386,6 +396,8 @@ export class AuthManager {
     try {
       await this.client.auth.signOut();
       await revenueCatManager.logout();
+      await oneSignalService.removeExternalUserId();
+      await analyticsService.setUserId(null);
       this._isNewUser = null;
       this.setState({ session: null, user: null });
       analyticsService.logSignOut();
