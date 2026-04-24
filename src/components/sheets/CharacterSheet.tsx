@@ -310,9 +310,16 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
         ]}
       >
         <View style={styles.imageBackground}>
-          {item.thumbnail_url && (
+          {(item.default_background?.thumbnail || item.default_background?.image) ? (
             <Image
-              source={{ uri: item.thumbnail_url }}
+              source={{ uri: item.default_background.thumbnail || item.default_background.image }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (item.thumbnail_url_small || item.thumbnail_url) && (
+            <Image
+              source={{ uri: item.thumbnail_url_small || item.thumbnail_url }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={200}
@@ -321,16 +328,16 @@ export const CharacterSheet = forwardRef<CharacterSheetRef, CharacterSheetProps>
 
           {false ? (
             <Video
-              source={{ uri: item.video_url }}
+              source={{ uri: item.video_url || '' }}
               style={styles.cardImage}
               resizeMode={ResizeMode.COVER}
               shouldPlay
               isLooping
               isMuted
             />
-          ) : item.thumbnail_url || item.avatar ? (
+          ) : item.thumbnail_url_small || item.thumbnail_url || item.avatar ? (
             <Image
-              source={{ uri: item.thumbnail_url || item.avatar }}
+              source={{ uri: item.thumbnail_url_small || item.thumbnail_url || item.avatar }}
               style={[styles.cardImage]}
               contentFit="cover"
               transition={200}

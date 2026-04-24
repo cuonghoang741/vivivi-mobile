@@ -21,7 +21,9 @@ export interface CharacterItem {
   name: string;
   description?: string;
   thumbnail_url?: string;
+  thumbnail_url_small?: string;
   avatar?: string;
+  small_avatar_url?: string;
   video_url?: string;
   base_model_url?: string;
   agent_elevenlabs_id?: string;
@@ -50,7 +52,7 @@ export class CharacterRepository extends BaseRepository {
     try {
       let query = this.client
         .from('characters')
-        .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)')
+        .select('id,name,description,thumbnail_url,thumbnail_url_small,avatar,small_avatar_url,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)')
         .eq('is_public', true);
 
       // Filter by owner_by_id (either null or current user's ID)
@@ -77,7 +79,7 @@ export class CharacterRepository extends BaseRepository {
           const { executeSupabaseRequest } = await import('../utils/supabaseHelpers');
 
           const queryItems: Record<string, string> = {
-            select: 'id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)',
+            select: 'id,name,description,thumbnail_url,thumbnail_url_small,avatar,small_avatar_url,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data,order,owner_by_id,default_background:backgrounds!background_default_id(image,thumbnail)',
             is_public: 'is.true',
             order: 'order.asc',
           };
@@ -134,7 +136,7 @@ export class CharacterRepository extends BaseRepository {
   async fetchCharacter(id: string): Promise<CharacterItem | null> {
     const { data, error } = await this.client
       .from('characters')
-      .select('id,name,description,thumbnail_url,avatar,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
+      .select('id,name,description,thumbnail_url,thumbnail_url_small,avatar,small_avatar_url,video_url,base_model_url,agent_elevenlabs_id,tier,available,price_vcoin,price_ruby,default_costume_id,background_default_id,data, default_background:backgrounds!background_default_id(image,thumbnail)')
       .eq('id', id)
       .eq('available', true)
       .single();

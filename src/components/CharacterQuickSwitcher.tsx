@@ -123,7 +123,7 @@ export const CharacterQuickSwitcher: React.FC<CharacterQuickSwitcherProps> = ({
           inputRange: [0, 1],
           outputRange: [0.6, 1.0],
         });
-        const avatarURL = item.avatar || item.thumbnail_url || '';
+        const avatarURL = item.small_avatar_url || item.thumbnail_url_small || item.avatar || item.thumbnail_url || '';
         const unseenCount = unseenCounts[item.id] || 0;
 
         return (
